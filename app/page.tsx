@@ -9,6 +9,15 @@ const supabase = createClient(
 
 const PASSORD = 'Isabella26'
 
+type Oppgave = {
+  id: string
+  tittel: string
+  ansvar: string
+  prioritet: 'hast' | 'normal' | 'lav'
+  status: 'aktiv' | 'ferdig'
+  opprettet: string
+}
+
 type Prosjekt = {
   id: string
   bruker: string
@@ -79,25 +88,66 @@ export default function Home() {
   const [nyMåned, setNyMåned] = useState({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
 
+  const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
+  const [nyOppgave, setNyOppgave] = useState({ tittel: '', ansvar: '', prioritet: 'normal' as 'hast' | 'normal' | 'lav' })
+  const [visNyOppgave, setVisNyOppgave] = useState(false)
+
+  useEffect(() => {
+    if (loggetInn) {
+      hentOppgaver()
+    }
+  }, [loggetInn])
+
   useEffect(() => {
     if (loggetInn && aktivSeksjon === 'regnskap') hentProsjekter()
   }, [loggetInn, aktivSeksjon])
 
+  async function hentOppgaver() {
+    const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
+    if (data) {
+      const sortert = [...data].sort((a, b) => {
+        const prioritetRekkefølge = { hast: 0, normal: 1, lav: 2 }
+        const statusRekkefølge = { aktiv: 0, ferdig: 1 }
+        if (statusRekkefølge[a.status as keyof typeof statusRekkefølge] !== statusRekkefølge[b.status as keyof typeof statusRekkefølge])
+          return statusRekkefølge[a.status as keyof typeof statusRekkefølge] - statusRekkefølge[b.status as keyof typeof statusRekkefølge]
+        return prioritetRekkefølge[a.prioritet as keyof typeof prioritetRekkefølge] - prioritetRekkefølge[b.prioritet as keyof typeof prioritetRekkefølge]
+      })
+      setOppgaver(sortert)
+    }
+  }
+
+  async function leggTilOppgave() {
+    if (!nyOppgave.tittel) return
+    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), ...nyOppgave, status: 'aktiv' }])
+    setNyOppgave({ tittel: '', ansvar: '', prioritet: 'normal' })
+    setVisNyOppgave(false)
+    await hentOppgaver()
+  }
+
+  async function toggleOppgave(oppgave: Oppgave) {
+    const nyStatus = oppgave.status === 'aktiv' ? 'ferdig' : 'aktiv'
+    await supabase.from('oppgaver').update({ status: nyStatus }).eq('id', oppgave.id)
+    await hentOppgaver()
+  }
+
+  async function slettOppgave(id: string) {
+    await supabase.from('oppgaver').delete().eq('id', id)
+    await hentOppgaver()
+  }
+
   async function hentProsjekter() {
     setDbLoading(true)
-    const { data, error } = await supabase
-      .from('prosjekter')
-      .select('*')
-      .eq('bruker', 'leganger')
-      .order('opprettet', { ascending: false })
-    if (!error && data) setProsjekter(data)
+    const { data } = await supabase.from('prosjekter').select('*').eq('bruker', 'leganger').order('opprettet', { ascending: false })
+    if (data) setProsjekter(data)
     setDbLoading(false)
   }
 
   async function leggTilProsjekt() {
     if (!nyttProsjekt.navn) return
-    const { error } = await supabase.from('prosjekter').insert([{ ...nyttProsjekt, id: Date.now().toString(), bruker: 'leganger' }])
-    if (!error) { await hentProsjekter(); setNyttProsjekt(tomtProsjekt()); setVisNyttSkjema(false) }
+    await supabase.from('prosjekter').insert([{ ...nyttProsjekt, id: Date.now().toString(), bruker: 'leganger' }])
+    await hentProsjekter()
+    setNyttProsjekt(tomtProsjekt())
+    setVisNyttSkjema(false)
   }
 
   async function slettProsjekt(id: string) {
@@ -116,8 +166,7 @@ export default function Home() {
     if (!nyMåned.måned) return
     const p = prosjekter.find(p => p.id === prosjektId)
     if (!p) return
-    const oppdatert = { ...p, måneder: [...p.måneder, nyMåned] }
-    await oppdaterProsjekt(oppdatert)
+    await oppdaterProsjekt({ ...p, måneder: [...p.måneder, nyMåned] })
     setNyMåned({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   }
 
@@ -166,6 +215,19 @@ export default function Home() {
     if (s === 'Under oppussing') return { bg: '#fff8e1', color: '#B05E0A' }
     if (s === 'Solgt') return { bg: '#f0f0f0', color: '#666' }
     return { bg: '#fde8ec', color: '#C8102E' }
+  }
+
+  const prioritetFarge = (p: string, status: string) => {
+    if (status === 'ferdig') return { bg: '#e8f5ed', border: '#2D7D46', color: '#2D7D46' }
+    if (p === 'hast') return { bg: '#fde8ec', border: '#C8102E', color: '#C8102E' }
+    if (p === 'normal') return { bg: '#fff8e1', border: '#B05E0A', color: '#B05E0A' }
+    return { bg: '#f8f8f8', border: '#ddd', color: '#666' }
+  }
+
+  const prioritetLabel = (p: string) => {
+    if (p === 'hast') return '🔴 Hast'
+    if (p === 'normal') return '🟡 Normal'
+    return '⚪ Lav'
   }
 
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
@@ -265,23 +327,84 @@ export default function Home() {
       </div>
 
       {!aktivSeksjon && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
-          {[
-            { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg for maksimal gevinst', farge: '#185FA5', bg: '#f0f7ff' },
-            { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial, leieinntekter og investorscore', farge: '#C8102E', bg: '#fff5f5' },
-            { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og beste salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
-            { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter, kostnader og lønnsomhet', farge: '#7B2D8B', bg: '#f9f0ff' },
-          ].map((boks, i) => (
-            <div key={i} onClick={() => setAktivSeksjon(boks.id)}
-              style={{ background: boks.bg, border: `2px solid ${boks.farge}22`, borderRadius: 16, padding: 28, cursor: 'pointer', textAlign: 'center' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>{boks.emoji}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: boks.farge, marginBottom: 8 }}>{boks.tittel}</div>
-              <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 16 }}>{boks.beskrivelse}</div>
-              <div style={{ background: boks.farge, color: 'white', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>Åpne →</div>
+        <div>
+          {/* GJØREMÅLSLISTE */}
+          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
+              <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                + Ny oppgave
+              </button>
             </div>
-          ))}
+
+            {visNyOppgave && (
+              <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Oppgave</label>
+                    <input style={inputStyle} value={nyOppgave.tittel} onChange={e => setNyOppgave(o => ({ ...o, tittel: e.target.value }))} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Ansvar</label>
+                    <input style={inputStyle} value={nyOppgave.ansvar} onChange={e => setNyOppgave(o => ({ ...o, ansvar: e.target.value }))} placeholder="Hvem?" />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Prioritet</label>
+                    <select style={selectStyle} value={nyOppgave.prioritet} onChange={e => setNyOppgave(o => ({ ...o, prioritet: e.target.value as any }))}>
+                      <option value="hast">🔴 Hast</option>
+                      <option value="normal">🟡 Normal</option>
+                      <option value="lav">⚪ Lav</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={leggTilOppgave} style={{ flex: 1, background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
+                  <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
+                </div>
+              </div>
+            )}
+
+            {oppgaver.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå – legg til en!</div>
+            )}
+
+            {oppgaver.map(o => {
+              const pf = prioritetFarge(o.prioritet, o.status)
+              return (
+                <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 10, opacity: o.status === 'ferdig' ? 0.7 : 1 }}>
+                  <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
+                    {o.ansvar && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>👤 {o.ansvar}</div>}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>
+                    {o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(o.prioritet)}
+                  </div>
+                  <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* FIRE BOKSER */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
+            {[
+              { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg for maksimal gevinst', farge: '#185FA5', bg: '#f0f7ff' },
+              { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial, leieinntekter og investorscore', farge: '#C8102E', bg: '#fff5f5' },
+              { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og beste salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
+              { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter, kostnader og lønnsomhet', farge: '#7B2D8B', bg: '#f9f0ff' },
+            ].map((boks, i) => (
+              <div key={i} onClick={() => setAktivSeksjon(boks.id)}
+                style={{ background: boks.bg, border: `2px solid ${boks.farge}22`, borderRadius: 16, padding: 28, cursor: 'pointer', textAlign: 'center' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>{boks.emoji}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: boks.farge, marginBottom: 8 }}>{boks.tittel}</div>
+                <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 16 }}>{boks.beskrivelse}</div>
+                <div style={{ background: boks.farge, color: 'white', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>Åpne →</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -396,7 +519,7 @@ export default function Home() {
         <div>
           <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ fontSize: 36 }}>🔨</div><div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligflipp</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Kommer snart</p></div></div>
-          <div style={{ background: '#f0f7ff', border: '2px dashed #b8d4f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Under utvikling</div></div>
+          <div style={{ background: '#f0f7ff', border: '2px dashed #b8d4f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
         </div>
       )}
 
@@ -404,15 +527,13 @@ export default function Home() {
         <div>
           <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ fontSize: 36 }}>💰</div><div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Selge bolig</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Kommer snart</p></div></div>
-          <div style={{ background: '#f0faf4', border: '2px dashed #b8dfc7', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Under utvikling</div></div>
+          <div style={{ background: '#f0faf4', border: '2px dashed #b8dfc7', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
         </div>
       )}
 
-      {/* REGNSKAP */}
       {aktivSeksjon === 'regnskap' && (
         <div>
           <button onClick={() => { setAktivSeksjon(null); setVisProsjekt(null); setVisNyttSkjema(false) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 36 }}>📊</div>
@@ -592,14 +713,12 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-
                 {p.notater && (
                   <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: 14, marginBottom: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📝 Notater</div>
                     <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.notater}</div>
                   </div>
                 )}
-
                 <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>📆 Månedlig logg</div>
                   {p.måneder.length > 0 && (
