@@ -185,7 +185,7 @@ export default function Home() {
         <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🏡</div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Legos Eiendom</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Leganger Eiendom</h1>
             <p style={{ color: '#666', marginTop: 8, fontSize: 14 }}>Din partner for eiendomsinvestering i Spania</p>
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -218,7 +218,7 @@ export default function Home() {
 
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ fontSize: 48, marginBottom: 8 }}>🏡</div>
-        <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Legos Eiendom</h1>
+        <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Leganger Eiendom</h1>
         <p style={{ color: '#666', marginTop: 8 }}>Din partner for eiendomsinvestering i Spania</p>
         <button onClick={() => setLoggetInn(false)} style={{ marginTop: 8, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
       </div>
