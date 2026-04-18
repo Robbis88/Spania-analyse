@@ -1,7 +1,12 @@
 'use client'
 import { useState } from 'react'
 
+const PASSORD = 'Isabella26'
+
 export default function Home() {
+  const [loggetInn, setLoggetInn] = useState(false)
+  const [passordInput, setPassordInput] = useState('')
+  const [passordFeil, setPassordFeil] = useState(false)
   const [input, setInput] = useState('')
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -15,6 +20,15 @@ export default function Home() {
     parkering: 'privat', havutsikt: 'nei', standard: 'moderne',
     pris: '', ekstra: '', markedspris_bra_m2: '', oppbudsjett: ''
   })
+
+  function loggInn() {
+    if (passordInput === PASSORD) {
+      setLoggetInn(true)
+      setPassordFeil(false)
+    } else {
+      setPassordFeil(true)
+    }
+  }
 
   async function analyser() {
     setLoading(true)
@@ -105,7 +119,6 @@ export default function Home() {
           <div style={{ fontSize: 12, color: '#888' }}>/ 10</div>
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 16 }}>
         {[
           { lbl: '📍 Lokasjon', val: s.lokasjon },
@@ -125,7 +138,6 @@ export default function Home() {
           </div>
         ))}
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
         {[
           { lbl: 'Brutto år 1', val: fmt(s.brutto_ar1) },
@@ -138,7 +150,6 @@ export default function Home() {
           </div>
         ))}
       </div>
-
       {(s.maks_oppussing_5pst > 0 || s.maks_oppussing_6pst > 0 || s.maks_oppussing_7pst > 0) && (
         <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>🔨 Maks oppussingsbudsjett</div>
@@ -156,7 +167,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
       {s.tips && s.tips.length > 0 && (
         <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>💡 Hva må til for grønn?</div>
@@ -168,6 +178,41 @@ export default function Home() {
     </div>
   )
 
+  // PÅLOGGINGSSIDE
+  if (!loggetInn) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8', fontFamily: 'sans-serif' }}>
+        <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🏡</div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Legos Eiendom</h1>
+            <p style={{ color: '#666', marginTop: 8, fontSize: 14 }}>Din partner for eiendomsinvestering i Spania</p>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: '#666', marginBottom: 6, display: 'block' }}>Passord</label>
+            <input
+              type="password"
+              value={passordInput}
+              onChange={e => setPassordInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loggInn()}
+              placeholder="Skriv inn passord"
+              style={{ width: '100%', padding: '12px 14px', fontSize: 15, borderRadius: 8, border: passordFeil ? '2px solid #C8102E' : '1.5px solid #ddd', fontFamily: 'sans-serif' }}
+            />
+            {passordFeil && (
+              <div style={{ color: '#C8102E', fontSize: 13, marginTop: 6 }}>Feil passord, prøv igjen.</div>
+            )}
+          </div>
+          <button
+            onClick={loggInn}
+            style={{ width: '100%', background: '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Logg inn
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', fontFamily: 'sans-serif' }}>
 
@@ -175,9 +220,9 @@ export default function Home() {
         <div style={{ fontSize: 48, marginBottom: 8 }}>🏡</div>
         <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Legos Eiendom</h1>
         <p style={{ color: '#666', marginTop: 8 }}>Din partner for eiendomsinvestering i Spania</p>
+        <button onClick={() => setLoggetInn(false)} style={{ marginTop: 8, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
       </div>
 
-      {/* STEG 1 */}
       <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Analyser boligen</div>
         <textarea
@@ -204,8 +249,6 @@ export default function Home() {
 
       {result && (
         <div>
-
-          {/* GRUNNINFO */}
           <div style={{ background: '#1a1a2e', color: 'white', borderRadius: 12, padding: 24, marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{result.type} · {result.beliggenhet}</div>
             <h2 style={{ fontSize: 20, margin: '0 0 16px' }}>{result.tittel}</h2>
@@ -224,13 +267,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* AI VURDERING */}
           <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>🤖 AI-vurdering</div>
             <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', margin: 0 }}>{result.ai_vurdering}</p>
           </div>
 
-          {/* VFT */}
           <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#888' }}>🏛️ VFT-turistlisens</div>
@@ -245,12 +286,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* STEG 2 – SKJEMA */}
           {visSkjema && (
             <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Fyll inn og sjekk info</div>
               <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Sjekk og legg til det som mangler.</p>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
                   { key: 'type', lbl: 'Type bolig', placeholder: 'Villa / Leilighet', type: 'text' },
@@ -289,7 +328,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* STEG 3 – OPPUSSING */}
               <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Oppussingsbudsjett (valgfritt)</div>
                 <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Legg inn budsjett så beregner vi maks du kan bruke og fortsatt ha lønnsom utleie.</p>
@@ -305,7 +343,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* STEG 4 – KJØR ANALYSE */}
               <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 4 – Kjør full analyse</div>
               <button
                 onClick={kjørAirbnbAnalyse}
@@ -317,7 +354,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* STEG 5 – SCORE */}
           {airbnbScore && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 5 – Score og trafikklys</div>
@@ -325,7 +361,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* ANALYSE TEKST */}
           {airbnbAnalyse && (
             <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig Airbnb-analyse</div>
@@ -335,7 +370,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* NESTE STEG */}
           {result.neste_steg && !airbnbScore && (
             <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>✅ Neste steg</h3>
@@ -354,7 +388,6 @@ export default function Home() {
           >
             🗑️ Nullstill og analyser ny eiendom
           </button>
-
         </div>
       )}
     </main>
