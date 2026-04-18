@@ -87,30 +87,23 @@ export default function Home() {
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [nyMåned, setNyMåned] = useState({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
+  const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
 
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
   const [nyOppgave, setNyOppgave] = useState({ tittel: '', ansvar: '', prioritet: 'normal' as 'hast' | 'normal' | 'lav' })
   const [visNyOppgave, setVisNyOppgave] = useState(false)
 
-  useEffect(() => {
-    if (loggetInn) {
-      hentOppgaver()
-    }
-  }, [loggetInn])
-
-  useEffect(() => {
-    if (loggetInn && aktivSeksjon === 'regnskap') hentProsjekter()
-  }, [loggetInn, aktivSeksjon])
+  useEffect(() => { if (loggetInn) hentOppgaver() }, [loggetInn])
+  useEffect(() => { if (loggetInn && aktivSeksjon === 'regnskap') hentProsjekter() }, [loggetInn, aktivSeksjon])
 
   async function hentOppgaver() {
     const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
     if (data) {
       const sortert = [...data].sort((a, b) => {
-        const prioritetRekkefølge = { hast: 0, normal: 1, lav: 2 }
-        const statusRekkefølge = { aktiv: 0, ferdig: 1 }
-        if (statusRekkefølge[a.status as keyof typeof statusRekkefølge] !== statusRekkefølge[b.status as keyof typeof statusRekkefølge])
-          return statusRekkefølge[a.status as keyof typeof statusRekkefølge] - statusRekkefølge[b.status as keyof typeof statusRekkefølge]
-        return prioritetRekkefølge[a.prioritet as keyof typeof prioritetRekkefølge] - prioritetRekkefølge[b.prioritet as keyof typeof prioritetRekkefølge]
+        const pr = { hast: 0, normal: 1, lav: 2 }
+        const st = { aktiv: 0, ferdig: 1 }
+        if (st[a.status as keyof typeof st] !== st[b.status as keyof typeof st]) return st[a.status as keyof typeof st] - st[b.status as keyof typeof st]
+        return pr[a.prioritet as keyof typeof pr] - pr[b.prioritet as keyof typeof pr]
       })
       setOppgaver(sortert)
     }
@@ -124,9 +117,8 @@ export default function Home() {
     await hentOppgaver()
   }
 
-  async function toggleOppgave(oppgave: Oppgave) {
-    const nyStatus = oppgave.status === 'aktiv' ? 'ferdig' : 'aktiv'
-    await supabase.from('oppgaver').update({ status: nyStatus }).eq('id', oppgave.id)
+  async function toggleOppgave(o: Oppgave) {
+    await supabase.from('oppgaver').update({ status: o.status === 'aktiv' ? 'ferdig' : 'aktiv' }).eq('id', o.id)
     await hentOppgaver()
   }
 
@@ -148,6 +140,13 @@ export default function Home() {
     await hentProsjekter()
     setNyttProsjekt(tomtProsjekt())
     setVisNyttSkjema(false)
+  }
+
+  async function lagreRedigering() {
+    if (!redigerProsjekt) return
+    await supabase.from('prosjekter').update(redigerProsjekt).eq('id', redigerProsjekt.id)
+    await hentProsjekter()
+    setRedigerProsjekt(null)
   }
 
   async function slettProsjekt(id: string) {
@@ -201,12 +200,10 @@ export default function Home() {
 
   const fmt = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
   const fmtPct = (n: number) => n ? n.toFixed(1) + '%' : '–'
-
   const totalInvestering = (p: Prosjekt) => p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
-  const månedligInntekt = (p: Prosjekt) => p.leieinntekt_mnd
   const månedligKostnad = (p: Prosjekt) => p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd
-  const månedligCashflow = (p: Prosjekt) => månedligInntekt(p) - månedligKostnad(p)
-  const yield_pst = (p: Prosjekt) => totalInvestering(p) > 0 ? ((månedligInntekt(p) * 12) / totalInvestering(p) * 100) : 0
+  const månedligCashflow = (p: Prosjekt) => p.leieinntekt_mnd - månedligKostnad(p)
+  const yield_pst = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.leieinntekt_mnd * 12) / totalInvestering(p) * 100) : 0
   const roi = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.forventet_salgsverdi - totalInvestering(p)) / totalInvestering(p) * 100) : 0
 
   const statusFarge = (s: string) => {
@@ -224,16 +221,49 @@ export default function Home() {
     return { bg: '#f8f8f8', border: '#ddd', color: '#666' }
   }
 
-  const prioritetLabel = (p: string) => {
-    if (p === 'hast') return '🔴 Hast'
-    if (p === 'normal') return '🟡 Normal'
-    return '⚪ Lav'
-  }
+  const prioritetLabel = (p: string) => p === 'hast' ? '🔴 Hast' : p === 'normal' ? '🟡 Normal' : '⚪ Lav'
 
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
   const selectStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }
   const labelStyle = { fontSize: 12, color: '#666', marginBottom: 5, display: 'block' as const }
   const fieldStyle = { display: 'flex', flexDirection: 'column' as const }
+
+  const ProsjektFelter = ({ data, onChange }: { data: Prosjekt, onChange: (p: Prosjekt) => void }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+      {[
+        { key: 'navn', lbl: 'Prosjektnavn', placeholder: 'F.eks. Villa Marbella', type: 'text' },
+        { key: 'dato_kjopt', lbl: 'Dato kjøpt', placeholder: '', type: 'date' },
+        { key: 'kjøpesum', lbl: 'Kjøpesum (€)', placeholder: '650000', type: 'number' },
+        { key: 'kjøpskostnader', lbl: 'Kjøpskostnader (€)', placeholder: '84500', type: 'number' },
+        { key: 'oppussingsbudsjett', lbl: 'Oppussingsbudsjett (€)', placeholder: '50000', type: 'number' },
+        { key: 'oppussing_faktisk', lbl: 'Oppussing faktisk (€)', placeholder: '0', type: 'number' },
+        { key: 'møblering', lbl: 'Møblering (€)', placeholder: '15000', type: 'number' },
+        { key: 'forventet_salgsverdi', lbl: 'Forventet salgsverdi (€)', placeholder: '800000', type: 'number' },
+        { key: 'leieinntekt_mnd', lbl: 'Leieinntekt/mnd (€)', placeholder: '3000', type: 'number' },
+        { key: 'lån_mnd', lbl: 'Lånebetaling/mnd (€)', placeholder: '2000', type: 'number' },
+        { key: 'fellesutgifter_mnd', lbl: 'Fellesutgifter/mnd (€)', placeholder: '200', type: 'number' },
+        { key: 'strøm_mnd', lbl: 'Strøm/mnd (€)', placeholder: '100', type: 'number' },
+        { key: 'forsikring_mnd', lbl: 'Forsikring/mnd (€)', placeholder: '80', type: 'number' },
+        { key: 'forvaltning_mnd', lbl: 'Forvaltning/mnd (€)', placeholder: '150', type: 'number' },
+      ].map((f, i) => (
+        <div key={i} style={fieldStyle}>
+          <label style={labelStyle}>{f.lbl}</label>
+          <input style={inputStyle} type={f.type} value={(data as any)[f.key] || ''} onChange={e => onChange({ ...data, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value })} placeholder={f.placeholder} />
+        </div>
+      ))}
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Status</label>
+        <select style={selectStyle} value={data.status} onChange={e => onChange({ ...data, status: e.target.value })}>
+          {['Under vurdering', 'Kjøpt', 'Under oppussing', 'Utleie', 'Solgt'].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+        <label style={labelStyle}>Notater</label>
+        <textarea value={data.notater} onChange={e => onChange({ ...data, notater: e.target.value })} placeholder="F.eks. Kontakt: Maria Lopez, advokat..."
+          style={{ width: '100%', height: 80, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }} />
+      </div>
+    </div>
+  )
 
   const ScoreKort = ({ s }: { s: any }) => (
     <div style={{ background: s.lys === '🟢' ? '#e8f5ed' : s.lys === '🟡' ? '#fff8e1' : '#fde8ec', border: `2px solid ${s.lys === '🟢' ? '#2D7D46' : s.lys === '🟡' ? '#B05E0A' : '#C8102E'}`, borderRadius: 16, padding: 24, marginBottom: 16 }}>
@@ -332,11 +362,8 @@ export default function Home() {
           <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
-              <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                + Ny oppgave
-              </button>
+              <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
             </div>
-
             {visNyOppgave && (
               <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -363,11 +390,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-
-            {oppgaver.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå – legg til en!</div>
-            )}
-
+            {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå – legg til en!</div>}
             {oppgaver.map(o => {
               const pf = prioritetFarge(o.prioritet, o.status)
               return (
@@ -377,10 +400,8 @@ export default function Home() {
                     <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
                     {o.ansvar && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>👤 {o.ansvar}</div>}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>
-                    {o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(o.prioritet)}
-                  </div>
-                  <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>{o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(o.prioritet)}</div>
+                  <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc' }}>🗑️</button>
                 </div>
               )
             })}
@@ -389,10 +410,10 @@ export default function Home() {
           {/* FIRE BOKSER */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
             {[
-              { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg for maksimal gevinst', farge: '#185FA5', bg: '#f0f7ff' },
-              { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial, leieinntekter og investorscore', farge: '#C8102E', bg: '#fff5f5' },
-              { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og beste salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
-              { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter, kostnader og lønnsomhet', farge: '#7B2D8B', bg: '#f9f0ff' },
+              { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg', farge: '#185FA5', bg: '#f0f7ff' },
+              { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial og investorscore', farge: '#C8102E', bg: '#fff5f5' },
+              { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
+              { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter og kostnader', farge: '#7B2D8B', bg: '#f9f0ff' },
             ].map((boks, i) => (
               <div key={i} onClick={() => setAktivSeksjon(boks.id)}
                 style={{ background: boks.bg, border: `2px solid ${boks.farge}22`, borderRadius: 16, padding: 28, cursor: 'pointer', textAlign: 'center' }}
@@ -518,7 +539,6 @@ export default function Home() {
       {aktivSeksjon === 'flipp' && (
         <div>
           <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ fontSize: 36 }}>🔨</div><div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligflipp</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Kommer snart</p></div></div>
           <div style={{ background: '#f0f7ff', border: '2px dashed #b8d4f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
         </div>
       )}
@@ -526,14 +546,15 @@ export default function Home() {
       {aktivSeksjon === 'selge' && (
         <div>
           <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}><div style={{ fontSize: 36 }}>💰</div><div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Selge bolig</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Kommer snart</p></div></div>
           <div style={{ background: '#f0faf4', border: '2px dashed #b8dfc7', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
         </div>
       )}
 
+      {/* REGNSKAP */}
       {aktivSeksjon === 'regnskap' && (
         <div>
-          <button onClick={() => { setAktivSeksjon(null); setVisProsjekt(null); setVisNyttSkjema(false) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+          <button onClick={() => { setAktivSeksjon(null); setVisProsjekt(null); setVisNyttSkjema(false); setRedigerProsjekt(null) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 36 }}>📊</div>
@@ -563,40 +584,7 @@ export default function Home() {
           {visNyttSkjema && !visProsjekt && (
             <div style={{ background: '#f9f0ff', border: '2px solid #7B2D8B22', borderRadius: 12, padding: 24, marginBottom: 24 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#7B2D8B' }}>Nytt prosjekt</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-                {[
-                  { key: 'navn', lbl: 'Prosjektnavn', placeholder: 'F.eks. Villa Marbella', type: 'text' },
-                  { key: 'dato_kjopt', lbl: 'Dato kjøpt', placeholder: '', type: 'date' },
-                  { key: 'kjøpesum', lbl: 'Kjøpesum (€)', placeholder: '650000', type: 'number' },
-                  { key: 'kjøpskostnader', lbl: 'Kjøpskostnader (€)', placeholder: '84500', type: 'number' },
-                  { key: 'oppussingsbudsjett', lbl: 'Oppussingsbudsjett (€)', placeholder: '50000', type: 'number' },
-                  { key: 'oppussing_faktisk', lbl: 'Oppussing faktisk (€)', placeholder: '0', type: 'number' },
-                  { key: 'møblering', lbl: 'Møblering (€)', placeholder: '15000', type: 'number' },
-                  { key: 'forventet_salgsverdi', lbl: 'Forventet salgsverdi (€)', placeholder: '800000', type: 'number' },
-                  { key: 'leieinntekt_mnd', lbl: 'Leieinntekt/mnd (€)', placeholder: '3000', type: 'number' },
-                  { key: 'lån_mnd', lbl: 'Lånebetaling/mnd (€)', placeholder: '2000', type: 'number' },
-                  { key: 'fellesutgifter_mnd', lbl: 'Fellesutgifter/mnd (€)', placeholder: '200', type: 'number' },
-                  { key: 'strøm_mnd', lbl: 'Strøm/mnd (€)', placeholder: '100', type: 'number' },
-                  { key: 'forsikring_mnd', lbl: 'Forsikring/mnd (€)', placeholder: '80', type: 'number' },
-                  { key: 'forvaltning_mnd', lbl: 'Forvaltning/mnd (€)', placeholder: '150', type: 'number' },
-                ].map((f, i) => (
-                  <div key={i} style={fieldStyle}>
-                    <label style={labelStyle}>{f.lbl}</label>
-                    <input style={inputStyle} type={f.type} value={(nyttProsjekt as any)[f.key] || ''} onChange={e => setNyttProsjekt(p => ({ ...p, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))} placeholder={f.placeholder} />
-                  </div>
-                ))}
-                <div style={fieldStyle}>
-                  <label style={labelStyle}>Status</label>
-                  <select style={selectStyle} value={nyttProsjekt.status} onChange={e => setNyttProsjekt(p => ({ ...p, status: e.target.value }))}>
-                    {['Under vurdering', 'Kjøpt', 'Under oppussing', 'Utleie', 'Solgt'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Notater</label>
-                <textarea value={nyttProsjekt.notater} onChange={e => setNyttProsjekt(p => ({ ...p, notater: e.target.value }))} placeholder="F.eks. Kontakt: Maria Lopez, advokat..."
-                  style={{ width: '100%', height: 80, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif', marginBottom: 16 }} />
-              </div>
+              <ProsjektFelter data={nyttProsjekt} onChange={setNyttProsjekt} />
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={leggTilProsjekt} style={{ flex: 1, background: '#7B2D8B', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>✅ Lagre prosjekt</button>
                 <button onClick={() => setVisNyttSkjema(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Avbryt</button>
@@ -645,6 +633,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* ENKELT PROSJEKT */}
           {visProsjekt && (() => {
             const p = prosjekter.find(pr => pr.id === visProsjekt)
             if (!p) return null
@@ -652,18 +641,41 @@ export default function Home() {
             const cf = månedligCashflow(p)
             const totalMånedInntekt = p.måneder.reduce((s, m) => s + m.inntekt, 0)
             const totalMånedKostnad = p.måneder.reduce((s, m) => s + m.kostnad, 0)
+            const redigerer = redigerProsjekt?.id === p.id
+
             return (
               <div>
-                <button onClick={() => setVisProsjekt(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake til prosjekter</button>
+                <button onClick={() => { setVisProsjekt(null); setRedigerProsjekt(null) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake til prosjekter</button>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{p.navn}</h2>
                     <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
                   </div>
-                  <select value={p.status} onChange={e => oppdaterProsjekt({ ...p, status: e.target.value })} style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 13, cursor: 'pointer' }}>
-                    {['Under vurdering', 'Kjøpt', 'Under oppussing', 'Utleie', 'Solgt'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })}
+                      style={{ background: redigerer ? '#f0f0f0' : '#1a1a2e', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {redigerer ? 'Avbryt' : '✏️ Rediger'}
+                    </button>
+                    {redigerer && (
+                      <button onClick={lagreRedigering} style={{ background: '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>💾 Lagre</button>
+                    )}
+                  </div>
                 </div>
+
+                {/* REDIGERINGSSKJEMA */}
+                {redigerer && redigerProsjekt && (
+                  <div style={{ background: '#f9f0ff', border: '2px solid #7B2D8B22', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: '#7B2D8B' }}>✏️ Rediger prosjekt</h3>
+                    <ProsjektFelter data={redigerProsjekt} onChange={setRedigerProsjekt} />
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={lagreRedigering} style={{ flex: 1, background: '#2D7D46', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>💾 Lagre endringer</button>
+                      <button onClick={() => setRedigerProsjekt(null)} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Avbryt</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* NØKKELTALL */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
                   {[
                     { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
@@ -677,6 +689,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                   <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>💸 Investeringer</div>
@@ -713,12 +726,14 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+
                 {p.notater && (
                   <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: 14, marginBottom: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📝 Notater</div>
                     <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.notater}</div>
                   </div>
                 )}
+
                 <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>📆 Månedlig logg</div>
                   {p.måneder.length > 0 && (
