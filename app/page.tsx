@@ -7,6 +7,7 @@ export default function Home() {
   const [loggetInn, setLoggetInn] = useState(false)
   const [passordInput, setPassordInput] = useState('')
   const [passordFeil, setPassordFeil] = useState(false)
+  const [aktivSeksjon, setAktivSeksjon] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -178,7 +179,6 @@ export default function Home() {
     </div>
   )
 
-  // PÅLOGGINGSSIDE
   if (!loggetInn) {
     return (
       <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8', fontFamily: 'sans-serif' }}>
@@ -220,176 +220,270 @@ export default function Home() {
         <div style={{ fontSize: 48, marginBottom: 8 }}>🏡</div>
         <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Leganger Eiendom</h1>
         <p style={{ color: '#666', marginTop: 8 }}>Din partner for eiendomsinvestering i Spania</p>
-        <button onClick={() => setLoggetInn(false)} style={{ marginTop: 8, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+        <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null) }} style={{ marginTop: 8, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
       </div>
 
-      <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Analyser boligen</div>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Lim inn Finn.no-lenke eller beskriv eiendommen&#10;&#10;Eks: Villa 4 soverom, 180m², privat pool, 500m fra strand, €650 000, Marbella Golden Mile"
-          style={{ width: '100%', height: 120, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
-        />
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button
-            onClick={analyser}
-            disabled={loading || !input}
-            style={{ flex: 1, background: loading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
-          >
-            {loading ? '⏳ Analyserer...' : '🔍 Analyser eiendom'}
-          </button>
-          {(input || result) && (
-            <button onClick={nullstill} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: '14px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-              🗑️ Nullstill
-            </button>
-          )}
+      {/* FORSIDE – FIRE BOKSER */}
+      {!aktivSeksjon && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
+          {[
+            { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg for maksimal gevinst', farge: '#185FA5', bg: '#f0f7ff' },
+            { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial, leieinntekter og investorscore', farge: '#C8102E', bg: '#fff5f5' },
+            { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og beste salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
+            { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter, kostnader og lønnsomhet', farge: '#7B2D8B', bg: '#f9f0ff' },
+          ].map((boks, i) => (
+            <div
+              key={i}
+              onClick={() => setAktivSeksjon(boks.id)}
+              style={{ background: boks.bg, border: `2px solid ${boks.farge}22`, borderRadius: 16, padding: 28, cursor: 'pointer', textAlign: 'center' }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = 'none'
+              }}
+            >
+              <div style={{ fontSize: 48, marginBottom: 12 }}>{boks.emoji}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: boks.farge, marginBottom: 8 }}>{boks.tittel}</div>
+              <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 16 }}>{boks.beskrivelse}</div>
+              <div style={{ background: boks.farge, color: 'white', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600 }}>Åpne →</div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
-      {result && (
+      {/* BOLIGUTLEIE */}
+      {aktivSeksjon === 'utleie' && (
         <div>
-          <div style={{ background: '#1a1a2e', color: 'white', borderRadius: 12, padding: 24, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{result.type} · {result.beliggenhet}</div>
-            <h2 style={{ fontSize: 20, margin: '0 0 16px' }}>{result.tittel}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
-              {[
-                { lbl: 'Pris', val: fmt(result.pris) },
-                { lbl: 'Egenkapital', val: fmt(result.ek_krav) },
-                { lbl: 'Mnd. betaling', val: fmt(result.mnd_betaling) },
-                { lbl: 'Yield', val: fmtPct(result.yield_estimat) },
-              ].map((item, i) => (
-                <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{item.lbl}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{item.val}</div>
-                </div>
-              ))}
+          <button onClick={() => { setAktivSeksjon(null); nullstill() }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>
+            ← Tilbake
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ fontSize: 36 }}>🏖️</div>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligutleie – Spania</h2>
+              <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser Airbnb-potensial og investorscore</p>
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>🤖 AI-vurdering</div>
-            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', margin: 0 }}>{result.ai_vurdering}</p>
-          </div>
-
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#888' }}>🏛️ VFT-turistlisens</div>
-              <div style={{
-                background: result.vft_score >= 60 ? '#e8f5ed' : result.vft_score >= 35 ? '#fff8e1' : '#fde8ec',
-                color: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#B05E0A' : '#C8102E',
-                padding: '3px 10px', borderRadius: 20, fontSize: 13, fontWeight: 700
-              }}>{result.vft_score}/100</div>
-            </div>
-            <div style={{ background: '#f0f0f0', borderRadius: 6, height: 8, overflow: 'hidden' }}>
-              <div style={{ width: result.vft_score + '%', height: 8, background: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#EF9F27' : '#C8102E', borderRadius: 6 }} />
-            </div>
-          </div>
-
-          {visSkjema && (
-            <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Fyll inn og sjekk info</div>
-              <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Sjekk og legg til det som mangler.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-                {[
-                  { key: 'type', lbl: 'Type bolig', placeholder: 'Villa / Leilighet', type: 'text' },
-                  { key: 'beliggenhet', lbl: 'By og område', placeholder: 'Marbella', type: 'text' },
-                  { key: 'soverom', lbl: 'Soverom', placeholder: '4', type: 'number' },
-                  { key: 'bad', lbl: 'Bad', placeholder: '3', type: 'number' },
-                  { key: 'areal', lbl: 'Areal (m²)', placeholder: '180', type: 'number' },
-                  { key: 'avstand_strand', lbl: 'Avstand strand (m)', placeholder: '300', type: 'number' },
-                  { key: 'pris', lbl: 'Kjøpspris (€)', placeholder: '650000', type: 'number' },
-                  { key: 'markedspris_bra_m2', lbl: 'Markedspris bra std (€/m²)', placeholder: '3000', type: 'number' },
-                  { key: 'ekstra', lbl: 'Ekstra info', placeholder: 'Pool, terrasse, golf...', type: 'text' },
-                ].map((f, i) => (
-                  <div key={i} style={fieldStyle}>
-                    <label style={labelStyle}>{f.lbl}</label>
-                    <input
-                      style={inputStyle}
-                      type={f.type}
-                      value={(bolig as any)[f.key]}
-                      onChange={e => setBolig(b => ({ ...b, [f.key]: e.target.value }))}
-                      placeholder={f.placeholder}
-                    />
-                  </div>
-                ))}
-                {[
-                  { key: 'basseng', lbl: 'Basseng', opts: [['privat', 'Privat basseng'], ['felles', 'Felles basseng'], ['ingen', 'Ingen basseng']] },
-                  { key: 'parkering', lbl: 'Parkering', opts: [['garasje', 'Garasje'], ['privat', 'Privat'], ['felles', 'Felles'], ['ingen', 'Ingen']] },
-                  { key: 'havutsikt', lbl: 'Havutsikt', opts: [['ja', 'Full havutsikt'], ['delvis', 'Delvis'], ['nei', 'Nei']] },
-                  { key: 'standard', lbl: 'Standard', opts: [['luksus', 'Luksus'], ['moderne', 'Moderne'], ['standard', 'Standard'], ['oppussing', 'Trenger oppussing']] },
-                ].map((f, i) => (
-                  <div key={i} style={fieldStyle}>
-                    <label style={labelStyle}>{f.lbl}</label>
-                    <select style={selectStyle} value={(bolig as any)[f.key]} onChange={e => setBolig(b => ({ ...b, [f.key]: e.target.value }))}>
-                      {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Oppussingsbudsjett (valgfritt)</div>
-                <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Legg inn budsjett så beregner vi maks du kan bruke og fortsatt ha lønnsom utleie.</p>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    value={bolig.oppbudsjett}
-                    onChange={e => setBolig(b => ({ ...b, oppbudsjett: e.target.value }))}
-                    placeholder="F.eks. 100000"
-                    style={{ flex: 1, padding: '10px 14px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }}
-                  />
-                  <span style={{ fontSize: 13, color: '#666', whiteSpace: 'nowrap' }}>euro</span>
-                </div>
-              </div>
-
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 4 – Kjør full analyse</div>
+          <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Analyser boligen</div>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="Lim inn Finn.no-lenke eller beskriv eiendommen&#10;&#10;Eks: Villa 4 soverom, 180m², privat pool, 500m fra strand, €650 000, Marbella Golden Mile"
+              style={{ width: '100%', height: 120, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
               <button
-                onClick={kjørAirbnbAnalyse}
-                disabled={airbnbLoading}
-                style={{ width: '100%', background: airbnbLoading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 16, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer' }}
+                onClick={analyser}
+                disabled={loading || !input}
+                style={{ flex: 1, background: loading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
               >
-                {airbnbLoading ? '⏳ Analyserer – 20-30 sekunder...' : '🚀 Kjør Airbnb-analyse og få score'}
+                {loading ? '⏳ Analyserer...' : '🔍 Analyser eiendom'}
+              </button>
+              {(input || result) && (
+                <button onClick={nullstill} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: '14px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                  🗑️ Nullstill
+                </button>
+              )}
+            </div>
+          </div>
+
+          {result && (
+            <div>
+              <div style={{ background: '#1a1a2e', color: 'white', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{result.type} · {result.beliggenhet}</div>
+                <h2 style={{ fontSize: 20, margin: '0 0 16px' }}>{result.tittel}</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                  {[
+                    { lbl: 'Pris', val: fmt(result.pris) },
+                    { lbl: 'Egenkapital', val: fmt(result.ek_krav) },
+                    { lbl: 'Mnd. betaling', val: fmt(result.mnd_betaling) },
+                    { lbl: 'Yield', val: fmtPct(result.yield_estimat) },
+                  ].map((item, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 12 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{item.lbl}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700 }}>{item.val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>🤖 AI-vurdering</div>
+                <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', margin: 0 }}>{result.ai_vurdering}</p>
+              </div>
+
+              <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#888' }}>🏛️ VFT-turistlisens</div>
+                  <div style={{
+                    background: result.vft_score >= 60 ? '#e8f5ed' : result.vft_score >= 35 ? '#fff8e1' : '#fde8ec',
+                    color: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#B05E0A' : '#C8102E',
+                    padding: '3px 10px', borderRadius: 20, fontSize: 13, fontWeight: 700
+                  }}>{result.vft_score}/100</div>
+                </div>
+                <div style={{ background: '#f0f0f0', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+                  <div style={{ width: result.vft_score + '%', height: 8, background: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#EF9F27' : '#C8102E', borderRadius: 6 }} />
+                </div>
+              </div>
+
+              {visSkjema && (
+                <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Fyll inn og sjekk info</div>
+                  <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Sjekk og legg til det som mangler.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+                    {[
+                      { key: 'type', lbl: 'Type bolig', placeholder: 'Villa / Leilighet', type: 'text' },
+                      { key: 'beliggenhet', lbl: 'By og område', placeholder: 'Marbella', type: 'text' },
+                      { key: 'soverom', lbl: 'Soverom', placeholder: '4', type: 'number' },
+                      { key: 'bad', lbl: 'Bad', placeholder: '3', type: 'number' },
+                      { key: 'areal', lbl: 'Areal (m²)', placeholder: '180', type: 'number' },
+                      { key: 'avstand_strand', lbl: 'Avstand strand (m)', placeholder: '300', type: 'number' },
+                      { key: 'pris', lbl: 'Kjøpspris (€)', placeholder: '650000', type: 'number' },
+                      { key: 'markedspris_bra_m2', lbl: 'Markedspris bra std (€/m²)', placeholder: '3000', type: 'number' },
+                      { key: 'ekstra', lbl: 'Ekstra info', placeholder: 'Pool, terrasse, golf...', type: 'text' },
+                    ].map((f, i) => (
+                      <div key={i} style={fieldStyle}>
+                        <label style={labelStyle}>{f.lbl}</label>
+                        <input
+                          style={inputStyle}
+                          type={f.type}
+                          value={(bolig as any)[f.key]}
+                          onChange={e => setBolig(b => ({ ...b, [f.key]: e.target.value }))}
+                          placeholder={f.placeholder}
+                        />
+                      </div>
+                    ))}
+                    {[
+                      { key: 'basseng', lbl: 'Basseng', opts: [['privat', 'Privat basseng'], ['felles', 'Felles basseng'], ['ingen', 'Ingen basseng']] },
+                      { key: 'parkering', lbl: 'Parkering', opts: [['garasje', 'Garasje'], ['privat', 'Privat'], ['felles', 'Felles'], ['ingen', 'Ingen']] },
+                      { key: 'havutsikt', lbl: 'Havutsikt', opts: [['ja', 'Full havutsikt'], ['delvis', 'Delvis'], ['nei', 'Nei']] },
+                      { key: 'standard', lbl: 'Standard', opts: [['luksus', 'Luksus'], ['moderne', 'Moderne'], ['standard', 'Standard'], ['oppussing', 'Trenger oppussing']] },
+                    ].map((f, i) => (
+                      <div key={i} style={fieldStyle}>
+                        <label style={labelStyle}>{f.lbl}</label>
+                        <select style={selectStyle} value={(bolig as any)[f.key]} onChange={e => setBolig(b => ({ ...b, [f.key]: e.target.value }))}>
+                          {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Oppussingsbudsjett (valgfritt)</div>
+                    <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Legg inn budsjett så beregner vi maks du kan bruke og fortsatt ha lønnsom utleie.</p>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={bolig.oppbudsjett}
+                        onChange={e => setBolig(b => ({ ...b, oppbudsjett: e.target.value }))}
+                        placeholder="F.eks. 100000"
+                        style={{ flex: 1, padding: '10px 14px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }}
+                      />
+                      <span style={{ fontSize: 13, color: '#666', whiteSpace: 'nowrap' }}>euro</span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 4 – Kjør full analyse</div>
+                  <button
+                    onClick={kjørAirbnbAnalyse}
+                    disabled={airbnbLoading}
+                    style={{ width: '100%', background: airbnbLoading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 16, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer' }}
+                  >
+                    {airbnbLoading ? '⏳ Analyserer – 20-30 sekunder...' : '🚀 Kjør Airbnb-analyse og få score'}
+                  </button>
+                </div>
+              )}
+
+              {airbnbScore && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 5 – Score og trafikklys</div>
+                  <ScoreKort s={airbnbScore} />
+                </div>
+              )}
+
+              {airbnbAnalyse && (
+                <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig Airbnb-analyse</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: '#222' }}>{airbnbAnalyse}</div>
+                </div>
+              )}
+
+              <button onClick={nullstill} style={{ width: '100%', background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8, marginBottom: 32 }}>
+                🗑️ Nullstill og analyser ny eiendom
               </button>
             </div>
           )}
-
-          {airbnbScore && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 5 – Score og trafikklys</div>
-              <ScoreKort s={airbnbScore} />
-            </div>
-          )}
-
-          {airbnbAnalyse && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig Airbnb-analyse</div>
-              <div style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: '#222' }}>
-                {airbnbAnalyse}
-              </div>
-            </div>
-          )}
-
-          {result.neste_steg && !airbnbScore && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>✅ Neste steg</h3>
-              {result.neste_steg.map((s: string, i: number) => (
-                <div key={i} style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', alignItems: 'flex-start' }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#C8102E', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
-                  <div style={{ fontSize: 14, lineHeight: 1.5, paddingTop: 3 }}>{s}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button
-            onClick={nullstill}
-            style={{ width: '100%', background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8, marginBottom: 32 }}
-          >
-            🗑️ Nullstill og analyser ny eiendom
-          </button>
         </div>
       )}
+
+      {/* BOLIGFLIPP */}
+      {aktivSeksjon === 'flipp' && (
+        <div>
+          <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>
+            ← Tilbake
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ fontSize: 36 }}>🔨</div>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligflipp</h2>
+              <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser kjøp, oppussing og videresalg</p>
+            </div>
+          </div>
+          <div style={{ background: '#f0f7ff', border: '2px dashed #b8d4f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Under utvikling</div>
+            <div style={{ fontSize: 14 }}>Boligflipp-analysen kommer i neste versjon!</div>
+          </div>
+        </div>
+      )}
+
+      {/* SELGE BOLIG */}
+      {aktivSeksjon === 'selge' && (
+        <div>
+          <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>
+            ← Tilbake
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ fontSize: 36 }}>💰</div>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Selge bolig</h2>
+              <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser markedsverdi og salgsstrategi</p>
+            </div>
+          </div>
+          <div style={{ background: '#f0faf4', border: '2px dashed #b8dfc7', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Under utvikling</div>
+            <div style={{ fontSize: 14 }}>Selge bolig-analysen kommer i neste versjon!</div>
+          </div>
+        </div>
+      )}
+
+      {/* REGNSKAP */}
+      {aktivSeksjon === 'regnskap' && (
+        <div>
+          <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>
+            ← Tilbake
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ fontSize: 36 }}>📊</div>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Regnskap</h2>
+              <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Oversikt over inntekter, kostnader og lønnsomhet</p>
+            </div>
+          </div>
+          <div style={{ background: '#f9f0ff', border: '2px dashed #d4b8f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Under utvikling</div>
+            <div style={{ fontSize: 14 }}>Regnskapsmodulen kommer i neste versjon!</div>
+          </div>
+        </div>
+      )}
+
     </main>
   )
 }
