@@ -29,36 +29,42 @@ const tomtProsjekt = (): Prosjekt => ({
 function beregnEffektivPrioritet(o: Oppgave): 'hast' | 'normal' | 'lav' {
   if (o.status === 'ferdig') return o.prioritet
   if (!o.frist) return o.prioritet
-  const idag = new Date()
-  idag.setHours(0, 0, 0, 0)
-  const frist = new Date(o.frist)
-  frist.setHours(0, 0, 0, 0)
-  const dagerIgjen = Math.ceil((frist.getTime() - idag.getTime()) / (1000 * 60 * 60 * 24))
+  const idag = new Date(); idag.setHours(0, 0, 0, 0)
+  const frist = new Date(o.frist); frist.setHours(0, 0, 0, 0)
+  const dager = Math.ceil((frist.getTime() - idag.getTime()) / (1000 * 60 * 60 * 24))
   if (o.prioritet === 'hast') return 'hast'
-  if (o.prioritet === 'normal') {
-    if (dagerIgjen <= 1) return 'hast'
-    return 'normal'
-  }
-  if (o.prioritet === 'lav') {
-    if (dagerIgjen <= 1) return 'hast'
-    if (dagerIgjen <= 2) return 'normal'
-    return 'lav'
-  }
+  if (o.prioritet === 'normal') return dager <= 1 ? 'hast' : 'normal'
+  if (o.prioritet === 'lav') return dager <= 1 ? 'hast' : dager <= 2 ? 'normal' : 'lav'
   return o.prioritet
 }
 
 function fristTekst(frist: string): string {
   if (!frist) return ''
-  const idag = new Date()
-  idag.setHours(0, 0, 0, 0)
-  const fristDato = new Date(frist)
-  fristDato.setHours(0, 0, 0, 0)
+  const idag = new Date(); idag.setHours(0, 0, 0, 0)
+  const fristDato = new Date(frist); fristDato.setHours(0, 0, 0, 0)
   const dager = Math.ceil((fristDato.getTime() - idag.getTime()) / (1000 * 60 * 60 * 24))
   if (dager < 0) return `⚠️ ${Math.abs(dager)} dag${Math.abs(dager) !== 1 ? 'er' : ''} over frist`
   if (dager === 0) return '🔴 Frist i dag!'
   if (dager === 1) return '🔴 Frist i morgen'
   if (dager === 2) return '🟡 Frist om 2 dager'
   return `📅 Frist om ${dager} dager`
+}
+
+const prioritetFarge = (ep: string, status: string) => {
+  if (status === 'ferdig') return { bg: '#e8f5ed', border: '#2D7D46', color: '#2D7D46' }
+  if (ep === 'hast') return { bg: '#fde8ec', border: '#C8102E', color: '#C8102E' }
+  if (ep === 'normal') return { bg: '#fff8e1', border: '#B05E0A', color: '#B05E0A' }
+  return { bg: '#f8f8f8', border: '#ddd', color: '#666' }
+}
+
+const prioritetLabel = (ep: string) => ep === 'hast' ? '🔴 Hast' : ep === 'normal' ? '🟡 Normal' : '⚪ Lav'
+
+const statusFarge = (s: string) => {
+  if (s === 'Utleie') return { bg: '#e8f5ed', color: '#2D7D46' }
+  if (s === 'Kjøpt') return { bg: '#f0f7ff', color: '#185FA5' }
+  if (s === 'Under oppussing') return { bg: '#fff8e1', color: '#B05E0A' }
+  if (s === 'Solgt') return { bg: '#f0f0f0', color: '#666' }
+  return { bg: '#fde8ec', color: '#C8102E' }
 }
 
 export default function Home() {
@@ -86,7 +92,10 @@ export default function Home() {
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
-  const [nyOppgave, setNyOppgave] = useState({ tittel: '', ansvar: '', prioritet: 'normal' as 'hast' | 'normal' | 'lav', frist: '' })
+  const [nyTittel, setNyTittel] = useState('')
+  const [nyAnsvar, setNyAnsvar] = useState('')
+  const [nyPrioritet, setNyPrioritet] = useState<'hast' | 'normal' | 'lav'>('normal')
+  const [nyFrist, setNyFrist] = useState('')
   const [visNyOppgave, setVisNyOppgave] = useState(false)
   const [agentApen, setAgentApen] = useState(false)
   const [meldinger, setMeldinger] = useState<Melding[]>([])
@@ -101,15 +110,13 @@ export default function Home() {
   async function sendAgentMelding() {
     if (!agentInput.trim() || agentLoading) return
     const nyeMeldinger: Melding[] = [...meldinger, { role: 'user', content: agentInput }]
-    setMeldinger(nyeMeldinger)
-    setAgentInput('')
-    setAgentLoading(true)
+    setMeldinger(nyeMeldinger); setAgentInput(''); setAgentLoading(true)
     try {
       const res = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meldinger: nyeMeldinger }) })
       const data = await res.json()
       setMeldinger([...nyeMeldinger, { role: 'assistant', content: data.svar }])
     } catch {
-      setMeldinger([...nyeMeldinger, { role: 'assistant', content: 'Beklager, noe gikk galt. Prøv igjen.' }])
+      setMeldinger([...nyeMeldinger, { role: 'assistant', content: 'Beklager, noe gikk galt.' }])
     }
     setAgentLoading(false)
   }
@@ -120,9 +127,9 @@ export default function Home() {
       const sortert = [...data].sort((a, b) => {
         if (a.status === 'ferdig' && b.status !== 'ferdig') return 1
         if (a.status !== 'ferdig' && b.status === 'ferdig') return -1
+        const pr = { hast: 0, normal: 1, lav: 2 }
         const epA = beregnEffektivPrioritet(a as Oppgave)
         const epB = beregnEffektivPrioritet(b as Oppgave)
-        const pr = { hast: 0, normal: 1, lav: 2 }
         return pr[epA] - pr[epB]
       })
       setOppgaver(sortert as Oppgave[])
@@ -130,9 +137,9 @@ export default function Home() {
   }
 
   async function leggTilOppgave() {
-    if (!nyOppgave.tittel) return
-    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), ...nyOppgave, status: 'aktiv' }])
-    setNyOppgave({ tittel: '', ansvar: '', prioritet: 'normal', frist: '' })
+    if (!nyTittel) return
+    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
+    setNyTittel(''); setNyAnsvar(''); setNyPrioritet('normal'); setNyFrist('')
     setVisNyOppgave(false)
     await hentOppgaver()
   }
@@ -222,23 +229,6 @@ export default function Home() {
   const månedligCashflow = (p: Prosjekt) => p.leieinntekt_mnd - månedligKostnad(p)
   const yield_pst = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.leieinntekt_mnd * 12) / totalInvestering(p) * 100) : 0
   const roi = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.forventet_salgsverdi - totalInvestering(p)) / totalInvestering(p) * 100) : 0
-
-  const statusFarge = (s: string) => {
-    if (s === 'Utleie') return { bg: '#e8f5ed', color: '#2D7D46' }
-    if (s === 'Kjøpt') return { bg: '#f0f7ff', color: '#185FA5' }
-    if (s === 'Under oppussing') return { bg: '#fff8e1', color: '#B05E0A' }
-    if (s === 'Solgt') return { bg: '#f0f0f0', color: '#666' }
-    return { bg: '#fde8ec', color: '#C8102E' }
-  }
-
-  const prioritetFarge = (ep: string, status: string) => {
-    if (status === 'ferdig') return { bg: '#e8f5ed', border: '#2D7D46', color: '#2D7D46' }
-    if (ep === 'hast') return { bg: '#fde8ec', border: '#C8102E', color: '#C8102E' }
-    if (ep === 'normal') return { bg: '#fff8e1', border: '#B05E0A', color: '#B05E0A' }
-    return { bg: '#f8f8f8', border: '#ddd', color: '#666' }
-  }
-
-  const prioritetLabel = (ep: string) => ep === 'hast' ? '🔴 Hast' : ep === 'normal' ? '🟡 Normal' : '⚪ Lav'
 
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
   const selectStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }
@@ -364,70 +354,6 @@ export default function Home() {
     )
   }
 
-  const GjøremålListe = () => (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
-        <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
-      </div>
-
-      {visNyOppgave && (
-        <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Oppgave</label>
-              <input style={inputStyle} value={nyOppgave.tittel} onChange={e => setNyOppgave(o => ({ ...o, tittel: e.target.value }))} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} />
-            </div>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Ansvar</label>
-              <input style={inputStyle} value={nyOppgave.ansvar} onChange={e => setNyOppgave(o => ({ ...o, ansvar: e.target.value }))} placeholder="Hvem?" />
-            </div>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Frist</label>
-              <input style={inputStyle} type="date" value={nyOppgave.frist} onChange={e => setNyOppgave(o => ({ ...o, frist: e.target.value }))} />
-            </div>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Prioritet</label>
-              <select style={selectStyle} value={nyOppgave.prioritet} onChange={e => setNyOppgave(o => ({ ...o, prioritet: e.target.value as any }))}>
-                <option value="hast">🔴 Hast</option>
-                <option value="normal">🟡 Normal</option>
-                <option value="lav">⚪ Lav</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={leggTilOppgave} style={{ flex: 1, background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
-            <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
-          </div>
-        </div>
-      )}
-
-      {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
-
-      {oppgaver.map(o => {
-        const ep = beregnEffektivPrioritet(o)
-        const pf = prioritetFarge(ep, o.status)
-        const ft = o.status === 'ferdig' ? '' : fristTekst(o.frist)
-        return (
-          <div key={o.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 10, opacity: o.status === 'ferdig' ? 0.6 : 1 }}>
-            <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0, marginTop: 2 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
-                {o.ansvar && <div style={{ fontSize: 12, color: '#888' }}>👤 {o.ansvar}</div>}
-                {ft && <div style={{ fontSize: 12, fontWeight: 500, color: pf.color }}>{ft}</div>}
-              </div>
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>
-              {o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(ep)}
-            </div>
-            <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
-          </div>
-        )
-      })}
-    </div>
-  )
-
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100 }}>
@@ -461,8 +387,66 @@ export default function Home() {
               ))}
             </div>
 
-            {/* GJØREMÅL UNDER BOKSENE */}
-            <GjøremålListe />
+            {/* GJØREMÅL */}
+            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
+                <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
+              </div>
+
+              {visNyOppgave && (
+                <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Oppgave</label>
+                      <input style={inputStyle} value={nyTittel} onChange={e => setNyTittel(e.target.value)} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} />
+                    </div>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Ansvar</label>
+                      <input style={inputStyle} value={nyAnsvar} onChange={e => setNyAnsvar(e.target.value)} placeholder="Hvem?" />
+                    </div>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Frist</label>
+                      <input style={inputStyle} type="date" value={nyFrist} onChange={e => setNyFrist(e.target.value)} />
+                    </div>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Prioritet</label>
+                      <select style={selectStyle} value={nyPrioritet} onChange={e => setNyPrioritet(e.target.value as any)}>
+                        <option value="hast">🔴 Hast</option>
+                        <option value="normal">🟡 Normal</option>
+                        <option value="lav">⚪ Lav</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={leggTilOppgave} style={{ flex: 1, background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
+                    <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
+                  </div>
+                </div>
+              )}
+
+              {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
+
+              {oppgaver.map(o => {
+                const ep = beregnEffektivPrioritet(o)
+                const pf = prioritetFarge(ep, o.status)
+                const ft = o.status === 'ferdig' ? '' : fristTekst(o.frist)
+                return (
+                  <div key={o.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 10, opacity: o.status === 'ferdig' ? 0.6 : 1 }}>
+                    <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
+                        {o.ansvar && <div style={{ fontSize: 12, color: '#888' }}>👤 {o.ansvar}</div>}
+                        {ft && <div style={{ fontSize: 12, fontWeight: 500, color: pf.color }}>{ft}</div>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>{o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(ep)}</div>
+                    <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
