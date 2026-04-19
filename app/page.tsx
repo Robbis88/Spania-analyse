@@ -91,6 +91,8 @@ export default function Home() {
   const [nyMåned, setNyMåned] = useState({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport'>('oversikt')
+  const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
   const [nyTittel, setNyTittel] = useState('')
   const [nyAnsvar, setNyAnsvar] = useState('')
@@ -128,9 +130,7 @@ export default function Home() {
         if (a.status === 'ferdig' && b.status !== 'ferdig') return 1
         if (a.status !== 'ferdig' && b.status === 'ferdig') return -1
         const pr = { hast: 0, normal: 1, lav: 2 }
-        const epA = beregnEffektivPrioritet(a as Oppgave)
-        const epB = beregnEffektivPrioritet(b as Oppgave)
-        return pr[epA] - pr[epB]
+        return pr[beregnEffektivPrioritet(a as Oppgave)] - pr[beregnEffektivPrioritet(b as Oppgave)]
       })
       setOppgaver(sortert as Oppgave[])
     }
@@ -140,8 +140,7 @@ export default function Home() {
     if (!nyTittel) return
     await supabase.from('oppgaver').insert([{ id: Date.now().toString(), tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
     setNyTittel(''); setNyAnsvar(''); setNyPrioritet('normal'); setNyFrist('')
-    setVisNyOppgave(false)
-    await hentOppgaver()
+    setVisNyOppgave(false); await hentOppgaver()
   }
 
   async function toggleOppgave(o: Oppgave) {
@@ -191,6 +190,140 @@ export default function Home() {
     if (!p) return
     await oppdaterProsjekt({ ...p, måneder: [...p.måneder, nyMåned] })
     setNyMåned({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
+  }
+
+  async function lastNedPDF(p: Prosjekt, ar: number) {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    const fmt2 = (n: number) => n ? 'EUR ' + Math.round(n).toLocaleString('nb-NO') : '-'
+
+    const arsinntekt = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.inntekt, 0)
+    const arskostnadLogg = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.kostnad, 0)
+    const fastKostAr = (p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd) * 12
+    const totalKost = arskostnadLogg + fastKostAr
+    const netto = arsinntekt - totalKost
+    const totInv = p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
+
+    // Header
+    doc.setFillColor(26, 26, 46)
+    doc.rect(0, 0, 210, 35, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Leganger Eiendom', 20, 15)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Arsrapport ' + ar + ' – ' + p.navn, 20, 25)
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
+    doc.text('Generert: ' + new Date().toLocaleDateString('nb-NO') + '  |  Status: ' + p.status + (p.dato_kjopt ? '  |  Kjøpt: ' + p.dato_kjopt : ''), 20, 42)
+
+    // Investering
+    let y = 52
+    doc.setFillColor(240, 240, 255)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.text('INVESTERING', 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const invRader = [
+      ['Kjøpesum', fmt2(p.kjøpesum)],
+      ['Kjøpskostnader', fmt2(p.kjøpskostnader)],
+      ['Oppussing budsjett', fmt2(p.oppussingsbudsjett)],
+      ['Oppussing faktisk', fmt2(p.oppussing_faktisk)],
+      ['Møblering', fmt2(p.møblering)],
+    ]
+    invRader.forEach(([lbl, val], i) => {
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(230, 230, 250)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Total investering', 20, y + 2); doc.text(fmt2(totInv), 190, y + 2, { align: 'right' })
+    y += 14
+
+    // Inntekter
+    doc.setFillColor(230, 245, 237)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.setFontSize(11)
+    doc.text('INNTEKTER ' + ar, 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const maneder = p.måneder.filter(m => m.måned.startsWith(ar.toString()))
+    const manedNavn = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember']
+    if (maneder.length === 0) { doc.text('Ingen inntekter registrert for ' + ar, 20, y + 2); y += 7 }
+    maneder.forEach((m, i) => {
+      const mNr = parseInt(m.måned.split('-')[1]) - 1
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(manedNavn[mNr] + (m.notat ? ' – ' + m.notat : ''), 20, y + 2)
+      doc.text(fmt2(m.inntekt), 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(45, 125, 70)
+    doc.setTextColor(255, 255, 255)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Sum inntekter', 20, y + 2); doc.text(fmt2(arsinntekt), 190, y + 2, { align: 'right' })
+    doc.setTextColor(0, 0, 0); y += 14
+
+    // Kostnader
+    doc.setFillColor(253, 232, 236)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.setFontSize(11)
+    doc.text('KOSTNADER ' + ar, 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const kostRader = [
+      ['Lånebetaling (12 mnd)', fmt2(p.lån_mnd * 12)],
+      ['Fellesutgifter (12 mnd)', fmt2(p.fellesutgifter_mnd * 12)],
+      ['Strøm (12 mnd)', fmt2(p.strøm_mnd * 12)],
+      ['Forsikring (12 mnd)', fmt2(p.forsikring_mnd * 12)],
+      ['Forvaltning (12 mnd)', fmt2(p.forvaltning_mnd * 12)],
+    ].filter(r => r[1] !== '-')
+    if (arskostnadLogg > 0) kostRader.push(['Variable kostnader (logg)', fmt2(arskostnadLogg)])
+    kostRader.forEach(([lbl, val], i) => {
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(200, 16, 46)
+    doc.setTextColor(255, 255, 255)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Sum kostnader', 20, y + 2); doc.text(fmt2(totalKost), 190, y + 2, { align: 'right' })
+    doc.setTextColor(0, 0, 0); y += 14
+
+    // Resultat
+    doc.setFillColor(netto >= 0 ? 45 : 200, netto >= 0 ? 125 : 16, netto >= 0 ? 70 : 46)
+    doc.rect(15, y, 180, 40, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text('RESULTAT ' + ar, 20, y + 10)
+    doc.setFontSize(11)
+    doc.text('Netto resultat:', 20, y + 20)
+    doc.setFontSize(16)
+    doc.text(fmt2(netto), 190, y + 20, { align: 'right' })
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Yield: ' + (totInv > 0 ? ((arsinntekt / totInv) * 100).toFixed(1) : '0') + '%  |  Total investert: ' + fmt2(totInv), 20, y + 32)
+
+    doc.save(p.navn.replace(/\s/g, '_') + '_arsrapport_' + ar + '.pdf')
   }
 
   function loggInn() {
@@ -367,7 +500,6 @@ export default function Home() {
 
         {!aktivSeksjon && (
           <div>
-            {/* FIRE BOKSER */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
               {[
                 { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg', farge: '#185FA5', bg: '#f0f7ff' },
@@ -387,34 +519,20 @@ export default function Home() {
               ))}
             </div>
 
-            {/* GJØREMÅL */}
             <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
                 <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
               </div>
-
               {visNyOppgave && (
                 <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
-                    <div style={fieldStyle}>
-                      <label style={labelStyle}>Oppgave</label>
-                      <input style={inputStyle} value={nyTittel} onChange={e => setNyTittel(e.target.value)} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} />
-                    </div>
-                    <div style={fieldStyle}>
-                      <label style={labelStyle}>Ansvar</label>
-                      <input style={inputStyle} value={nyAnsvar} onChange={e => setNyAnsvar(e.target.value)} placeholder="Hvem?" />
-                    </div>
-                    <div style={fieldStyle}>
-                      <label style={labelStyle}>Frist</label>
-                      <input style={inputStyle} type="date" value={nyFrist} onChange={e => setNyFrist(e.target.value)} />
-                    </div>
-                    <div style={fieldStyle}>
-                      <label style={labelStyle}>Prioritet</label>
+                    <div style={fieldStyle}><label style={labelStyle}>Oppgave</label><input style={inputStyle} value={nyTittel} onChange={e => setNyTittel(e.target.value)} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} /></div>
+                    <div style={fieldStyle}><label style={labelStyle}>Ansvar</label><input style={inputStyle} value={nyAnsvar} onChange={e => setNyAnsvar(e.target.value)} placeholder="Hvem?" /></div>
+                    <div style={fieldStyle}><label style={labelStyle}>Frist</label><input style={inputStyle} type="date" value={nyFrist} onChange={e => setNyFrist(e.target.value)} /></div>
+                    <div style={fieldStyle}><label style={labelStyle}>Prioritet</label>
                       <select style={selectStyle} value={nyPrioritet} onChange={e => setNyPrioritet(e.target.value as any)}>
-                        <option value="hast">🔴 Hast</option>
-                        <option value="normal">🟡 Normal</option>
-                        <option value="lav">⚪ Lav</option>
+                        <option value="hast">🔴 Hast</option><option value="normal">🟡 Normal</option><option value="lav">⚪ Lav</option>
                       </select>
                     </div>
                   </div>
@@ -424,9 +542,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
               {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
-
               {oppgaver.map(o => {
                 const ep = beregnEffektivPrioritet(o)
                 const pf = prioritetFarge(ep, o.status)
@@ -450,7 +566,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* BOLIGUTLEIE */}
         {aktivSeksjon === 'utleie' && (
           <div>
             <button onClick={() => { setAktivSeksjon(null); nullstill() }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
@@ -660,9 +775,17 @@ export default function Home() {
               const totalMånedInntekt = p.måneder.reduce((s, m) => s + m.inntekt, 0)
               const totalMånedKostnad = p.måneder.reduce((s, m) => s + m.kostnad, 0)
               const redigerer = redigerProsjekt?.id === p.id
+
+              const arsinntekt = p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).reduce((s, m) => s + m.inntekt, 0)
+              const arskostnadLogg = p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).reduce((s, m) => s + m.kostnad, 0)
+              const fastKostAr = månedligKostnad(p) * 12
+              const totalKostAr = arskostnadLogg + fastKostAr
+              const nettoresultat = arsinntekt - totalKostAr
+
               return (
                 <div>
-                  <button onClick={() => { setVisProsjekt(null); setRedigerProsjekt(null) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+                  <button onClick={() => { setVisProsjekt(null); setRedigerProsjekt(null); setAktivTab('oversikt') }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                     <div>
                       <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{p.navn}</h2>
@@ -687,6 +810,7 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* NØKKELTALL */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
                     {[
                       { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
@@ -701,43 +825,133 @@ export default function Home() {
                     ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>💸 Investeringer</div>
-                      {[
-                        { lbl: 'Kjøpesum', val: fmt(p.kjøpesum) },
-                        { lbl: 'Kjøpskostnader', val: fmt(p.kjøpskostnader) },
-                        { lbl: 'Oppussing budsjett', val: fmt(p.oppussingsbudsjett) },
-                        { lbl: 'Oppussing faktisk', val: fmt(p.oppussing_faktisk) },
-                        { lbl: 'Møblering', val: fmt(p.møblering) },
-                        { lbl: 'Forventet salgsverdi', val: fmt(p.forventet_salgsverdi) },
-                      ].map((r, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
-                          <span style={{ color: '#666' }}>{r.lbl}</span><span style={{ fontWeight: 600 }}>{r.val}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>📅 Månedlig</div>
-                      {[
-                        { lbl: 'Leieinntekt', val: fmt(p.leieinntekt_mnd), farge: '#2D7D46' },
-                        { lbl: 'Lånebetaling', val: fmt(p.lån_mnd), farge: '#C8102E' },
-                        { lbl: 'Fellesutgifter', val: fmt(p.fellesutgifter_mnd), farge: '#C8102E' },
-                        { lbl: 'Strøm', val: fmt(p.strøm_mnd), farge: '#C8102E' },
-                        { lbl: 'Forsikring', val: fmt(p.forsikring_mnd), farge: '#C8102E' },
-                        { lbl: 'Forvaltning', val: fmt(p.forvaltning_mnd), farge: '#C8102E' },
-                      ].map((r, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
-                          <span style={{ color: '#666' }}>{r.lbl}</span><span style={{ fontWeight: 600, color: r.farge }}>{r.val}</span>
-                        </div>
-                      ))}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #eee', fontSize: 14, marginTop: 4 }}>
-                        <span style={{ fontWeight: 700 }}>Cashflow</span>
-                        <span style={{ fontWeight: 700, color: cf >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(cf)}</span>
-                      </div>
-                    </div>
+                  {/* TABS */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {[{ id: 'oversikt', lbl: '📊 Oversikt' }, { id: 'arsrapport', lbl: '📋 Årsrapport' }].map(t => (
+                      <button key={t.id} onClick={() => setAktivTab(t.id as any)}
+                        style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#1a1a2e' : '#f0f0f0', color: aktivTab === t.id ? 'white' : '#444' }}>
+                        {t.lbl}
+                      </button>
+                    ))}
                   </div>
 
+                  {/* OVERSIKT TAB */}
+                  {aktivTab === 'oversikt' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>💸 Investeringer</div>
+                        {[
+                          { lbl: 'Kjøpesum', val: fmt(p.kjøpesum) },
+                          { lbl: 'Kjøpskostnader', val: fmt(p.kjøpskostnader) },
+                          { lbl: 'Oppussing budsjett', val: fmt(p.oppussingsbudsjett) },
+                          { lbl: 'Oppussing faktisk', val: fmt(p.oppussing_faktisk) },
+                          { lbl: 'Møblering', val: fmt(p.møblering) },
+                          { lbl: 'Forventet salgsverdi', val: fmt(p.forventet_salgsverdi) },
+                        ].map((r, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
+                            <span style={{ color: '#666' }}>{r.lbl}</span><span style={{ fontWeight: 600 }}>{r.val}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>📅 Månedlig</div>
+                        {[
+                          { lbl: 'Leieinntekt', val: fmt(p.leieinntekt_mnd), farge: '#2D7D46' },
+                          { lbl: 'Lånebetaling', val: fmt(p.lån_mnd), farge: '#C8102E' },
+                          { lbl: 'Fellesutgifter', val: fmt(p.fellesutgifter_mnd), farge: '#C8102E' },
+                          { lbl: 'Strøm', val: fmt(p.strøm_mnd), farge: '#C8102E' },
+                          { lbl: 'Forsikring', val: fmt(p.forsikring_mnd), farge: '#C8102E' },
+                          { lbl: 'Forvaltning', val: fmt(p.forvaltning_mnd), farge: '#C8102E' },
+                        ].map((r, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
+                            <span style={{ color: '#666' }}>{r.lbl}</span><span style={{ fontWeight: 600, color: r.farge }}>{r.val}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #eee', fontSize: 14, marginTop: 4 }}>
+                          <span style={{ fontWeight: 700 }}>Cashflow</span>
+                          <span style={{ fontWeight: 700, color: cf >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(cf)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ÅRSRAPPORT TAB */}
+                  {aktivTab === 'arsrapport' && (
+                    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>📋 Årsrapport</h3>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <select value={valgtAr} onChange={e => setValgtAr(Number(e.target.value))}
+                            style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14 }}>
+                            {[2024, 2025, 2026, 2027].map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                          </select>
+                          <button onClick={() => lastNedPDF(p, valgtAr)}
+                            style={{ background: '#C8102E', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                            📥 Last ned PDF
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* INNTEKTER */}
+                      <div style={{ background: '#f0faf4', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1a4d2b' }}>💰 Inntekter {valgtAr}</div>
+                        {p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).length === 0 && (
+                          <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>Ingen inntekter registrert for {valgtAr} – legg til i månedlig logg under</div>
+                        )}
+                        {p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).map((m, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #d0ead8' : 'none', fontSize: 13 }}>
+                            <span style={{ color: '#444' }}>{m.måned}{m.notat ? ' – ' + m.notat : ''}</span>
+                            <span style={{ fontWeight: 600, color: '#2D7D46' }}>{fmt(m.inntekt)}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #2D7D46', fontSize: 14, marginTop: 4 }}>
+                          <span style={{ fontWeight: 700 }}>Sum inntekter</span>
+                          <span style={{ fontWeight: 700, color: '#2D7D46' }}>{fmt(arsinntekt)}</span>
+                        </div>
+                      </div>
+
+                      {/* KOSTNADER */}
+                      <div style={{ background: '#fde8ec', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#7a0c1e' }}>📉 Kostnader {valgtAr}</div>
+                        {[
+                          { lbl: 'Lånebetaling (12 mnd)', val: p.lån_mnd * 12 },
+                          { lbl: 'Fellesutgifter (12 mnd)', val: p.fellesutgifter_mnd * 12 },
+                          { lbl: 'Strøm (12 mnd)', val: p.strøm_mnd * 12 },
+                          { lbl: 'Forsikring (12 mnd)', val: p.forsikring_mnd * 12 },
+                          { lbl: 'Forvaltning (12 mnd)', val: p.forvaltning_mnd * 12 },
+                          { lbl: 'Variable kostnader (logg)', val: arskostnadLogg },
+                        ].filter(r => r.val > 0).map((r, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f5a3b0' : 'none', fontSize: 13 }}>
+                            <span style={{ color: '#444' }}>{r.lbl}</span>
+                            <span style={{ fontWeight: 600, color: '#C8102E' }}>{fmt(r.val)}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #C8102E', fontSize: 14, marginTop: 4 }}>
+                          <span style={{ fontWeight: 700 }}>Sum kostnader</span>
+                          <span style={{ fontWeight: 700, color: '#C8102E' }}>{fmt(totalKostAr)}</span>
+                        </div>
+                      </div>
+
+                      {/* RESULTAT */}
+                      <div style={{ background: nettoresultat >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${nettoresultat >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 10, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 Resultat {valgtAr}</div>
+                        {[
+                          { lbl: 'Sum inntekter', val: fmt(arsinntekt), farge: '#2D7D46' },
+                          { lbl: 'Sum kostnader', val: fmt(totalKostAr), farge: '#C8102E' },
+                          { lbl: 'Netto resultat', val: fmt(nettoresultat), farge: nettoresultat >= 0 ? '#2D7D46' : '#C8102E', bold: true },
+                          { lbl: 'Yield (faktisk)', val: totalInvestering(p) > 0 ? ((arsinntekt / totalInvestering(p)) * 100).toFixed(1) + '%' : '–', farge: '#185FA5' },
+                          { lbl: 'Total investering', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
+                        ].map((r, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.08)' : 'none', fontSize: 13 }}>
+                            <span style={{ color: '#444', fontWeight: (r as any).bold ? 700 : 400 }}>{r.lbl}</span>
+                            <span style={{ fontWeight: 700, color: r.farge, fontSize: (r as any).bold ? 15 : 13 }}>{r.val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* NOTATER */}
                   {p.notater && (
                     <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: 14, marginBottom: 20 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📝 Notater</div>
@@ -745,6 +959,7 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* MÅNEDLIG LOGG */}
                   <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>📆 Månedlig logg</div>
                     {p.måneder.length > 0 && (

@@ -12,6 +12,8 @@
     "@anthropic-ai/sdk": "^0.90.0",
     "@supabase/supabase-js": "^2.103.3",
     "cheerio": "^1.2.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "next": "16.2.4",
     "node-fetch": "^3.3.2",
     "playwright": "^1.59.1",
