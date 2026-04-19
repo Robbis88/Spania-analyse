@@ -10,7 +10,7 @@ const supabase = createClient(
 const PASSORD = 'Isabella26'
 
 type Melding = { role: 'user' | 'assistant'; content: string }
-type Oppgave = { id: string; tittel: string; ansvar: string; prioritet: 'hast' | 'normal' | 'lav'; status: 'aktiv' | 'ferdig'; opprettet: string }
+type Oppgave = { id: string; tittel: string; ansvar: string; prioritet: 'hast' | 'normal' | 'lav'; status: 'aktiv' | 'ferdig'; frist: string; opprettet: string }
 type Prosjekt = {
   id: string; bruker: string; navn: string; status: string; dato_kjopt: string
   kjøpesum: number; kjøpskostnader: number; oppussingsbudsjett: number; oppussing_faktisk: number
@@ -25,6 +25,41 @@ const tomtProsjekt = (): Prosjekt => ({
   møblering: 0, forventet_salgsverdi: 0, leieinntekt_mnd: 0, lån_mnd: 0, fellesutgifter_mnd: 0,
   strøm_mnd: 0, forsikring_mnd: 0, forvaltning_mnd: 0, notater: '', måneder: []
 })
+
+function beregnEffektivPrioritet(o: Oppgave): 'hast' | 'normal' | 'lav' {
+  if (o.status === 'ferdig') return o.prioritet
+  if (!o.frist) return o.prioritet
+  const idag = new Date()
+  idag.setHours(0, 0, 0, 0)
+  const frist = new Date(o.frist)
+  frist.setHours(0, 0, 0, 0)
+  const dagerIgjen = Math.ceil((frist.getTime() - idag.getTime()) / (1000 * 60 * 60 * 24))
+  if (o.prioritet === 'hast') return 'hast'
+  if (o.prioritet === 'normal') {
+    if (dagerIgjen <= 1) return 'hast'
+    return 'normal'
+  }
+  if (o.prioritet === 'lav') {
+    if (dagerIgjen <= 1) return 'hast'
+    if (dagerIgjen <= 2) return 'normal'
+    return 'lav'
+  }
+  return o.prioritet
+}
+
+function fristTekst(frist: string): string {
+  if (!frist) return ''
+  const idag = new Date()
+  idag.setHours(0, 0, 0, 0)
+  const fristDato = new Date(frist)
+  fristDato.setHours(0, 0, 0, 0)
+  const dager = Math.ceil((fristDato.getTime() - idag.getTime()) / (1000 * 60 * 60 * 24))
+  if (dager < 0) return `⚠️ ${Math.abs(dager)} dag${Math.abs(dager) !== 1 ? 'er' : ''} over frist`
+  if (dager === 0) return '🔴 Frist i dag!'
+  if (dager === 1) return '🔴 Frist i morgen'
+  if (dager === 2) return '🟡 Frist om 2 dager'
+  return `📅 Frist om ${dager} dager`
+}
 
 export default function Home() {
   const [loggetInn, setLoggetInn] = useState(false)
@@ -51,10 +86,8 @@ export default function Home() {
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
-  const [nyOppgave, setNyOppgave] = useState({ tittel: '', ansvar: '', prioritet: 'normal' as 'hast' | 'normal' | 'lav' })
+  const [nyOppgave, setNyOppgave] = useState({ tittel: '', ansvar: '', prioritet: 'normal' as 'hast' | 'normal' | 'lav', frist: '' })
   const [visNyOppgave, setVisNyOppgave] = useState(false)
-
-  // AGENT
   const [agentApen, setAgentApen] = useState(false)
   const [meldinger, setMeldinger] = useState<Melding[]>([])
   const [agentInput, setAgentInput] = useState('')
@@ -72,11 +105,7 @@ export default function Home() {
     setAgentInput('')
     setAgentLoading(true)
     try {
-      const res = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meldinger: nyeMeldinger })
-      })
+      const res = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meldinger: nyeMeldinger }) })
       const data = await res.json()
       setMeldinger([...nyeMeldinger, { role: 'assistant', content: data.svar }])
     } catch {
@@ -89,19 +118,21 @@ export default function Home() {
     const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
     if (data) {
       const sortert = [...data].sort((a, b) => {
+        if (a.status === 'ferdig' && b.status !== 'ferdig') return 1
+        if (a.status !== 'ferdig' && b.status === 'ferdig') return -1
+        const epA = beregnEffektivPrioritet(a as Oppgave)
+        const epB = beregnEffektivPrioritet(b as Oppgave)
         const pr = { hast: 0, normal: 1, lav: 2 }
-        const st = { aktiv: 0, ferdig: 1 }
-        if (st[a.status as keyof typeof st] !== st[b.status as keyof typeof st]) return st[a.status as keyof typeof st] - st[b.status as keyof typeof st]
-        return pr[a.prioritet as keyof typeof pr] - pr[b.prioritet as keyof typeof pr]
+        return pr[epA] - pr[epB]
       })
-      setOppgaver(sortert)
+      setOppgaver(sortert as Oppgave[])
     }
   }
 
   async function leggTilOppgave() {
     if (!nyOppgave.tittel) return
     await supabase.from('oppgaver').insert([{ id: Date.now().toString(), ...nyOppgave, status: 'aktiv' }])
-    setNyOppgave({ tittel: '', ansvar: '', prioritet: 'normal' })
+    setNyOppgave({ tittel: '', ansvar: '', prioritet: 'normal', frist: '' })
     setVisNyOppgave(false)
     await hentOppgaver()
   }
@@ -126,16 +157,13 @@ export default function Home() {
   async function leggTilProsjekt() {
     if (!nyttProsjekt.navn) return
     await supabase.from('prosjekter').insert([{ ...nyttProsjekt, id: Date.now().toString(), bruker: 'leganger' }])
-    await hentProsjekter()
-    setNyttProsjekt(tomtProsjekt())
-    setVisNyttSkjema(false)
+    await hentProsjekter(); setNyttProsjekt(tomtProsjekt()); setVisNyttSkjema(false)
   }
 
   async function lagreRedigering() {
     if (!redigerProsjekt) return
     await supabase.from('prosjekter').update(redigerProsjekt).eq('id', redigerProsjekt.id)
-    await hentProsjekter()
-    setRedigerProsjekt(null)
+    await hentProsjekter(); setRedigerProsjekt(null)
   }
 
   async function slettProsjekt(id: string) {
@@ -203,14 +231,14 @@ export default function Home() {
     return { bg: '#fde8ec', color: '#C8102E' }
   }
 
-  const prioritetFarge = (p: string, status: string) => {
+  const prioritetFarge = (ep: string, status: string) => {
     if (status === 'ferdig') return { bg: '#e8f5ed', border: '#2D7D46', color: '#2D7D46' }
-    if (p === 'hast') return { bg: '#fde8ec', border: '#C8102E', color: '#C8102E' }
-    if (p === 'normal') return { bg: '#fff8e1', border: '#B05E0A', color: '#B05E0A' }
+    if (ep === 'hast') return { bg: '#fde8ec', border: '#C8102E', color: '#C8102E' }
+    if (ep === 'normal') return { bg: '#fff8e1', border: '#B05E0A', color: '#B05E0A' }
     return { bg: '#f8f8f8', border: '#ddd', color: '#666' }
   }
 
-  const prioritetLabel = (p: string) => p === 'hast' ? '🔴 Hast' : p === 'normal' ? '🟡 Normal' : '⚪ Lav'
+  const prioritetLabel = (ep: string) => ep === 'hast' ? '🔴 Hast' : ep === 'normal' ? '🟡 Normal' : '⚪ Lav'
 
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
   const selectStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }
@@ -336,6 +364,70 @@ export default function Home() {
     )
   }
 
+  const GjøremålListe = () => (
+    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
+        <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
+      </div>
+
+      {visNyOppgave && (
+        <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Oppgave</label>
+              <input style={inputStyle} value={nyOppgave.tittel} onChange={e => setNyOppgave(o => ({ ...o, tittel: e.target.value }))} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} />
+            </div>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Ansvar</label>
+              <input style={inputStyle} value={nyOppgave.ansvar} onChange={e => setNyOppgave(o => ({ ...o, ansvar: e.target.value }))} placeholder="Hvem?" />
+            </div>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Frist</label>
+              <input style={inputStyle} type="date" value={nyOppgave.frist} onChange={e => setNyOppgave(o => ({ ...o, frist: e.target.value }))} />
+            </div>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Prioritet</label>
+              <select style={selectStyle} value={nyOppgave.prioritet} onChange={e => setNyOppgave(o => ({ ...o, prioritet: e.target.value as any }))}>
+                <option value="hast">🔴 Hast</option>
+                <option value="normal">🟡 Normal</option>
+                <option value="lav">⚪ Lav</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={leggTilOppgave} style={{ flex: 1, background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
+            <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
+          </div>
+        </div>
+      )}
+
+      {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
+
+      {oppgaver.map(o => {
+        const ep = beregnEffektivPrioritet(o)
+        const pf = prioritetFarge(ep, o.status)
+        const ft = o.status === 'ferdig' ? '' : fristTekst(o.frist)
+        return (
+          <div key={o.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 10, opacity: o.status === 'ferdig' ? 0.6 : 1 }}>
+            <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
+                {o.ansvar && <div style={{ fontSize: 12, color: '#888' }}>👤 {o.ansvar}</div>}
+                {ft && <div style={{ fontSize: 12, fontWeight: 500, color: pf.color }}>{ft}</div>}
+              </div>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>
+              {o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(ep)}
+            </div>
+            <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100 }}>
@@ -349,48 +441,8 @@ export default function Home() {
 
         {!aktivSeksjon && (
           <div>
-            {/* GJØREMÅL */}
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
-                <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
-              </div>
-              {visNyOppgave && (
-                <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <div style={fieldStyle}><label style={labelStyle}>Oppgave</label><input style={inputStyle} value={nyOppgave.tittel} onChange={e => setNyOppgave(o => ({ ...o, tittel: e.target.value }))} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} /></div>
-                    <div style={fieldStyle}><label style={labelStyle}>Ansvar</label><input style={inputStyle} value={nyOppgave.ansvar} onChange={e => setNyOppgave(o => ({ ...o, ansvar: e.target.value }))} placeholder="Hvem?" /></div>
-                    <div style={fieldStyle}><label style={labelStyle}>Prioritet</label>
-                      <select style={selectStyle} value={nyOppgave.prioritet} onChange={e => setNyOppgave(o => ({ ...o, prioritet: e.target.value as any }))}>
-                        <option value="hast">🔴 Hast</option><option value="normal">🟡 Normal</option><option value="lav">⚪ Lav</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={leggTilOppgave} style={{ flex: 1, background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
-                    <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
-                  </div>
-                </div>
-              )}
-              {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
-              {oppgaver.map(o => {
-                const pf = prioritetFarge(o.prioritet, o.status)
-                return (
-                  <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 10, opacity: o.status === 'ferdig' ? 0.7 : 1 }}>
-                    <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#1a1a2e', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
-                      {o.ansvar && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>👤 {o.ansvar}</div>}
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>{o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(o.prioritet)}</div>
-                    <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc' }}>🗑️</button>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* BOKSER */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
+            {/* FIRE BOKSER */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
               {[
                 { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg', farge: '#185FA5', bg: '#f0f7ff' },
                 { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial og investorscore', farge: '#C8102E', bg: '#fff5f5' },
@@ -408,6 +460,9 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            {/* GJØREMÅL UNDER BOKSENE */}
+            <GjøremålListe />
           </div>
         )}
 
@@ -532,7 +587,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* REGNSKAP */}
         {aktivSeksjon === 'regnskap' && (
           <div>
             <button onClick={() => { setAktivSeksjon(null); setVisProsjekt(null); setVisNyttSkjema(false); setRedigerProsjekt(null) }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
@@ -746,11 +800,9 @@ export default function Home() {
 
       </main>
 
-      {/* AI AGENT CHAT-BOBLE */}
+      {/* AI AGENT */}
       {loggetInn && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}>
-
-          {/* CHATVINDU */}
           {agentApen && (
             <div style={{ position: 'absolute', bottom: 72, right: 0, width: 360, background: 'white', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ background: '#1a1a2e', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -760,7 +812,6 @@ export default function Home() {
                 </div>
                 <button onClick={() => setMeldinger([])} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 12 }}>Tøm</button>
               </div>
-
               <div style={{ height: 340, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {meldinger.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#aaa', fontSize: 13, marginTop: 40 }}>
@@ -770,49 +821,26 @@ export default function Home() {
                 )}
                 {meldinger.map((m, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6,
-                      background: m.role === 'user' ? '#C8102E' : '#f0f0f0',
-                      color: m.role === 'user' ? 'white' : '#222',
-                      borderBottomRightRadius: m.role === 'user' ? 4 : 12,
-                      borderBottomLeftRadius: m.role === 'assistant' ? 4 : 12,
-                      whiteSpace: 'pre-wrap'
-                    }}>
+                    <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6, background: m.role === 'user' ? '#C8102E' : '#f0f0f0', color: m.role === 'user' ? 'white' : '#222', borderBottomRightRadius: m.role === 'user' ? 4 : 12, borderBottomLeftRadius: m.role === 'assistant' ? 4 : 12, whiteSpace: 'pre-wrap' }}>
                       {m.content}
                     </div>
                   </div>
                 ))}
                 {agentLoading && (
                   <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                    <div style={{ background: '#f0f0f0', borderRadius: 12, borderBottomLeftRadius: 4, padding: '10px 14px', fontSize: 13, color: '#666' }}>
-                      ⏳ Tenker...
-                    </div>
+                    <div style={{ background: '#f0f0f0', borderRadius: 12, borderBottomLeftRadius: 4, padding: '10px 14px', fontSize: 13, color: '#666' }}>⏳ Tenker...</div>
                   </div>
                 )}
                 <div ref={chatBunnRef} />
               </div>
-
               <div style={{ padding: 12, borderTop: '1px solid #eee', display: 'flex', gap: 8 }}>
-                <input
-                  value={agentInput}
-                  onChange={e => setAgentInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendAgentMelding()}
-                  placeholder="Still et spørsmål..."
-                  style={{ flex: 1, padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }}
-                />
-                <button onClick={sendAgentMelding} disabled={agentLoading || !agentInput.trim()}
-                  style={{ background: agentLoading ? '#ccc' : '#C8102E', color: 'white', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 16, cursor: agentLoading ? 'not-allowed' : 'pointer' }}>
-                  →
-                </button>
+                <input value={agentInput} onChange={e => setAgentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendAgentMelding()} placeholder="Still et spørsmål..."
+                  style={{ flex: 1, padding: '10px 12px', fontSize: 13, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }} />
+                <button onClick={sendAgentMelding} disabled={agentLoading || !agentInput.trim()} style={{ background: agentLoading ? '#ccc' : '#C8102E', color: 'white', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 16, cursor: agentLoading ? 'not-allowed' : 'pointer' }}>→</button>
               </div>
             </div>
           )}
-
-          {/* BOBLE-KNAPP */}
-          <button
-            onClick={() => setAgentApen(!agentApen)}
-            style={{ width: 56, height: 56, borderRadius: '50%', background: '#1a1a2e', border: 'none', cursor: 'pointer', fontSize: 24, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
+          <button onClick={() => setAgentApen(!agentApen)} style={{ width: 56, height: 56, borderRadius: '50%', background: '#1a1a2e', border: 'none', cursor: 'pointer', fontSize: 24, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {agentApen ? '✕' : '🤖'}
           </button>
         </div>
