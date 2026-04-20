@@ -13,6 +13,7 @@ type Melding = { role: 'user' | 'assistant'; content: string }
 type Oppgave = { id: string; tittel: string; ansvar: string; prioritet: 'hast' | 'normal' | 'lav'; status: 'aktiv' | 'ferdig'; frist: string; opprettet: string }
 type Prosjekt = {
   id: string; bruker: string; navn: string; status: string; dato_kjopt: string
+  kategori: 'flipp' | 'utleie'
   kjøpesum: number; kjøpskostnader: number; oppussingsbudsjett: number; oppussing_faktisk: number
   møblering: number; forventet_salgsverdi: number; leieinntekt_mnd: number; lån_mnd: number
   fellesutgifter_mnd: number; strøm_mnd: number; forsikring_mnd: number; forvaltning_mnd: number
@@ -21,6 +22,7 @@ type Prosjekt = {
 
 const tomtProsjekt = (): Prosjekt => ({
   id: Date.now().toString(), bruker: 'leganger', navn: '', status: 'Under vurdering',
+  kategori: 'utleie',
   dato_kjopt: '', kjøpesum: 0, kjøpskostnader: 0, oppussingsbudsjett: 0, oppussing_faktisk: 0,
   møblering: 0, forventet_salgsverdi: 0, leieinntekt_mnd: 0, lån_mnd: 0, fellesutgifter_mnd: 0,
   strøm_mnd: 0, forsikring_mnd: 0, forvaltning_mnd: 0, notater: '', måneder: []
@@ -67,308 +69,13 @@ const statusFarge = (s: string) => {
   return { bg: '#fde8ec', color: '#C8102E' }
 }
 
-export default function Home() {
-  const [loggetInn, setLoggetInn] = useState(false)
-  const [passordInput, setPassordInput] = useState('')
-  const [passordFeil, setPassordFeil] = useState(false)
-  const [aktivSeksjon, setAktivSeksjon] = useState<string | null>(null)
-  const [input, setInput] = useState('')
-  const [result, setResult] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [airbnbLoading, setAirbnbLoading] = useState(false)
-  const [airbnbAnalyse, setAirbnbAnalyse] = useState('')
-  const [airbnbScore, setAirbnbScore] = useState<any>(null)
-  const [visSkjema, setVisSkjema] = useState(false)
-  const [bolig, setBolig] = useState({
-    type: '', beliggenhet: '', soverom: '', bad: '', areal: '', avstand_strand: '',
-    basseng: 'felles', parkering: 'privat', havutsikt: 'nei', standard: 'moderne',
-    pris: '', ekstra: '', markedspris_bra_m2: '', oppbudsjett: ''
-  })
-  const [prosjekter, setProsjekter] = useState<Prosjekt[]>([])
-  const [dbLoading, setDbLoading] = useState(false)
-  const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
-  const [visNyttSkjema, setVisNyttSkjema] = useState(false)
-  const [nyMåned, setNyMåned] = useState({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
-  const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
-  const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport'>('oversikt')
-  const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
-  const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
-  const [nyTittel, setNyTittel] = useState('')
-  const [nyAnsvar, setNyAnsvar] = useState('')
-  const [nyPrioritet, setNyPrioritet] = useState<'hast' | 'normal' | 'lav'>('normal')
-  const [nyFrist, setNyFrist] = useState('')
-  const [visNyOppgave, setVisNyOppgave] = useState(false)
-  const [agentApen, setAgentApen] = useState(false)
-  const [meldinger, setMeldinger] = useState<Melding[]>([])
-  const [agentInput, setAgentInput] = useState('')
-  const [agentLoading, setAgentLoading] = useState(false)
-  const chatBunnRef = useRef<HTMLDivElement>(null)
+const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
+const selectStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }
+const labelStyle = { fontSize: 12, color: '#666', marginBottom: 5, display: 'block' as const }
+const fieldStyle = { display: 'flex', flexDirection: 'column' as const }
 
-  useEffect(() => { if (loggetInn) hentOppgaver() }, [loggetInn])
-  useEffect(() => { if (loggetInn && aktivSeksjon === 'regnskap') hentProsjekter() }, [loggetInn, aktivSeksjon])
-  useEffect(() => { chatBunnRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [meldinger])
-
-  async function sendAgentMelding() {
-    if (!agentInput.trim() || agentLoading) return
-    const nyeMeldinger: Melding[] = [...meldinger, { role: 'user', content: agentInput }]
-    setMeldinger(nyeMeldinger); setAgentInput(''); setAgentLoading(true)
-    try {
-      const res = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meldinger: nyeMeldinger }) })
-      const data = await res.json()
-      setMeldinger([...nyeMeldinger, { role: 'assistant', content: data.svar }])
-    } catch {
-      setMeldinger([...nyeMeldinger, { role: 'assistant', content: 'Beklager, noe gikk galt.' }])
-    }
-    setAgentLoading(false)
-  }
-
-  async function hentOppgaver() {
-    const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
-    if (data) {
-      const sortert = [...data].sort((a, b) => {
-        if (a.status === 'ferdig' && b.status !== 'ferdig') return 1
-        if (a.status !== 'ferdig' && b.status === 'ferdig') return -1
-        const pr = { hast: 0, normal: 1, lav: 2 }
-        return pr[beregnEffektivPrioritet(a as Oppgave)] - pr[beregnEffektivPrioritet(b as Oppgave)]
-      })
-      setOppgaver(sortert as Oppgave[])
-    }
-  }
-
-  async function leggTilOppgave() {
-    if (!nyTittel) return
-    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
-    setNyTittel(''); setNyAnsvar(''); setNyPrioritet('normal'); setNyFrist('')
-    setVisNyOppgave(false); await hentOppgaver()
-  }
-
-  async function toggleOppgave(o: Oppgave) {
-    await supabase.from('oppgaver').update({ status: o.status === 'aktiv' ? 'ferdig' : 'aktiv' }).eq('id', o.id)
-    await hentOppgaver()
-  }
-
-  async function slettOppgave(id: string) {
-    await supabase.from('oppgaver').delete().eq('id', id)
-    await hentOppgaver()
-  }
-
-  async function hentProsjekter() {
-    setDbLoading(true)
-    const { data } = await supabase.from('prosjekter').select('*').eq('bruker', 'leganger').order('opprettet', { ascending: false })
-    if (data) setProsjekter(data)
-    setDbLoading(false)
-  }
-
-  async function leggTilProsjekt() {
-    if (!nyttProsjekt.navn) return
-    await supabase.from('prosjekter').insert([{ ...nyttProsjekt, id: Date.now().toString(), bruker: 'leganger' }])
-    await hentProsjekter(); setNyttProsjekt(tomtProsjekt()); setVisNyttSkjema(false)
-  }
-
-  async function lagreRedigering() {
-    if (!redigerProsjekt) return
-    await supabase.from('prosjekter').update(redigerProsjekt).eq('id', redigerProsjekt.id)
-    await hentProsjekter(); setRedigerProsjekt(null)
-  }
-
-  async function slettProsjekt(id: string) {
-    if (!confirm('Er du sikker?')) return
-    await supabase.from('prosjekter').delete().eq('id', id)
-    await hentProsjekter()
-    if (visProsjekt === id) setVisProsjekt(null)
-  }
-
-  async function oppdaterProsjekt(oppdatert: Prosjekt) {
-    await supabase.from('prosjekter').update(oppdatert).eq('id', oppdatert.id)
-    await hentProsjekter()
-  }
-
-  async function leggTilMåned(prosjektId: string) {
-    if (!nyMåned.måned) return
-    const p = prosjekter.find(p => p.id === prosjektId)
-    if (!p) return
-    await oppdaterProsjekt({ ...p, måneder: [...p.måneder, nyMåned] })
-    setNyMåned({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
-  }
-
-  async function lastNedPDF(p: Prosjekt, ar: number) {
-    const { jsPDF } = await import('jspdf')
-    const doc = new jsPDF()
-    const fmt2 = (n: number) => n ? 'EUR ' + Math.round(n).toLocaleString('nb-NO') : '-'
-
-    const arsinntekt = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.inntekt, 0)
-    const arskostnadLogg = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.kostnad, 0)
-    const fastKostAr = (p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd) * 12
-    const totalKost = arskostnadLogg + fastKostAr
-    const netto = arsinntekt - totalKost
-    const totInv = p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
-
-    // Header
-    doc.setFillColor(26, 26, 46)
-    doc.rect(0, 0, 210, 35, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(20)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Leganger Eiendom', 20, 15)
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Arsrapport ' + ar + ' – ' + p.navn, 20, 25)
-
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(9)
-    doc.text('Generert: ' + new Date().toLocaleDateString('nb-NO') + '  |  Status: ' + p.status + (p.dato_kjopt ? '  |  Kjøpt: ' + p.dato_kjopt : ''), 20, 42)
-
-    // Investering
-    let y = 52
-    doc.setFillColor(240, 240, 255)
-    doc.rect(15, y, 180, 8, 'F')
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(26, 26, 46)
-    doc.text('INVESTERING', 20, y + 5.5)
-    y += 12
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(60, 60, 60)
-    const invRader = [
-      ['Kjøpesum', fmt2(p.kjøpesum)],
-      ['Kjøpskostnader', fmt2(p.kjøpskostnader)],
-      ['Oppussing budsjett', fmt2(p.oppussingsbudsjett)],
-      ['Oppussing faktisk', fmt2(p.oppussing_faktisk)],
-      ['Møblering', fmt2(p.møblering)],
-    ]
-    invRader.forEach(([lbl, val], i) => {
-      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
-      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
-    })
-    doc.setFont('helvetica', 'bold')
-    doc.setFillColor(230, 230, 250)
-    doc.rect(15, y - 3, 180, 8, 'F')
-    doc.text('Total investering', 20, y + 2); doc.text(fmt2(totInv), 190, y + 2, { align: 'right' })
-    y += 14
-
-    // Inntekter
-    doc.setFillColor(230, 245, 237)
-    doc.rect(15, y, 180, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(26, 26, 46)
-    doc.setFontSize(11)
-    doc.text('INNTEKTER ' + ar, 20, y + 5.5)
-    y += 12
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(60, 60, 60)
-    const maneder = p.måneder.filter(m => m.måned.startsWith(ar.toString()))
-    const manedNavn = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember']
-    if (maneder.length === 0) { doc.text('Ingen inntekter registrert for ' + ar, 20, y + 2); y += 7 }
-    maneder.forEach((m, i) => {
-      const mNr = parseInt(m.måned.split('-')[1]) - 1
-      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
-      doc.text(manedNavn[mNr] + (m.notat ? ' – ' + m.notat : ''), 20, y + 2)
-      doc.text(fmt2(m.inntekt), 190, y + 2, { align: 'right' }); y += 7
-    })
-    doc.setFont('helvetica', 'bold')
-    doc.setFillColor(45, 125, 70)
-    doc.setTextColor(255, 255, 255)
-    doc.rect(15, y - 3, 180, 8, 'F')
-    doc.text('Sum inntekter', 20, y + 2); doc.text(fmt2(arsinntekt), 190, y + 2, { align: 'right' })
-    doc.setTextColor(0, 0, 0); y += 14
-
-    // Kostnader
-    doc.setFillColor(253, 232, 236)
-    doc.rect(15, y, 180, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(26, 26, 46)
-    doc.setFontSize(11)
-    doc.text('KOSTNADER ' + ar, 20, y + 5.5)
-    y += 12
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(60, 60, 60)
-    const kostRader = [
-      ['Lånebetaling (12 mnd)', fmt2(p.lån_mnd * 12)],
-      ['Fellesutgifter (12 mnd)', fmt2(p.fellesutgifter_mnd * 12)],
-      ['Strøm (12 mnd)', fmt2(p.strøm_mnd * 12)],
-      ['Forsikring (12 mnd)', fmt2(p.forsikring_mnd * 12)],
-      ['Forvaltning (12 mnd)', fmt2(p.forvaltning_mnd * 12)],
-    ].filter(r => r[1] !== '-')
-    if (arskostnadLogg > 0) kostRader.push(['Variable kostnader (logg)', fmt2(arskostnadLogg)])
-    kostRader.forEach(([lbl, val], i) => {
-      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
-      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
-    })
-    doc.setFont('helvetica', 'bold')
-    doc.setFillColor(200, 16, 46)
-    doc.setTextColor(255, 255, 255)
-    doc.rect(15, y - 3, 180, 8, 'F')
-    doc.text('Sum kostnader', 20, y + 2); doc.text(fmt2(totalKost), 190, y + 2, { align: 'right' })
-    doc.setTextColor(0, 0, 0); y += 14
-
-    // Resultat
-    doc.setFillColor(netto >= 0 ? 45 : 200, netto >= 0 ? 125 : 16, netto >= 0 ? 70 : 46)
-    doc.rect(15, y, 180, 40, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.text('RESULTAT ' + ar, 20, y + 10)
-    doc.setFontSize(11)
-    doc.text('Netto resultat:', 20, y + 20)
-    doc.setFontSize(16)
-    doc.text(fmt2(netto), 190, y + 20, { align: 'right' })
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Yield: ' + (totInv > 0 ? ((arsinntekt / totInv) * 100).toFixed(1) : '0') + '%  |  Total investert: ' + fmt2(totInv), 20, y + 32)
-
-    doc.save(p.navn.replace(/\s/g, '_') + '_arsrapport_' + ar + '.pdf')
-  }
-
-  function loggInn() {
-    if (passordInput === PASSORD) { setLoggetInn(true); setPassordFeil(false) }
-    else setPassordFeil(true)
-  }
-
-  async function analyser() {
-    setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false)
-    try {
-      const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: input }) })
-      const data = await res.json()
-      setResult(data)
-      setBolig({ type: data.type || '', beliggenhet: data.beliggenhet || '', soverom: data.soverom?.toString() || '', bad: '', areal: data.areal?.toString() || '', avstand_strand: data.avstand_strand_m?.toString() || '', basseng: 'felles', parkering: 'privat', havutsikt: 'nei', standard: data.bolig_standard || 'moderne', pris: data.pris?.toString() || '', ekstra: '', markedspris_bra_m2: data.markedspris_bra_m2?.toString() || '', oppbudsjett: '' })
-      setVisSkjema(true)
-    } catch { setResult({ ai_vurdering: 'Noe gikk galt, prøv igjen.' }) }
-    setLoading(false)
-  }
-
-  async function kjørAirbnbAnalyse() {
-    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null)
-    try {
-      const res = await fetch('/api/airbnb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bolig }) })
-      const data = await res.json()
-      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null)
-    } catch { setAirbnbAnalyse('Noe gikk galt, prøv igjen.') }
-    setAirbnbLoading(false)
-  }
-
-  function nullstill() { setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false) }
-
-  const fmt = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
-  const fmtPct = (n: number) => n ? n.toFixed(1) + '%' : '–'
-  const totalInvestering = (p: Prosjekt) => p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
-  const månedligKostnad = (p: Prosjekt) => p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd
-  const månedligCashflow = (p: Prosjekt) => p.leieinntekt_mnd - månedligKostnad(p)
-  const yield_pst = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.leieinntekt_mnd * 12) / totalInvestering(p) * 100) : 0
-  const roi = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.forventet_salgsverdi - totalInvestering(p)) / totalInvestering(p) * 100) : 0
-
-  const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif' }
-  const selectStyle = { width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }
-  const labelStyle = { fontSize: 12, color: '#666', marginBottom: 5, display: 'block' as const }
-  const fieldStyle = { display: 'flex', flexDirection: 'column' as const }
-
-  const ProsjektFelter = ({ data, onChange }: { data: Prosjekt, onChange: (p: Prosjekt) => void }) => (
+function ProsjektFelter({ data, onChange }: { data: Prosjekt, onChange: (p: Prosjekt) => void }) {
+  return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
       {[
         { key: 'navn', lbl: 'Prosjektnavn', placeholder: 'F.eks. Villa Marbella', type: 'text' },
@@ -392,6 +99,13 @@ export default function Home() {
         </div>
       ))}
       <div style={fieldStyle}>
+        <label style={labelStyle}>Kategori</label>
+        <select style={selectStyle} value={data.kategori} onChange={e => onChange({ ...data, kategori: e.target.value as 'flipp' | 'utleie' })}>
+          <option value="utleie">🏖️ Utleie</option>
+          <option value="flipp">🔨 Flipp</option>
+        </select>
+      </div>
+      <div style={fieldStyle}>
         <label style={labelStyle}>Status</label>
         <select style={selectStyle} value={data.status} onChange={e => onChange({ ...data, status: e.target.value })}>
           {['Under vurdering', 'Kjøpt', 'Under oppussing', 'Utleie', 'Solgt'].map(s => <option key={s} value={s}>{s}</option>)}
@@ -404,8 +118,11 @@ export default function Home() {
       </div>
     </div>
   )
+}
 
-  const ScoreKort = ({ s }: { s: any }) => (
+function ScoreKort({ s }: { s: any }) {
+  const fmt = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
+  return (
     <div style={{ background: s.lys === '🟢' ? '#e8f5ed' : s.lys === '🟡' ? '#fff8e1' : '#fde8ec', border: `2px solid ${s.lys === '🟢' ? '#2D7D46' : s.lys === '🟡' ? '#B05E0A' : '#C8102E'}`, borderRadius: 16, padding: 24, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 56 }}>{s.lys}</div>
@@ -465,6 +182,351 @@ export default function Home() {
       )}
     </div>
   )
+}
+
+export default function Home() {
+  const [loggetInn, setLoggetInn] = useState(false)
+  const [passordInput, setPassordInput] = useState('')
+  const [passordFeil, setPassordFeil] = useState(false)
+  const [aktivSeksjon, setAktivSeksjon] = useState<string | null>(null)
+  const [input, setInput] = useState('')
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [airbnbLoading, setAirbnbLoading] = useState(false)
+  const [airbnbAnalyse, setAirbnbAnalyse] = useState('')
+  const [airbnbScore, setAirbnbScore] = useState<any>(null)
+  const [visSkjema, setVisSkjema] = useState(false)
+  const [lagreMelding, setLagreMelding] = useState('')
+  const [bolig, setBolig] = useState({
+    type: '', beliggenhet: '', soverom: '', bad: '', areal: '', avstand_strand: '',
+    basseng: 'felles', parkering: 'privat', havutsikt: 'nei', standard: 'moderne',
+    pris: '', ekstra: '', markedspris_bra_m2: '', oppbudsjett: ''
+  })
+  const [prosjekter, setProsjekter] = useState<Prosjekt[]>([])
+  const [dbLoading, setDbLoading] = useState(false)
+  const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
+  const [visNyttSkjema, setVisNyttSkjema] = useState(false)
+  const [nyMåned, setNyMåned] = useState({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
+  const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
+  const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport'>('oversikt')
+  const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
+  const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
+  const [nyTittel, setNyTittel] = useState('')
+  const [nyAnsvar, setNyAnsvar] = useState('')
+  const [nyPrioritet, setNyPrioritet] = useState<'hast' | 'normal' | 'lav'>('normal')
+  const [nyFrist, setNyFrist] = useState('')
+  const [visNyOppgave, setVisNyOppgave] = useState(false)
+  const [agentApen, setAgentApen] = useState(false)
+  const [meldinger, setMeldinger] = useState<Melding[]>([])
+  const [agentInput, setAgentInput] = useState('')
+  const [agentLoading, setAgentLoading] = useState(false)
+  const chatBunnRef = useRef<HTMLDivElement>(null)
+
+  // Salgsverktøy state
+  const [selgBolig, setSelgBolig] = useState<string | null>(null)
+  const [salgInput, setSalgInput] = useState({
+    salgspris: 0,
+    megler_pst: 5,
+    advokat_pst: 1,
+    plusvalia: 0,
+    skatteresidens: 'eu' as 'eu' | 'ikke_eu',
+    ventetid_ar: 0,
+  })
+  const [markedsprisLoading, setMarkedsprisLoading] = useState(false)
+  const [markedsprisData, setMarkedsprisData] = useState<any>(null)
+
+  useEffect(() => { if (loggetInn) hentOppgaver() }, [loggetInn])
+  useEffect(() => {
+    if (loggetInn && (aktivSeksjon === 'regnskap' || aktivSeksjon === 'flipp' || aktivSeksjon === 'utleie' || aktivSeksjon === 'selge')) {
+      hentProsjekter()
+    }
+  }, [loggetInn, aktivSeksjon])
+  useEffect(() => { chatBunnRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [meldinger])
+
+  async function sendAgentMelding() {
+    if (!agentInput.trim() || agentLoading) return
+    const nyeMeldinger: Melding[] = [...meldinger, { role: 'user', content: agentInput }]
+    setMeldinger(nyeMeldinger); setAgentInput(''); setAgentLoading(true)
+    try {
+      const res = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meldinger: nyeMeldinger }) })
+      const data = await res.json()
+      setMeldinger([...nyeMeldinger, { role: 'assistant', content: data.svar }])
+    } catch {
+      setMeldinger([...nyeMeldinger, { role: 'assistant', content: 'Beklager, noe gikk galt.' }])
+    }
+    setAgentLoading(false)
+  }
+
+  async function hentOppgaver() {
+    const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
+    if (data) {
+      const sortert = [...data].sort((a, b) => {
+        if (a.status === 'ferdig' && b.status !== 'ferdig') return 1
+        if (a.status !== 'ferdig' && b.status === 'ferdig') return -1
+        const pr = { hast: 0, normal: 1, lav: 2 }
+        return pr[beregnEffektivPrioritet(a as Oppgave)] - pr[beregnEffektivPrioritet(b as Oppgave)]
+      })
+      setOppgaver(sortert as Oppgave[])
+    }
+  }
+
+  async function leggTilOppgave() {
+    if (!nyTittel) return
+    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
+    setNyTittel(''); setNyAnsvar(''); setNyPrioritet('normal'); setNyFrist('')
+    setVisNyOppgave(false); await hentOppgaver()
+  }
+
+  async function toggleOppgave(o: Oppgave) {
+    await supabase.from('oppgaver').update({ status: o.status === 'aktiv' ? 'ferdig' : 'aktiv' }).eq('id', o.id)
+    await hentOppgaver()
+  }
+
+  async function slettOppgave(id: string) {
+    await supabase.from('oppgaver').delete().eq('id', id)
+    await hentOppgaver()
+  }
+
+  async function hentProsjekter() {
+    setDbLoading(true)
+    const { data } = await supabase.from('prosjekter').select('*').eq('bruker', 'leganger').order('opprettet', { ascending: false })
+    if (data) setProsjekter(data)
+    setDbLoading(false)
+  }
+
+  async function leggTilProsjekt() {
+    if (!nyttProsjekt.navn) return
+    await supabase.from('prosjekter').insert([{ ...nyttProsjekt, id: Date.now().toString(), bruker: 'leganger' }])
+    await hentProsjekter(); setNyttProsjekt(tomtProsjekt()); setVisNyttSkjema(false)
+  }
+
+  async function lagreAnalyseSomProsjekt(kategori: 'flipp' | 'utleie') {
+    if (!result) return
+    const navn = result.tittel || result.beliggenhet || 'Analysert bolig'
+    const nytt: Prosjekt = {
+      ...tomtProsjekt(),
+      id: Date.now().toString(),
+      navn,
+      kategori,
+      status: kategori === 'flipp' ? 'Under vurdering' : 'Under vurdering',
+      kjøpesum: Number(bolig.pris) || result.pris || 0,
+      oppussingsbudsjett: Number(bolig.oppbudsjett) || 0,
+      lån_mnd: result.mnd_betaling || 0,
+      notater: `Lagret fra Boliganalyse ${new Date().toLocaleDateString('nb-NO')}\n\n` +
+               `Type: ${bolig.type || result.type || '-'}\n` +
+               `Beliggenhet: ${bolig.beliggenhet || result.beliggenhet || '-'}\n` +
+               `Soverom: ${bolig.soverom || result.soverom || '-'}\n` +
+               `Areal: ${bolig.areal || result.areal || '-'} m²\n` +
+               (airbnbScore ? `\nScore: ${airbnbScore.total}/10 ${airbnbScore.lys}\n` : '') +
+               (result.ai_vurdering ? `\nAI-vurdering: ${result.ai_vurdering}` : '')
+    }
+    const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker: 'leganger' }])
+    if (error) {
+      setLagreMelding('❌ Feil ved lagring: ' + error.message)
+    } else {
+      setLagreMelding(`✅ Lagret som ${kategori === 'flipp' ? 'flipp-prosjekt' : 'utleieprosjekt'}! Finn det under "${kategori === 'flipp' ? 'Boligflipp' : 'Boligutleie'}" eller "Regnskap".`)
+      await hentProsjekter()
+    }
+    setTimeout(() => setLagreMelding(''), 5000)
+  }
+
+  async function lagreRedigering() {
+    if (!redigerProsjekt) return
+    await supabase.from('prosjekter').update(redigerProsjekt).eq('id', redigerProsjekt.id)
+    await hentProsjekter(); setRedigerProsjekt(null)
+  }
+
+  async function slettProsjekt(id: string) {
+    if (!confirm('Er du sikker?')) return
+    await supabase.from('prosjekter').delete().eq('id', id)
+    await hentProsjekter()
+    if (visProsjekt === id) setVisProsjekt(null)
+  }
+
+  async function oppdaterProsjekt(oppdatert: Prosjekt) {
+    await supabase.from('prosjekter').update(oppdatert).eq('id', oppdatert.id)
+    await hentProsjekter()
+  }
+
+  async function leggTilMåned(prosjektId: string) {
+    if (!nyMåned.måned) return
+    const p = prosjekter.find(p => p.id === prosjektId)
+    if (!p) return
+    await oppdaterProsjekt({ ...p, måneder: [...p.måneder, nyMåned] })
+    setNyMåned({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
+  }
+
+  async function lastNedPDF(p: Prosjekt, ar: number) {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    const fmt2 = (n: number) => n ? 'EUR ' + Math.round(n).toLocaleString('nb-NO') : '-'
+
+    const arsinntekt = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.inntekt, 0)
+    const arskostnadLogg = p.måneder.filter(m => m.måned.startsWith(ar.toString())).reduce((s, m) => s + m.kostnad, 0)
+    const fastKostAr = (p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd) * 12
+    const totalKost = arskostnadLogg + fastKostAr
+    const netto = arsinntekt - totalKost
+    const totInv = p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
+
+    doc.setFillColor(26, 26, 46)
+    doc.rect(0, 0, 210, 35, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Leganger Eiendom', 20, 15)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Arsrapport ' + ar + ' – ' + p.navn, 20, 25)
+
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
+    doc.text('Generert: ' + new Date().toLocaleDateString('nb-NO') + '  |  Status: ' + p.status + (p.dato_kjopt ? '  |  Kjøpt: ' + p.dato_kjopt : ''), 20, 42)
+
+    let y = 52
+    doc.setFillColor(240, 240, 255)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.text('INVESTERING', 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const invRader = [
+      ['Kjøpesum', fmt2(p.kjøpesum)],
+      ['Kjøpskostnader', fmt2(p.kjøpskostnader)],
+      ['Oppussing budsjett', fmt2(p.oppussingsbudsjett)],
+      ['Oppussing faktisk', fmt2(p.oppussing_faktisk)],
+      ['Møblering', fmt2(p.møblering)],
+    ]
+    invRader.forEach(([lbl, val], i) => {
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(230, 230, 250)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Total investering', 20, y + 2); doc.text(fmt2(totInv), 190, y + 2, { align: 'right' })
+    y += 14
+
+    doc.setFillColor(230, 245, 237)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.setFontSize(11)
+    doc.text('INNTEKTER ' + ar, 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const maneder = p.måneder.filter(m => m.måned.startsWith(ar.toString()))
+    const manedNavn = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember']
+    if (maneder.length === 0) { doc.text('Ingen inntekter registrert for ' + ar, 20, y + 2); y += 7 }
+    maneder.forEach((m, i) => {
+      const mNr = parseInt(m.måned.split('-')[1]) - 1
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(manedNavn[mNr] + (m.notat ? ' – ' + m.notat : ''), 20, y + 2)
+      doc.text(fmt2(m.inntekt), 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(45, 125, 70)
+    doc.setTextColor(255, 255, 255)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Sum inntekter', 20, y + 2); doc.text(fmt2(arsinntekt), 190, y + 2, { align: 'right' })
+    doc.setTextColor(0, 0, 0); y += 14
+
+    doc.setFillColor(253, 232, 236)
+    doc.rect(15, y, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(26, 26, 46)
+    doc.setFontSize(11)
+    doc.text('KOSTNADER ' + ar, 20, y + 5.5)
+    y += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const kostRader = [
+      ['Lånebetaling (12 mnd)', fmt2(p.lån_mnd * 12)],
+      ['Fellesutgifter (12 mnd)', fmt2(p.fellesutgifter_mnd * 12)],
+      ['Strøm (12 mnd)', fmt2(p.strøm_mnd * 12)],
+      ['Forsikring (12 mnd)', fmt2(p.forsikring_mnd * 12)],
+      ['Forvaltning (12 mnd)', fmt2(p.forvaltning_mnd * 12)],
+    ].filter(r => r[1] !== '-')
+    if (arskostnadLogg > 0) kostRader.push(['Variable kostnader (logg)', fmt2(arskostnadLogg)])
+    kostRader.forEach(([lbl, val], i) => {
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
+      doc.text(lbl, 20, y + 2); doc.text(val, 190, y + 2, { align: 'right' }); y += 7
+    })
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(200, 16, 46)
+    doc.setTextColor(255, 255, 255)
+    doc.rect(15, y - 3, 180, 8, 'F')
+    doc.text('Sum kostnader', 20, y + 2); doc.text(fmt2(totalKost), 190, y + 2, { align: 'right' })
+    doc.setTextColor(0, 0, 0); y += 14
+
+    doc.setFillColor(netto >= 0 ? 45 : 200, netto >= 0 ? 125 : 16, netto >= 0 ? 70 : 46)
+    doc.rect(15, y, 180, 40, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text('RESULTAT ' + ar, 20, y + 10)
+    doc.setFontSize(11)
+    doc.text('Netto resultat:', 20, y + 20)
+    doc.setFontSize(16)
+    doc.text(fmt2(netto), 190, y + 20, { align: 'right' })
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Yield: ' + (totInv > 0 ? ((arsinntekt / totInv) * 100).toFixed(1) : '0') + '%  |  Total investert: ' + fmt2(totInv), 20, y + 32)
+
+    doc.save(p.navn.replace(/\s/g, '_') + '_arsrapport_' + ar + '.pdf')
+  }
+
+  function loggInn() {
+    if (passordInput === PASSORD) { setLoggetInn(true); setPassordFeil(false) }
+    else setPassordFeil(true)
+  }
+
+  async function analyser() {
+    setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false); setLagreMelding('')
+    try {
+      const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: input }) })
+      const data = await res.json()
+      setResult(data)
+      setBolig({ type: data.type || '', beliggenhet: data.beliggenhet || '', soverom: data.soverom?.toString() || '', bad: '', areal: data.areal?.toString() || '', avstand_strand: data.avstand_strand_m?.toString() || '', basseng: 'felles', parkering: 'privat', havutsikt: 'nei', standard: data.bolig_standard || 'moderne', pris: data.pris?.toString() || '', ekstra: '', markedspris_bra_m2: data.markedspris_bra_m2?.toString() || '', oppbudsjett: '' })
+      setVisSkjema(true)
+    } catch { setResult({ ai_vurdering: 'Noe gikk galt, prøv igjen.' }) }
+    setLoading(false)
+  }
+
+  async function kjørAirbnbAnalyse() {
+    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null)
+    try {
+      const res = await fetch('/api/airbnb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bolig }) })
+      const data = await res.json()
+      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null)
+    } catch { setAirbnbAnalyse('Noe gikk galt, prøv igjen.') }
+    setAirbnbLoading(false)
+  }
+
+  function nullstill() { setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false); setLagreMelding('') }
+
+  const fmt = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
+  const fmtPct = (n: number) => n ? n.toFixed(1) + '%' : '–'
+  const totalInvestering = (p: Prosjekt) => p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
+  const månedligKostnad = (p: Prosjekt) => p.lån_mnd + p.fellesutgifter_mnd + p.strøm_mnd + p.forsikring_mnd + p.forvaltning_mnd
+  const månedligCashflow = (p: Prosjekt) => p.leieinntekt_mnd - månedligKostnad(p)
+  const yield_pst = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.leieinntekt_mnd * 12) / totalInvestering(p) * 100) : 0
+  const roi = (p: Prosjekt) => totalInvestering(p) > 0 ? ((p.forventet_salgsverdi - totalInvestering(p)) / totalInvestering(p) * 100) : 0
+
+  // Filtrerte lister for de ulike seksjonene
+  const flippProsjekter = prosjekter.filter(p => p.kategori === 'flipp')
+  const utleieProsjekter = prosjekter.filter(p => p.kategori === 'utleie')
+  const eideBoliger = prosjekter.filter(p => p.status !== 'Under vurdering' && p.status !== 'Solgt')
 
   if (!loggetInn) {
     return (
@@ -487,6 +549,119 @@ export default function Home() {
     )
   }
 
+  // Salgsberegninger
+  function beregnSalg(p: Prosjekt, input: typeof salgInput) {
+    const salgspris = input.salgspris || p.forventet_salgsverdi || 0
+    const meglerBelop = salgspris * (input.megler_pst / 100)
+    const advokatBelop = salgspris * (input.advokat_pst / 100)
+    const salgskostnader = meglerBelop + advokatBelop
+
+    // Kjøpskostnader er allerede registrert på prosjektet
+    const totalKjop = p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk
+    // Netto salgssum (før skatt)
+    const nettoSalgssum = salgspris - salgskostnader
+    // Kapitalgevinst (grunnlag for CGT)
+    const kapitalgevinst = Math.max(0, nettoSalgssum - totalKjop)
+
+    const cgtSats = input.skatteresidens === 'eu' ? 0.19 : 0.24
+    const cgt = kapitalgevinst * cgtSats
+    const retention3pst = salgspris * 0.03
+    const differanseRetention = cgt - retention3pst // positiv = betale mer, negativ = få tilbakebetalt
+
+    const totalSkatt = cgt + input.plusvalia
+    const nettoILomma = nettoSalgssum - totalSkatt - (p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering)
+    // Total fortjeneste etter alt
+    const nettoFortjeneste = salgspris - salgskostnader - totalSkatt - p.kjøpesum - p.kjøpskostnader - p.oppussing_faktisk - p.møblering
+
+    const totalInvestert = p.kjøpesum + p.kjøpskostnader + p.oppussing_faktisk + p.møblering
+    const roiPst = totalInvestert > 0 ? (nettoFortjeneste / totalInvestert) * 100 : 0
+
+    // Break-even: minste salgspris for å gå i null (før skatt)
+    // nettoFortjeneste = salgspris - salgspris*(megler+advokat)/100 - CGT - plusvalia - totalInvestert = 0
+    // Forenklet: hvis gevinst = 0, ingen CGT. Da trenger vi bare å dekke kostnader.
+    const faktor = 1 - (input.megler_pst / 100) - (input.advokat_pst / 100)
+    const breakEvenUtenGevinst = faktor > 0 ? (totalInvestert + input.plusvalia) / faktor : 0
+
+    return {
+      salgspris, meglerBelop, advokatBelop, salgskostnader, totalKjop,
+      nettoSalgssum, kapitalgevinst, cgt, cgtSats, retention3pst, differanseRetention,
+      totalSkatt, nettoFortjeneste, nettoILomma, totalInvestert, roiPst, breakEvenUtenGevinst,
+    }
+  }
+
+  async function hentMarkedspris(p: Prosjekt) {
+    setMarkedsprisLoading(true); setMarkedsprisData(null)
+    try {
+      const tekst = `Bolig i ${p.notater.includes('Beliggenhet:') ? (p.notater.split('Beliggenhet:')[1]?.split('\n')[0]?.trim() || p.navn) : p.navn}. Til salgs.`
+      const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: tekst }) })
+      const data = await res.json()
+      setMarkedsprisData(data)
+    } catch {
+      setMarkedsprisData({ error: 'Kunne ikke hente markedspris' })
+    }
+    setMarkedsprisLoading(false)
+  }
+
+  async function markerSomSolgt(p: Prosjekt, salgspris: number) {
+    if (!confirm(`Markere "${p.navn}" som solgt for €${salgspris.toLocaleString('nb-NO')}?`)) return
+    await supabase.from('prosjekter').update({
+      status: 'Solgt',
+      forventet_salgsverdi: salgspris,
+      notater: (p.notater || '') + `\n\n--- Solgt ${new Date().toLocaleDateString('nb-NO')} for €${salgspris.toLocaleString('nb-NO')} ---`
+    }).eq('id', p.id)
+    await hentProsjekter()
+    setSelgBolig(null)
+  }
+
+  // Gjenbrukbar boligliste-komponent (brukes i Flipp, Utleie, Selge)
+  function BoligListe({ liste, tomTekst, farge }: { liste: Prosjekt[]; tomTekst: string; farge: string }) {
+    if (liste.length === 0) {
+      return (
+        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{tomTekst}</div>
+          <div style={{ fontSize: 13 }}>Gå til Boliganalyse for å legge til en bolig</div>
+        </div>
+      )
+    }
+    return (
+      <div>
+        {liste.map(p => {
+          const sf = statusFarge(p.status)
+          return (
+            <div key={p.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>
+                  <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
+                  {p.dato_kjopt && <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>Kjøpt: {p.dato_kjopt}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setAktivSeksjon('regnskap'); setVisProsjekt(p.id) }} style={{ background: farge, color: 'white', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Åpne</button>
+                  <button onClick={() => slettProsjekt(p.id)} style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Slett</button>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Kjøpesum</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(p.kjøpesum)}</div>
+                </div>
+                <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Total investert</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(totalInvestering(p))}</div>
+                </div>
+                <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Kategori</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{p.kategori === 'flipp' ? '🔨 Flipp' : '🏖️ Utleie'}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100 }}>
@@ -502,9 +677,10 @@ export default function Home() {
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
               {[
-                { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Analyser kjøp, oppussing og videresalg', farge: '#185FA5', bg: '#f0f7ff' },
-                { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Analyser Airbnb-potensial og investorscore', farge: '#C8102E', bg: '#fff5f5' },
-                { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Analyser markedsverdi og salgsstrategi', farge: '#2D7D46', bg: '#f0faf4' },
+                { id: 'analyse', emoji: '🔍', tittel: 'Boliganalyse', beskrivelse: 'Analyser en ny eiendom og vurder potensial', farge: '#C8102E', bg: '#fff5f5' },
+                { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Dine flipp-prosjekter', farge: '#185FA5', bg: '#f0f7ff' },
+                { id: 'utleie', emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Dine utleieboliger', farge: '#2D7D46', bg: '#f0faf4' },
+                { id: 'selge', emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Verktøy for salg av eiendom', farge: '#B05E0A', bg: '#fff8e1' },
                 { id: 'regnskap', emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter og kostnader', farge: '#7B2D8B', bg: '#f9f0ff' },
               ].map((boks, i) => (
                 <div key={i} onClick={() => setAktivSeksjon(boks.id)}
@@ -566,12 +742,12 @@ export default function Home() {
           </div>
         )}
 
-        {aktivSeksjon === 'utleie' && (
+        {aktivSeksjon === 'analyse' && (
           <div>
             <button onClick={() => { setAktivSeksjon(null); nullstill() }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{ fontSize: 36 }}>🏖️</div>
-              <div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligutleie – Spania</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser Airbnb-potensial og investorscore</p></div>
+              <div style={{ fontSize: 36 }}>🔍</div>
+              <div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boliganalyse</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser en ny eiendom og vurder potensial</p></div>
             </div>
             <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Analyser boligen</div>
@@ -655,17 +831,33 @@ export default function Home() {
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 4 – Kjør full analyse</div>
                     <button onClick={kjørAirbnbAnalyse} disabled={airbnbLoading} style={{ width: '100%', background: airbnbLoading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 16, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer' }}>
-                      {airbnbLoading ? '⏳ Analyserer – 20-30 sekunder...' : '🚀 Kjør Airbnb-analyse og få score'}
+                      {airbnbLoading ? '⏳ Analyserer – 20-30 sekunder...' : '🚀 Kjør full analyse og få score'}
                     </button>
                   </div>
                 )}
                 {airbnbScore && (<div><div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 5 – Score og trafikklys</div><ScoreKort s={airbnbScore} /></div>)}
                 {airbnbAnalyse && (
                   <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig Airbnb-analyse</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig analyse</div>
                     <div style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: '#222' }}>{airbnbAnalyse}</div>
                   </div>
                 )}
+
+                {/* NY SEKSJON: Lagre som prosjekt */}
+                <div style={{ background: '#f0f7ff', border: '2px solid #185FA544', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hva vil du gjøre med denne boligen?</div>
+                  <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Lagre boligen som et prosjekt – den blir lagt til i riktig kategori og vises også i Regnskap.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                    <button onClick={() => lagreAnalyseSomProsjekt('flipp')} style={{ background: '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🔨 Lagre som flipp-prosjekt</button>
+                    <button onClick={() => lagreAnalyseSomProsjekt('utleie')} style={{ background: '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🏖️ Lagre som utleieprosjekt</button>
+                  </div>
+                  {lagreMelding && (
+                    <div style={{ marginTop: 12, padding: 12, background: lagreMelding.startsWith('✅') ? '#e8f5ed' : '#fde8ec', border: `1.5px solid ${lagreMelding.startsWith('✅') ? '#2D7D46' : '#C8102E'}`, borderRadius: 8, fontSize: 13, color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500 }}>
+                      {lagreMelding}
+                    </div>
+                  )}
+                </div>
+
                 <button onClick={nullstill} style={{ width: '100%', background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8, marginBottom: 32 }}>🗑️ Nullstill og analyser ny eiendom</button>
               </div>
             )}
@@ -675,16 +867,274 @@ export default function Home() {
         {aktivSeksjon === 'flipp' && (
           <div>
             <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-            <div style={{ background: '#f0f7ff', border: '2px dashed #b8d4f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <div style={{ fontSize: 36 }}>🔨</div>
+              <div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligflipp</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>{flippProsjekter.length} prosjekt{flippProsjekter.length !== 1 ? 'er' : ''}</p></div>
+            </div>
+            {dbLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div> : (
+              <BoligListe liste={flippProsjekter} tomTekst="Ingen flipp-prosjekter ennå" farge="#185FA5" />
+            )}
           </div>
         )}
 
-        {aktivSeksjon === 'selge' && (
+        {aktivSeksjon === 'utleie' && (
           <div>
             <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-            <div style={{ background: '#f0faf4', border: '2px dashed #b8dfc7', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}><div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div><div style={{ fontSize: 16, fontWeight: 600 }}>Under utvikling</div></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <div style={{ fontSize: 36 }}>🏖️</div>
+              <div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boligutleie</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>{utleieProsjekter.length} utleiebolig{utleieProsjekter.length !== 1 ? 'er' : ''}</p></div>
+            </div>
+            {dbLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div> : (
+              <BoligListe liste={utleieProsjekter} tomTekst="Ingen utleieboliger ennå" farge="#2D7D46" />
+            )}
           </div>
         )}
+
+        {aktivSeksjon === 'selge' && !selgBolig && (
+          <div>
+            <button onClick={() => setAktivSeksjon(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <div style={{ fontSize: 36 }}>💰</div>
+              <div><h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Selge bolig</h2><p style={{ color: '#666', margin: 0, fontSize: 14 }}>Beregn salgspris, skatt og fortjeneste</p></div>
+            </div>
+            {dbLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div> : (
+              eideBoliger.length === 0 ? (
+                <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Du har ingen boliger å selge ennå</div>
+                  <div style={{ fontSize: 13 }}>Boliger med status "Kjøpt", "Under oppussing" eller "Utleie" vises her</div>
+                </div>
+              ) : (
+                <div>
+                  {eideBoliger.map(p => {
+                    const sf = statusFarge(p.status)
+                    return (
+                      <div key={p.id} onClick={() => {
+                        setSelgBolig(p.id)
+                        setSalgInput({ salgspris: p.forventet_salgsverdi || 0, megler_pst: 5, advokat_pst: 1, plusvalia: 0, skatteresidens: 'eu', ventetid_ar: 0 })
+                        setMarkedsprisData(null)
+                      }} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 12, cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>
+                            <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
+                            <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{p.kategori === 'flipp' ? '🔨 Flipp' : '🏖️ Utleie'}</span>
+                          </div>
+                          <button style={{ background: '#B05E0A', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>💰 Beregn salg →</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                          <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Total investert</div>
+                            <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(totalInvestering(p))}</div>
+                          </div>
+                          <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Forventet salgsverdi</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#B05E0A' }}>{fmt(p.forventet_salgsverdi)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+        {aktivSeksjon === 'selge' && selgBolig && (() => {
+          const p = prosjekter.find(pr => pr.id === selgBolig)
+          if (!p) return null
+          const s = beregnSalg(p, salgInput)
+          const cf = månedligCashflow(p)
+          const ventetidCashflow = cf * 12 * salgInput.ventetid_ar
+          const sf = statusFarge(p.status)
+
+          return (
+            <div>
+              <button onClick={() => setSelgBolig(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake til liste</button>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>💰 Selge: {p.navn}</h2>
+                  <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
+                </div>
+              </div>
+
+              {/* Steg 1: Salgspris */}
+              <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Sett salgspris</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Ønsket salgspris (€)</label>
+                    <input style={inputStyle} type="number" value={salgInput.salgspris || ''} onChange={e => setSalgInput(s => ({ ...s, salgspris: Number(e.target.value) }))} placeholder={p.forventet_salgsverdi.toString()} />
+                  </div>
+                  <div style={{ ...fieldStyle, justifyContent: 'flex-end' }}>
+                    <button onClick={() => hentMarkedspris(p)} disabled={markedsprisLoading} style={{ background: markedsprisLoading ? '#999' : '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: markedsprisLoading ? 'not-allowed' : 'pointer' }}>
+                      {markedsprisLoading ? '⏳ Henter...' : '📊 Hent markedspris'}
+                    </button>
+                  </div>
+                </div>
+                {markedsprisData && !markedsprisData.error && (
+                  <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: 12, fontSize: 13 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>📍 Markedsdata</div>
+                    {markedsprisData.markedspris_bra_m2 && <div>Markedspris per m²: <strong>€{markedsprisData.markedspris_bra_m2.toLocaleString('nb-NO')}</strong></div>}
+                    {markedsprisData.pris && <div>Estimert salgspris for tilsvarende: <strong>€{markedsprisData.pris.toLocaleString('nb-NO')}</strong></div>}
+                    {markedsprisData.ai_vurdering && <div style={{ marginTop: 6, color: '#555', fontStyle: 'italic' }}>{markedsprisData.ai_vurdering}</div>}
+                  </div>
+                )}
+                {markedsprisData?.error && <div style={{ color: '#C8102E', fontSize: 13 }}>{markedsprisData.error}</div>}
+              </div>
+
+              {/* Steg 2: Salgskostnader og skatt */}
+              <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Salgskostnader og skatt</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Megler %</label>
+                    <input style={inputStyle} type="number" step="0.1" value={salgInput.megler_pst || ''} onChange={e => setSalgInput(s => ({ ...s, megler_pst: Number(e.target.value) }))} placeholder="5" />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Advokat %</label>
+                    <input style={inputStyle} type="number" step="0.1" value={salgInput.advokat_pst || ''} onChange={e => setSalgInput(s => ({ ...s, advokat_pst: Number(e.target.value) }))} placeholder="1" />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Plusvalía Municipal (€)</label>
+                    <input style={inputStyle} type="number" value={salgInput.plusvalia || ''} onChange={e => setSalgInput(s => ({ ...s, plusvalia: Number(e.target.value) }))} placeholder="0" />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Skatteresidens</label>
+                    <select style={selectStyle} value={salgInput.skatteresidens} onChange={e => setSalgInput(s => ({ ...s, skatteresidens: e.target.value as 'eu' | 'ikke_eu' }))}>
+                      <option value="eu">🇪🇺 EU/EØS (19%)</option>
+                      <option value="ikke_eu">🌍 Ikke-EU (24%)</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 10, fontStyle: 'italic' }}>
+                  💡 Plusvalía varierer per kommune og avhenger av valor catastral + eiertid. Spør kommunen (ayuntamiento) eller advokaten din for eksakt beløp.
+                </div>
+              </div>
+
+              {/* Steg 3: Resultat */}
+              <div style={{ background: s.nettoFortjeneste >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${s.nettoFortjeneste >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: s.nettoFortjeneste >= 0 ? '#1a4d2b' : '#7a0c1e', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Resultat</div>
+
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>Netto fortjeneste etter alt</div>
+                  <div style={{ fontSize: 36, fontWeight: 700, color: s.nettoFortjeneste >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(s.nettoFortjeneste)}</div>
+                  <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>ROI: <strong style={{ color: s.roiPst >= 0 ? '#2D7D46' : '#C8102E' }}>{s.roiPst.toFixed(1)}%</strong></div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>💵 Inntekter fra salg</div>
+                  {[
+                    { lbl: 'Salgspris', val: fmt(s.salgspris) },
+                    { lbl: `Megler (${salgInput.megler_pst}%)`, val: '- ' + fmt(s.meglerBelop), farge: '#C8102E' },
+                    { lbl: `Advokat (${salgInput.advokat_pst}%)`, val: '- ' + fmt(s.advokatBelop), farge: '#C8102E' },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', fontSize: 13 }}>
+                      <span>{r.lbl}</span><span style={{ fontWeight: 600, color: r.farge }}>{r.val}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '2px solid rgba(0,0,0,0.15)', fontSize: 13, fontWeight: 700, marginTop: 4 }}>
+                    <span>Netto salgssum</span><span>{fmt(s.nettoSalgssum)}</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>🏛️ Spansk skatt</div>
+                  {[
+                    { lbl: 'Total kjøp + oppussing (fradrag)', val: fmt(s.totalKjop) },
+                    { lbl: 'Kapitalgevinst (grunnlag)', val: fmt(s.kapitalgevinst), bold: true },
+                    { lbl: `CGT ${(s.cgtSats * 100).toFixed(0)}% (IRNR, Modelo 210)`, val: '- ' + fmt(s.cgt), farge: '#C8102E' },
+                    { lbl: 'Plusvalía Municipal', val: '- ' + fmt(salgInput.plusvalia), farge: '#C8102E' },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', fontSize: 13 }}>
+                      <span style={{ fontWeight: (r as any).bold ? 700 : 400 }}>{r.lbl}</span><span style={{ fontWeight: 600, color: r.farge }}>{r.val}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '2px solid rgba(0,0,0,0.15)', fontSize: 13, fontWeight: 700, marginTop: 4 }}>
+                    <span>Total skatt</span><span style={{ color: '#C8102E' }}>{fmt(s.totalSkatt)}</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>💳 3% tilbakeholdelse (kjøper holder tilbake)</div>
+                  <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>
+                    Kjøper holder tilbake <strong>{fmt(s.retention3pst)}</strong> (3% av salgspris) som forskudd på CGT. Dette sendes til spanske skattemyndigheter via Modelo 211.
+                    <br /><br />
+                    {s.differanseRetention > 0 ? (
+                      <span>⚠️ CGT er høyere enn 3% retention. Du må betale <strong style={{ color: '#C8102E' }}>{fmt(s.differanseRetention)}</strong> ekstra via Modelo 210 (innen 4 måneder).</span>
+                    ) : s.differanseRetention < 0 ? (
+                      <span>✅ CGT er lavere enn 3% retention. Du får tilbake <strong style={{ color: '#2D7D46' }}>{fmt(Math.abs(s.differanseRetention))}</strong> når du leverer Modelo 210.</span>
+                    ) : (
+                      <span>Retention dekker akkurat CGT.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 Oppsummering</div>
+                  {[
+                    { lbl: 'Salgspris', val: fmt(s.salgspris) },
+                    { lbl: '- Salgskostnader', val: fmt(s.salgskostnader), farge: '#C8102E' },
+                    { lbl: '- Total skatt', val: fmt(s.totalSkatt), farge: '#C8102E' },
+                    { lbl: '- Total investert (kjøp + oppussing + møblering)', val: fmt(s.totalInvestert), farge: '#C8102E' },
+                    { lbl: '= Netto fortjeneste', val: fmt(s.nettoFortjeneste), farge: s.nettoFortjeneste >= 0 ? '#2D7D46' : '#C8102E', bold: true },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', fontSize: 13 }}>
+                      <span style={{ fontWeight: (r as any).bold ? 700 : 400 }}>{r.lbl}</span>
+                      <span style={{ fontWeight: 700, color: r.farge, fontSize: (r as any).bold ? 15 : 13 }}>{r.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Break-even */}
+              <div style={{ background: '#fff8e1', border: '2px solid #EF9F27', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎯 Break-even</div>
+                <div style={{ fontSize: 14, color: '#444', lineHeight: 1.6 }}>
+                  Minste salgspris for å gå i null (dekke alle kostnader, ingen gevinst):
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#B05E0A', marginTop: 6 }}>{fmt(s.breakEvenUtenGevinst)}</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>Dette gir 0 CGT fordi det ikke er gevinst. Plusvalía og salgskostnader er tatt med.</div>
+                </div>
+              </div>
+
+              {/* Tidsaspekt */}
+              {p.status === 'Utleie' && (
+                <div style={{ background: '#f0f7ff', border: '2px solid #185FA5', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⏰ Vente eller selge nå?</div>
+                  <div style={{ fontSize: 14, color: '#444', marginBottom: 12 }}>
+                    Din månedlige cashflow: <strong style={{ color: cf >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(cf)}</strong>
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Hvor mange år vil du vente med å selge?</label>
+                    <input style={inputStyle} type="number" value={salgInput.ventetid_ar || ''} onChange={e => setSalgInput(s => ({ ...s, ventetid_ar: Number(e.target.value) }))} placeholder="0" />
+                  </div>
+                  {salgInput.ventetid_ar > 0 && (
+                    <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, lineHeight: 1.7 }}>
+                      <div>Cashflow i {salgInput.ventetid_ar} år: <strong style={{ color: ventetidCashflow >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(ventetidCashflow)}</strong></div>
+                      <div>Total fortjeneste hvis du selger nå: <strong>{fmt(s.nettoFortjeneste)}</strong></div>
+                      <div>Total fortjeneste hvis du venter {salgInput.ventetid_ar} år (samme salgspris): <strong>{fmt(s.nettoFortjeneste + ventetidCashflow)}</strong></div>
+                      <div style={{ marginTop: 8, fontStyle: 'italic', color: '#666' }}>
+                        💡 For at det skal lønne seg å vente, må salgsprisen om {salgInput.ventetid_ar} år være høyere enn {fmt(s.salgspris - ventetidCashflow)} (hvis cashflow er positiv) eller du må regne med prisøkning som overstiger tap.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Handlingsknapper */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+                <button onClick={() => markerSomSolgt(p, salgInput.salgspris)} disabled={!salgInput.salgspris} style={{ background: salgInput.salgspris ? '#2D7D46' : '#ccc', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: salgInput.salgspris ? 'pointer' : 'not-allowed' }}>✅ Marker som solgt</button>
+                <button onClick={() => oppdaterProsjekt({ ...p, forventet_salgsverdi: salgInput.salgspris })} disabled={!salgInput.salgspris} style={{ background: salgInput.salgspris ? '#185FA5' : '#ccc', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: salgInput.salgspris ? 'pointer' : 'not-allowed' }}>💾 Lagre som forventet salgsverdi</button>
+              </div>
+
+              <div style={{ fontSize: 11, color: '#999', fontStyle: 'italic', marginBottom: 32, lineHeight: 1.6 }}>
+                ⚠️ Dette er kun et estimat. Faktisk skatt kan variere basert på dokumenterte fradrag, avtaler mellom Norge og Spania (dobbelbeskatningsavtalen), og individuelle forhold. Konsulter alltid en spansk gestor/advokat før du signerer en salgsavtale.
+              </div>
+            </div>
+          )
+        })()}
 
         {aktivSeksjon === 'regnskap' && (
           <div>
@@ -735,6 +1185,7 @@ export default function Home() {
                     <div>
                       <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>
                       <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
+                      <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{p.kategori === 'flipp' ? '🔨 Flipp' : '🏖️ Utleie'}</span>
                       {p.dato_kjopt && <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>Kjøpt: {p.dato_kjopt}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -790,6 +1241,7 @@ export default function Home() {
                     <div>
                       <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{p.navn}</h2>
                       <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
+                      <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{p.kategori === 'flipp' ? '🔨 Flipp' : '🏖️ Utleie'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })} style={{ background: redigerer ? '#f0f0f0' : '#1a1a2e', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -810,7 +1262,6 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* NØKKELTALL */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
                     {[
                       { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
@@ -825,7 +1276,6 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* TABS */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     {[{ id: 'oversikt', lbl: '📊 Oversikt' }, { id: 'arsrapport', lbl: '📋 Årsrapport' }].map(t => (
                       <button key={t.id} onClick={() => setAktivTab(t.id as any)}
@@ -835,7 +1285,6 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* OVERSIKT TAB */}
                   {aktivTab === 'oversikt' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                       <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
@@ -875,7 +1324,6 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* ÅRSRAPPORT TAB */}
                   {aktivTab === 'arsrapport' && (
                     <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -892,7 +1340,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* INNTEKTER */}
                       <div style={{ background: '#f0faf4', borderRadius: 10, padding: 16, marginBottom: 12 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1a4d2b' }}>💰 Inntekter {valgtAr}</div>
                         {p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).length === 0 && (
@@ -910,7 +1357,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* KOSTNADER */}
                       <div style={{ background: '#fde8ec', borderRadius: 10, padding: 16, marginBottom: 12 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#7a0c1e' }}>📉 Kostnader {valgtAr}</div>
                         {[
@@ -932,7 +1378,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* RESULTAT */}
                       <div style={{ background: nettoresultat >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${nettoresultat >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 10, padding: 16 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 Resultat {valgtAr}</div>
                         {[
@@ -951,7 +1396,6 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* NOTATER */}
                   {p.notater && (
                     <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: 14, marginBottom: 20 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📝 Notater</div>
@@ -959,7 +1403,6 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* MÅNEDLIG LOGG */}
                   <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>📆 Månedlig logg</div>
                     {p.måneder.length > 0 && (
@@ -999,7 +1442,6 @@ export default function Home() {
 
       </main>
 
-      {/* AI AGENT */}
       {loggetInn && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}>
           {agentApen && (
