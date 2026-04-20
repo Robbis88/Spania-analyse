@@ -59,8 +59,9 @@ Hold svarene korte og oversiktlige – bruk punktlister når det passer.`,
     const tekst = response.content[0].type === 'text' ? response.content[0].text : ''
     return NextResponse.json({ svar: tekst })
 
-  } catch (error: any) {
-    console.error('Agent feil:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    const melding = error instanceof Error ? error.message : String(error)
+    console.error('Agent feil:', melding)
+    return NextResponse.json({ error: melding }, { status: 500 })
   }
 }

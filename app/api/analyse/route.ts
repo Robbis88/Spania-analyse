@@ -156,8 +156,9 @@ Returner dette:
 
     return NextResponse.json(data)
 
-  } catch (error: any) {
-    console.error('Feil:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    const melding = error instanceof Error ? error.message : String(error)
+    console.error('Feil:', melding)
+    return NextResponse.json({ error: melding }, { status: 500 })
   }
 }

@@ -138,8 +138,9 @@ Scoring-regler:
 
     return NextResponse.json({ analyse: analyseTekst, score: scoreData })
 
-  } catch (error: any) {
-    console.error('Airbnb feil:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    const melding = error instanceof Error ? error.message : String(error)
+    console.error('Airbnb feil:', melding)
+    return NextResponse.json({ error: melding }, { status: 500 })
   }
 }
