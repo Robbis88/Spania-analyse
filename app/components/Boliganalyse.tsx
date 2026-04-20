@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
+import { type AirbnbData, type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
 import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct } from '../lib/styles'
 import { ScoreKort, type Score } from './ScoreKort'
 
@@ -34,16 +34,17 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   const [airbnbLoading, setAirbnbLoading] = useState(false)
   const [airbnbAnalyse, setAirbnbAnalyse] = useState('')
   const [airbnbScore, setAirbnbScore] = useState<Score | null>(null)
+  const [airbnbData, setAirbnbData] = useState<AirbnbData | null>(null)
   const [visSkjema, setVisSkjema] = useState(false)
   const [lagreMelding, setLagreMelding] = useState('')
   const [bolig, setBolig] = useState<Bolig>(tomBolig())
 
   function nullstill() {
-    setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false); setLagreMelding('')
+    setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding('')
   }
 
   async function analyser() {
-    setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setVisSkjema(false); setLagreMelding('')
+    setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding('')
     try {
       const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: input }) })
       const data: AnalyseResultat = await res.json()
@@ -70,11 +71,11 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   }
 
   async function kjørAirbnbAnalyse() {
-    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null)
+    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null)
     try {
       const res = await fetch('/api/airbnb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bolig }) })
       const data = await res.json()
-      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null)
+      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null); setAirbnbData(data.data || null)
     } catch {
       setAirbnbAnalyse('Noe gikk galt, prøv igjen.')
     }
@@ -126,6 +127,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
       ai_vurdering: result.ai_vurdering || null,
       airbnb_analyse: airbnbAnalyse || null,
       airbnb_score: airbnbScore,
+      airbnb_data: airbnbData,
     }
     const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker: 'leganger' }])
     if (error) {

@@ -6,6 +6,7 @@ import { totalInvestering, månedligKostnad, månedligCashflow, yield_pst, roi }
 import { inputStyle, labelStyle, fieldStyle, fmt, statusFarge } from '../lib/styles'
 import { ProsjektFelter } from './ProsjektFelter'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
+import { Utleieanalyse } from './Utleieanalyse'
 import { lastNedPDF } from '../lib/pdf'
 
 export function Regnskap({
@@ -20,7 +21,7 @@ export function Regnskap({
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [nyMåned, setNyMåned] = useState<Måned>({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
 
   async function leggTilProsjekt() {
@@ -198,6 +199,7 @@ export function Regnskap({
                 { id: 'oversikt' as const, lbl: '📊 Oversikt' },
                 { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
                 ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
+                ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
               ]).map(t => (
                 <button key={t.id} onClick={() => setAktivTab(t.id)}
                   style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#1a1a2e' : '#f0f0f0', color: aktivTab === t.id ? 'white' : '#444' }}>
@@ -208,6 +210,10 @@ export function Regnskap({
 
             {aktivTab === 'oppussing' && p.kategori === 'flipp' && (
               <Oppussingsbudsjett prosjekt={p} />
+            )}
+
+            {aktivTab === 'utleie' && p.kategori === 'utleie' && (
+              <Utleieanalyse prosjekt={p} />
             )}
 
             {aktivTab === 'oversikt' && (

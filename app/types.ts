@@ -80,6 +80,7 @@ export type Prosjekt = {
   ai_vurdering?: string | null
   airbnb_analyse?: string | null
   airbnb_score?: AirbnbScore | null
+  airbnb_data?: AirbnbData | null
 }
 
 export type OppussingStandard = 'standard' | 'bra' | 'luksus'
@@ -114,6 +115,80 @@ export type OppussingPost = {
   kostnad: number
   notat: string | null
   rekkefolge: number
+}
+
+export type AirbnbManed = {
+  nr: number
+  nattpris_ar1: number
+  nattpris_etablert: number
+  belegg_ar1_pst: number
+  belegg_etablert_pst: number
+  dager: number
+}
+
+export type AirbnbScenario = {
+  brutto_ar1: number
+  brutto_etablert: number
+  netto_etablert: number
+}
+
+export type AirbnbKostnaderAr = {
+  airbnb_kommisjon?: number
+  renhold?: number
+  strom_vann?: number
+  internett?: number
+  comunidad?: number
+  forsikring?: number
+  ibi?: number
+  soppel?: number
+  vedlikehold?: number
+  management?: number
+  leietakerregistrering?: number
+}
+
+export type AirbnbData = {
+  maneder: AirbnbManed[]
+  scenarioer: {
+    konservativt: AirbnbScenario
+    realistisk: AirbnbScenario
+    sterkt: AirbnbScenario
+  }
+  kostnader_ar: AirbnbKostnaderAr
+  langtidsleie_maned_lav?: number | null
+  langtidsleie_maned_hoy?: number | null
+}
+
+export type Leietype = 'korttid' | 'langtid'
+export type UtleieScenario = 'konservativt' | 'realistisk' | 'sterkt'
+
+export type LanInfo = {
+  lanebelop?: number
+  rente_prosent?: number
+  nedbetalingstid_ar?: number
+  maanedlig_renter_avdrag?: number
+}
+
+export type OppussingPerAr = {
+  ar: number
+  kostnad: number
+}
+
+export type Utleieanalyse = {
+  id: string
+  bolig_id: string
+  leietype: Leietype
+  scenario: UtleieScenario
+  progresjon_til_etablert_ar: number
+  total_kjopspris: number | null
+  kjopsmaaned: string | null
+  utleiestart: string | null
+  horisont_ar: number
+  oppussing_per_ar: OppussingPerAr[]
+  lan: LanInfo | null
+  langtidsleie_maned: number | null
+  analyse_kilde_id: string | null
+  analyse_hentet: string | null
+  opprettet: string
 }
 
 export type SalgInput = {

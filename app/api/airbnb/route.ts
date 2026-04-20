@@ -136,7 +136,83 @@ Scoring-regler:
       console.error('Parse feil:', e)
     }
 
-    return NextResponse.json({ analyse: analyseTekst, score: scoreData })
+    // API-kall 3: Strukturert data for utleieanalysen
+    const dataRes = await client.messages.create({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 2500,
+      messages: [{
+        role: 'user',
+        content: `Du er ekspert på korttidsutleie på Costa del Sol og spansk eiendomsmarked. Produser strukturert data for denne boligen som skal brukes i utleieanalyse.
+
+${boligInfo}
+
+Vurder realistiske nattpriser og belegg per måned for TO nivåer:
+- "år 1" = nystartet utleie, lav synlighet, få anmeldelser
+- "etablert 4.9★" = etablert drift med gode anmeldelser og høyere synlighet
+
+Estimer tre scenarier for årlige inntekter:
+- konservativt = lavere nattpris/belegg, realistisk hvis det går seigt
+- realistisk = forventet utfall
+- sterkt = best-case med gode anmeldelser raskt
+
+Estimer spesifikke årlige driftskostnader for denne eiendommen i dette området.
+
+Returner KUN gyldig JSON uten markdown eller forklaring:
+{
+  "maneder": [
+    { "nr": 1, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 2, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 28 },
+    { "nr": 3, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 4, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
+    { "nr": 5, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 6, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
+    { "nr": 7, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 8, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 9, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
+    { "nr": 10, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
+    { "nr": 11, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
+    { "nr": 12, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 }
+  ],
+  "scenarioer": {
+    "konservativt": { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 },
+    "realistisk":   { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 },
+    "sterkt":       { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 }
+  },
+  "kostnader_ar": {
+    "airbnb_kommisjon": 0,
+    "renhold": 0,
+    "strom_vann": 0,
+    "internett": 0,
+    "comunidad": 0,
+    "forsikring": 0,
+    "ibi": 0,
+    "soppel": 0,
+    "vedlikehold": 0,
+    "management": 0,
+    "leietakerregistrering": 0
+  },
+  "langtidsleie_maned_lav": 0,
+  "langtidsleie_maned_hoy": 0
+}
+
+Regler:
+- Belegg er prosent (0-100), ikke desimal
+- Sesongvariasjon skal reflektere Costa del Sol / Spania typisk (sommer høyt, vinter lavt; desember/januar typisk bunn)
+- Tall skal være realistiske, ikke runde estimater som avslører gjetning
+- Hvis du ikke har grunnlag for langtidsleie, sett begge lav/hoy til 0`
+      }]
+    })
+
+    const dataTekst = dataRes.content[0].type === 'text' ? dataRes.content[0].text : ''
+    let airbnbData = null
+    try {
+      const cleanData = dataTekst.replace(/```json|```/g, '').trim()
+      airbnbData = JSON.parse(cleanData)
+    } catch (e) {
+      console.error('Data parse feil:', e)
+    }
+
+    return NextResponse.json({ analyse: analyseTekst, score: scoreData, data: airbnbData })
 
   } catch (error) {
     const melding = error instanceof Error ? error.message : String(error)
