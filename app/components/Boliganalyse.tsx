@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { type Bolig, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
+import { type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
 import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct } from '../lib/styles'
 import { ScoreKort, type Score } from './ScoreKort'
 
@@ -14,7 +14,12 @@ type AnalyseResultat = {
   avstand_strand_m?: number
   bolig_standard?: string
   pris?: number
+  markedspris_standard_m2?: number
   markedspris_bra_m2?: number
+  markedspris_luksus_m2?: number
+  markedspris_begrunnelse?: string
+  oppussing_vurdering?: string
+  anbefalt_strategi?: string
   ek_krav?: number
   mnd_betaling?: number
   yield_estimat?: number
@@ -79,6 +84,27 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   async function lagreAnalyseSomProsjekt(kategori: 'flipp' | 'utleie') {
     if (!result) return
     const navn = result.tittel || result.beliggenhet || 'Analysert bolig'
+    const bolig_data: BoligData = {
+      type: bolig.type || result.type,
+      beliggenhet: bolig.beliggenhet || result.beliggenhet,
+      soverom: bolig.soverom || result.soverom,
+      bad: bolig.bad,
+      areal: bolig.areal || result.areal,
+      avstand_strand: bolig.avstand_strand || result.avstand_strand_m,
+      basseng: bolig.basseng,
+      parkering: bolig.parkering,
+      havutsikt: bolig.havutsikt,
+      standard: bolig.standard || result.bolig_standard,
+      pris: bolig.pris || result.pris,
+      ekstra: bolig.ekstra,
+      markedspris_standard_m2: result.markedspris_standard_m2,
+      markedspris_bra_m2: Number(bolig.markedspris_bra_m2) || result.markedspris_bra_m2,
+      markedspris_luksus_m2: result.markedspris_luksus_m2,
+      markedspris_begrunnelse: result.markedspris_begrunnelse,
+      oppussing_vurdering: result.oppussing_vurdering,
+      anbefalt_strategi: result.anbefalt_strategi,
+      vft_score: result.vft_score,
+    }
     const nytt: Prosjekt = {
       ...tomtProsjekt(),
       id: Date.now().toString(),
@@ -96,6 +122,10 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
         `Areal: ${bolig.areal || result.areal || '-'} m²\n` +
         (airbnbScore ? `\nScore: ${airbnbScore.total}/10 ${airbnbScore.lys}\n` : '') +
         (result.ai_vurdering ? `\nAI-vurdering: ${result.ai_vurdering}` : ''),
+      bolig_data,
+      ai_vurdering: result.ai_vurdering || null,
+      airbnb_analyse: airbnbAnalyse || null,
+      airbnb_score: airbnbScore,
     }
     const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker: 'leganger' }])
     if (error) {

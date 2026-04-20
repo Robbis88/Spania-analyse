@@ -5,6 +5,7 @@ import { type Prosjekt, tomtProsjekt, type Måned } from '../types'
 import { totalInvestering, månedligKostnad, månedligCashflow, yield_pst, roi } from '../lib/beregninger'
 import { inputStyle, labelStyle, fieldStyle, fmt, statusFarge } from '../lib/styles'
 import { ProsjektFelter } from './ProsjektFelter'
+import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { lastNedPDF } from '../lib/pdf'
 
 export function Regnskap({
@@ -19,7 +20,7 @@ export function Regnskap({
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [nyMåned, setNyMåned] = useState<Måned>({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
 
   async function leggTilProsjekt() {
@@ -192,14 +193,22 @@ export function Regnskap({
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {([{ id: 'oversikt' as const, lbl: '📊 Oversikt' }, { id: 'arsrapport' as const, lbl: '📋 Årsrapport' }]).map(t => (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              {([
+                { id: 'oversikt' as const, lbl: '📊 Oversikt' },
+                { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
+                ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
+              ]).map(t => (
                 <button key={t.id} onClick={() => setAktivTab(t.id)}
                   style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#1a1a2e' : '#f0f0f0', color: aktivTab === t.id ? 'white' : '#444' }}>
                   {t.lbl}
                 </button>
               ))}
             </div>
+
+            {aktivTab === 'oppussing' && p.kategori === 'flipp' && (
+              <Oppussingsbudsjett prosjekt={p} />
+            )}
 
             {aktivTab === 'oversikt' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
