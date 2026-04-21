@@ -112,12 +112,13 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     return <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>
   }
 
-  if (!data) {
+  const gyldigData = !!data && Array.isArray(data.maaneder) && data.maaneder.length === 12 && !!data.scenarier
+  if (!gyldigData) {
     return (
       <div style={{ background: '#fff8e1', border: '2px solid #B05E0A44', borderRadius: 12, padding: 24 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#7a400a', marginBottom: 8 }}>⚠️ Mangler analyse-data</div>
         <p style={{ fontSize: 14, color: '#6b3a0a', margin: 0, lineHeight: 1.6 }}>
-          Denne boligen ble lagret før utleieanalysen ble bygget. Gå til <strong>Boliganalyse</strong>, analyser samme eiendom på nytt og lagre som utleieprosjekt – da får du tilgang til tallene utleieanalysen trenger.
+          Denne boligen mangler strukturert airbnb-data, eller ble lagret på et gammelt skjema. Gå til <strong>Boliganalyse</strong>, analyser samme eiendom på nytt og lagre som utleieprosjekt – da får du tilgang til tallene utleieanalysen trenger.
         </p>
       </div>
     )
