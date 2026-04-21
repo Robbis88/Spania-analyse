@@ -16,19 +16,31 @@ const CREAM = '#f8f5ee'
 const CREAM_LYS = '#faf7f0'
 const GULL = '#c9a876'
 
-const SEKSJONER = [
-  { id: 'flipp' as const, emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Dine flipp-prosjekter' },
-  { id: 'utleie' as const, emoji: '🏖️', tittel: 'Boligutleie', beskrivelse: 'Dine utleieboliger' },
-  { id: 'selge' as const, emoji: '💰', tittel: 'Selge bolig', beskrivelse: 'Verktøy for salg av eiendom' },
-  { id: 'regnskap' as const, emoji: '📊', tittel: 'Regnskap', beskrivelse: 'Oversikt over inntekter og kostnader' },
+type Snarvei = {
+  id: Exclude<Seksjon, null>
+  emoji: string
+  tittel: string
+  beskrivelse: string
+  gradient: string
+  ring: string
+  tekst: string
+}
+
+const SEKSJONER: Snarvei[] = [
+  { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste', gradient: 'linear-gradient(135deg, #FFE8D4 0%, #F5C294 100%)', ring: '#D4814E', tekst: '#7a3b10' },
+  { id: 'utleie', emoji: '🏝️', tittel: 'Boligutleie', beskrivelse: 'Dine utleieboliger i solen', gradient: 'linear-gradient(135deg, #D7F0EC 0%, #9BD7CB 100%)', ring: '#4FA3AE', tekst: '#1e5b62' },
+  { id: 'selge', emoji: '💎', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle', gradient: 'linear-gradient(135deg, #FBEFC9 0%, #E8CD7B 100%)', ring: '#B08030', tekst: '#6e4812' },
+  { id: 'regnskap', emoji: '📈', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport', gradient: 'linear-gradient(135deg, #EDF4E4 0%, #C0D9A5 100%)', ring: '#6b9055', tekst: '#2e4a1d' },
 ]
 
-const NAV_LINKS: { id: Seksjon; lbl: string }[] = [
+type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
+const NAV_LINKS: NavLink[] = [
   { id: 'analyse', lbl: 'Boliganalyse' },
   { id: 'flipp', lbl: 'Flipp' },
   { id: 'utleie', lbl: 'Utleie' },
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
+  { id: 'gjoremal', lbl: 'Gjøremål' },
 ]
 
 export default function Home() {
@@ -53,6 +65,13 @@ export default function Home() {
     setVisProsjekt(null)
   }
 
+  function gåTilGjoremal() {
+    hjem()
+    setTimeout(() => {
+      document.getElementById('gjoremal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
+
   return (
     <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh' }}>
       <nav style={{
@@ -69,8 +88,9 @@ export default function Home() {
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 22, flexWrap: 'wrap' }}>
           {NAV_LINKS.map(l => {
             const aktiv = aktivSeksjon === l.id
+            const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
             return (
-              <button key={l.id} onClick={() => gåTil(l.id)}
+              <button key={l.id} onClick={onClick}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   fontSize: 14, fontWeight: aktiv ? 700 : 500,
@@ -106,25 +126,50 @@ export default function Home() {
             </div>
           </section>
 
-          <section style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 28px 16px' }}>
-            <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>SNARVEIER</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 40 }}>
-              {SEKSJONER.map(boks => (
-                <div
-                  key={boks.id}
-                  onClick={() => gåTil(boks.id)}
-                  style={{ background: 'white', border: `1px solid ${GULL}33`, borderRadius: 12, padding: 22, cursor: 'pointer', textAlign: 'center', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
-                >
-                  <div style={{ fontSize: 34, marginBottom: 8 }}>{boks.emoji}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: MØRK, marginBottom: 4 }}>{boks.tittel}</div>
-                  <div style={{ fontSize: 12, color: '#777', lineHeight: 1.4 }}>{boks.beskrivelse}</div>
+          <section style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 28px 80px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 32 }}>
+              <div>
+                <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>SNARVEIER</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                  {SEKSJONER.map(boks => (
+                    <div
+                      key={boks.id}
+                      onClick={() => gåTil(boks.id)}
+                      style={{
+                        background: boks.gradient,
+                        border: `1.5px solid ${boks.ring}55`,
+                        borderRadius: 16,
+                        padding: 24,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                      }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px) rotate(-0.5deg)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 28px ${boks.ring}44`
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0) rotate(0)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'
+                      }}
+                    >
+                      <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 96, opacity: 0.18, lineHeight: 1, transform: 'rotate(12deg)' }}>{boks.emoji}</div>
+                      <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{ fontSize: 40, marginBottom: 10 }}>{boks.emoji}</div>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: boks.tekst, marginBottom: 4 }}>{boks.tittel}</div>
+                        <div style={{ fontSize: 12.5, color: boks.tekst, opacity: 0.75, lineHeight: 1.4 }}>{boks.beskrivelse}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <Oppgaver />
+              <div id="gjoremal">
+                <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>GJØREMÅL</div>
+                <Oppgaver />
+              </div>
+            </div>
           </section>
         </>
       )}
