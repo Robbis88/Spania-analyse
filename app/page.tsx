@@ -37,8 +37,8 @@ export default function Home() {
         backgroundImage: 'url(/logo.png)',
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center',
-        backgroundSize: 'min(700px, 80vw)',
-        opacity: 0.08,
+        backgroundSize: 'cover',
+        opacity: 0.15,
       }} />
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100, position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'right', marginBottom: 20 }}>

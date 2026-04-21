@@ -32,7 +32,7 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: () => void }) {
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8', fontFamily: 'sans-serif' }}>
       <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 480, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={320} height={320} style={{ objectFit: 'contain', marginBottom: 8, maxWidth: '100%', height: 'auto' }} priority />
+          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={320} height={320} style={{ objectFit: 'contain', display: 'block', margin: '0 auto 8px', maxWidth: '100%', height: 'auto' }} priority />
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 13, color: '#666', marginBottom: 6, display: 'block' }}>Brukernavn</label>
