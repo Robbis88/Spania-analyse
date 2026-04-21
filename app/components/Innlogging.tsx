@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image'
 import { useState } from 'react'
 
 export function Innlogging({ onLoggetInn }: { onLoggetInn: () => void }) {
@@ -31,9 +32,7 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: () => void }) {
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8', fontFamily: 'sans-serif' }}>
       <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🏡</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Leganger Eiendom</h1>
-          <p style={{ color: '#666', marginTop: 8, fontSize: 14 }}>Din partner for eiendomsinvestering i Spania</p>
+          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={160} height={160} style={{ objectFit: 'contain', marginBottom: 8 }} priority />
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 13, color: '#666', marginBottom: 6, display: 'block' }}>Brukernavn</label>

@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image'
 import { useState } from 'react'
 import { Innlogging } from './components/Innlogging'
 import { Oppgaver } from './components/Oppgaver'
@@ -34,10 +35,10 @@ export default function Home() {
     <div style={{ fontFamily: 'sans-serif' }}>
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🏡</div>
-          <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Leganger Eiendom</h1>
-          <p style={{ color: '#666', marginTop: 8 }}>Din partner for eiendomsinvestering i Spania</p>
-          <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null); setVisProsjekt(null) }} style={{ marginTop: 8, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={140} height={140} style={{ objectFit: 'contain' }} priority />
+          <div>
+            <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null); setVisProsjekt(null) }} style={{ marginTop: 4, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+          </div>
         </div>
 
         {!aktivSeksjon && (
