@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { hentAktivBruker } from '../lib/aktivBruker'
+import { loggAktivitet } from '../lib/logg'
 import { type AirbnbData, type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
 import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct } from '../lib/styles'
 import { ScoreKort, type Score } from './ScoreKort'
@@ -129,10 +131,12 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
       airbnb_score: airbnbScore,
       airbnb_data: airbnbData,
     }
-    const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker: 'leganger' }])
+    const bruker = hentAktivBruker() || 'ukjent'
+    const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker }])
     if (error) {
       setLagreMelding('❌ Feil ved lagring: ' + error.message)
     } else {
+      await loggAktivitet({ handling: 'lagret ny bolig fra Boliganalyse', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn, kategori } })
       setLagreMelding(`✅ Lagret som ${kategori === 'flipp' ? 'flipp-prosjekt' : 'utleieprosjekt'}! Finn det under "${kategori === 'flipp' ? 'Boligflipp' : 'Boligutleie'}" eller "Regnskap".`)
     }
     setTimeout(() => setLagreMelding(''), 5000)

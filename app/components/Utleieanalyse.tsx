@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { loggAktivitet } from '../lib/logg'
 import type { AirbnbData, LanInfo, Leietype, OppussingPerAr, Prosjekt, Utleieanalyse as Analyse, UtleieScenario } from '../types'
 import { fmt, inputStyle, labelStyle, fieldStyle } from '../lib/styles'
 import {
@@ -78,12 +79,14 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     if (!analyse) return
     const n = faktiskNokkel(ar, maned)
     const neste = { ...(analyse.faktiske_inntekter || {}) }
+    const handling = belop === null || belop === 0 || Number.isNaN(belop) ? 'fjernet faktisk leieinntekt' : 'oppdaterte faktisk leieinntekt'
     if (belop === null || belop === 0 || Number.isNaN(belop)) {
       delete neste[n]
     } else {
       neste[n] = belop
     }
     await oppdater({ faktiske_inntekter: neste })
+    await loggAktivitet({ handling, tabell: 'utleieanalyse', rad_id: analyse.id, detaljer: { bolig: prosjekt.navn, periode: n, belop } })
   }
 
   async function settOppussingAr(ar: number, kostnad: number) {

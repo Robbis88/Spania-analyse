@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { loggAktivitet } from '../lib/logg'
 import type { Oppgave } from '../types'
 import { beregnEffektivPrioritet, fristTekst } from '../lib/oppgaver'
 import { prioritetFarge, prioritetLabel, inputStyle, selectStyle, labelStyle, fieldStyle } from '../lib/styles'
@@ -30,18 +31,24 @@ export function Oppgaver() {
 
   async function leggTilOppgave() {
     if (!nyTittel) return
-    await supabase.from('oppgaver').insert([{ id: Date.now().toString(), tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
+    const id = Date.now().toString()
+    await supabase.from('oppgaver').insert([{ id, tittel: nyTittel, ansvar: nyAnsvar, prioritet: nyPrioritet, frist: nyFrist, status: 'aktiv' }])
+    await loggAktivitet({ handling: 'opprettet oppgave', tabell: 'oppgaver', rad_id: id, detaljer: { tittel: nyTittel } })
     setNyTittel(''); setNyAnsvar(''); setNyPrioritet('normal'); setNyFrist('')
     setVisNyOppgave(false); await hentOppgaver()
   }
 
   async function toggleOppgave(o: Oppgave) {
-    await supabase.from('oppgaver').update({ status: o.status === 'aktiv' ? 'ferdig' : 'aktiv' }).eq('id', o.id)
+    const ny = o.status === 'aktiv' ? 'ferdig' : 'aktiv'
+    await supabase.from('oppgaver').update({ status: ny }).eq('id', o.id)
+    await loggAktivitet({ handling: ny === 'ferdig' ? 'krysset av oppgave' : 'gjenåpnet oppgave', tabell: 'oppgaver', rad_id: o.id, detaljer: { tittel: o.tittel } })
     await hentOppgaver()
   }
 
   async function slettOppgave(id: string) {
+    const o = oppgaver.find(x => x.id === id)
     await supabase.from('oppgaver').delete().eq('id', id)
+    await loggAktivitet({ handling: 'slettet oppgave', tabell: 'oppgaver', rad_id: id, detaljer: { tittel: o?.tittel } })
     await hentOppgaver()
   }
 

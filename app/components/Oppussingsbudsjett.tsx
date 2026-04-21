@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { loggAktivitet } from '../lib/logg'
 import type { LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt } from '../types'
 import { inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
 import {
@@ -82,6 +83,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
     }
     setPoster([...poster, ny])
     await supabase.from('oppussing_poster').insert([ny])
+    await loggAktivitet({ handling: 'la til oppussingspost', tabell: 'oppussing_poster', rad_id: ny.id, detaljer: { bolig: prosjekt.navn, navn: ny.navn } })
   }
 
   async function oppdaterPost(id: string, endring: Partial<OppussingPost>) {
@@ -90,8 +92,10 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
   }
 
   async function slettPost(id: string) {
+    const p = poster.find(x => x.id === id)
     setPoster(poster.filter(p => p.id !== id))
     await supabase.from('oppussing_poster').delete().eq('id', id)
+    await loggAktivitet({ handling: 'slettet oppussingspost', tabell: 'oppussing_poster', rad_id: id, detaljer: { bolig: prosjekt.navn, navn: p?.navn } })
   }
 
   async function estimerSalgspris() {
@@ -115,6 +119,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
           estimat_oppdatert: new Date().toISOString(),
           estimat_poster_sum: totalPoster(poster),
         })
+        await loggAktivitet({ handling: 'kjørte salgsestimat', tabell: 'oppussing_budsjett', rad_id: budsjett.id, detaljer: { bolig: prosjekt.navn, estimert_salgspris: data.estimert_salgspris } })
       }
     } catch (e) {
       setFeil(e instanceof Error ? e.message : 'Ukjent feil')

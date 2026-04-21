@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import type { Prosjekt } from '../types'
+import { hentAktivBruker } from './aktivBruker'
+import { loggAktivitet } from './logg'
 
 export function useProsjekter() {
   const [prosjekter, setProsjekter] = useState<Prosjekt[]>([])
@@ -11,7 +13,6 @@ export function useProsjekter() {
     const { data } = await supabase
       .from('prosjekter')
       .select('*')
-      .eq('bruker', 'leganger')
       .order('opprettet', { ascending: false })
     if (data) setProsjekter(data as Prosjekt[])
     setLaster(false)
@@ -23,17 +24,23 @@ export function useProsjekter() {
   }, [hent])
 
   async function leggTil(p: Prosjekt) {
-    await supabase.from('prosjekter').insert([{ ...p, id: Date.now().toString(), bruker: 'leganger' }])
+    const bruker = hentAktivBruker() || 'ukjent'
+    const nyId = Date.now().toString()
+    await supabase.from('prosjekter').insert([{ ...p, id: nyId, bruker }])
+    await loggAktivitet({ handling: 'opprettet prosjekt', tabell: 'prosjekter', rad_id: nyId, detaljer: { navn: p.navn } })
     await hent()
   }
 
   async function oppdater(p: Prosjekt) {
     await supabase.from('prosjekter').update(p).eq('id', p.id)
+    await loggAktivitet({ handling: 'redigerte prosjekt', tabell: 'prosjekter', rad_id: p.id, detaljer: { navn: p.navn } })
     await hent()
   }
 
   async function slett(id: string) {
+    const p = prosjekter.find(x => x.id === id)
     await supabase.from('prosjekter').delete().eq('id', id)
+    await loggAktivitet({ handling: 'slettet prosjekt', tabell: 'prosjekter', rad_id: id, detaljer: { navn: p?.navn } })
     await hent()
   }
 

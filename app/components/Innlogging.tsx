@@ -2,7 +2,7 @@
 import Image from 'next/image'
 import { useState } from 'react'
 
-export function Innlogging({ onLoggetInn }: { onLoggetInn: () => void }) {
+export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => void }) {
   const [brukernavnInput, setBrukernavnInput] = useState('')
   const [passordInput, setPassordInput] = useState('')
   const [feil, setFeil] = useState(false)
@@ -18,7 +18,7 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: () => void }) {
         body: JSON.stringify({ brukernavn: brukernavnInput, passord: passordInput }),
       })
       const data = await res.json()
-      if (data.ok) onLoggetInn()
+      if (data.ok && data.bruker) onLoggetInn(data.bruker)
       else setFeil(true)
     } catch {
       setFeil(true)

@@ -249,7 +249,7 @@ export type Bolig = {
 
 export const tomtProsjekt = (): Prosjekt => ({
   id: Date.now().toString(),
-  bruker: 'leganger',
+  bruker: '',
   navn: '',
   status: 'Under vurdering',
   kategori: 'utleie',

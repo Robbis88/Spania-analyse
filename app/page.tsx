@@ -1,6 +1,6 @@
 'use client'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Innlogging } from './components/Innlogging'
 import { Oppgaver } from './components/Oppgaver'
 import { AgentChat } from './components/AgentChat'
@@ -8,8 +8,10 @@ import { Boliganalyse } from './components/Boliganalyse'
 import { BoligerSeksjon } from './components/BoligerSeksjon'
 import { Selge } from './components/Selge'
 import { Regnskap } from './components/Regnskap'
+import { Aktivitetslogg } from './components/Aktivitetslogg'
+import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from './lib/aktivBruker'
 
-type Seksjon = 'analyse' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | null
+type Seksjon = 'analyse' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
 
 const MØRK = '#1a2a3e'
 const CREAM = '#f8f5ee'
@@ -41,14 +43,33 @@ const NAV_LINKS: NavLink[] = [
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
   { id: 'gjoremal', lbl: 'Gjøremål' },
+  { id: 'logg', lbl: 'Aktivitetslogg' },
 ]
 
 export default function Home() {
-  const [loggetInn, setLoggetInn] = useState(false)
+  const [bruker, setBruker] = useState<string | null>(null)
   const [aktivSeksjon, setAktivSeksjon] = useState<Seksjon>(null)
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
 
-  if (!loggetInn) return <Innlogging onLoggetInn={() => setLoggetInn(true)} />
+  useEffect(() => {
+    const lagret = hentAktivBruker()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (lagret) setBruker(lagret)
+  }, [])
+
+  function loggInn(b: string) {
+    settAktivBruker(b)
+    setBruker(b)
+  }
+
+  function loggUt() {
+    fjernAktivBruker()
+    setBruker(null)
+    setAktivSeksjon(null)
+    setVisProsjekt(null)
+  }
+
+  if (!bruker) return <Innlogging onLoggetInn={loggInn} />
 
   function åpneProsjekt(id: string) {
     setAktivSeksjon('regnskap')
@@ -101,7 +122,10 @@ export default function Home() {
             )
           })}
         </div>
-        <button onClick={() => { setLoggetInn(false); hjem() }} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
+          <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+        </div>
       </nav>
 
       {!aktivSeksjon && (
@@ -187,6 +211,7 @@ export default function Home() {
               onSettVisProsjekt={setVisProsjekt}
             />
           )}
+          {aktivSeksjon === 'logg' && <Aktivitetslogg onTilbake={hjem} />}
         </main>
       )}
 
