@@ -1,5 +1,4 @@
 'use client'
-import Image from 'next/image'
 import { useState } from 'react'
 import { Innlogging } from './components/Innlogging'
 import { Oppgaver } from './components/Oppgaver'
@@ -32,13 +31,18 @@ export default function Home() {
   }
 
   return (
-    <div style={{ fontFamily: 'sans-serif' }}>
-      <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={140} height={140} style={{ objectFit: 'contain' }} priority />
-          <div>
-            <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null); setVisProsjekt(null) }} style={{ marginTop: 4, background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
-          </div>
+    <div style={{ fontFamily: 'sans-serif', position: 'relative', minHeight: '100vh' }}>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        backgroundImage: 'url(/logo.png)',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        backgroundSize: 'min(700px, 80vw)',
+        opacity: 0.08,
+      }} />
+      <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100, position: 'relative', zIndex: 1 }}>
+        <div style={{ textAlign: 'right', marginBottom: 20 }}>
+          <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null); setVisProsjekt(null) }} style={{ background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
         </div>
 
         {!aktivSeksjon && (
