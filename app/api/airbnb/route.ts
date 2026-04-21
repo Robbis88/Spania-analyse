@@ -136,80 +136,132 @@ Scoring-regler:
       console.error('Parse feil:', e)
     }
 
-    // API-kall 3: Strukturert data for utleieanalysen
+    // API-kall 3: Strukturert data via Anthropic tool use
+    const scenarioProps = {
+      type: 'object' as const,
+      required: ['brutto_ar1', 'brutto_etablert', 'netto_etablert', 'yield_pct', 'belegg_etablert'],
+      properties: {
+        brutto_ar1: { type: 'number' as const },
+        brutto_etablert: { type: 'number' as const },
+        netto_etablert: { type: 'number' as const },
+        yield_pct: { type: 'number' as const, description: 'Årlig netto / kjøpspris × 100' },
+        belegg_etablert: { type: 'number' as const, minimum: 0, maximum: 1 },
+      },
+    }
+
     const dataRes = await client.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2500,
+      max_tokens: 3000,
+      tools: [{
+        name: 'lagre_analyse',
+        description: 'Lagrer strukturert analyse av boligen som utleieobjekt. Alle tall skal være realistiske og tallfestede. Belegg oppgis som desimal (f.eks. 0.50 for 50%).',
+        input_schema: {
+          type: 'object',
+          required: ['konklusjon', 'maaneder', 'scenarier', 'kostnader_arlig'],
+          properties: {
+            konklusjon: {
+              type: 'object',
+              required: ['vurdering', 'egnethet_score', 'anbefalt_leietype'],
+              properties: {
+                vurdering: { type: 'string', enum: ['sterk', 'middels', 'middels_svak', 'svak'] },
+                egnethet_score: { type: 'number', minimum: 0, maximum: 10 },
+                anbefalt_leietype: { type: 'string', enum: ['korttid', 'langtid', 'begge'] },
+              },
+            },
+            maaneder: {
+              type: 'array',
+              minItems: 12,
+              maxItems: 12,
+              description: '12 måneder i rekkefølge, januar til desember',
+              items: {
+                type: 'object',
+                required: ['maaned', 'nattpris_ar1', 'nattpris_etablert', 'belegg_ar1', 'belegg_etablert', 'brutto_ar1'],
+                properties: {
+                  maaned: { type: 'integer', minimum: 1, maximum: 12 },
+                  nattpris_ar1: { type: 'number', minimum: 0 },
+                  nattpris_etablert: { type: 'number', minimum: 0 },
+                  belegg_ar1: { type: 'number', minimum: 0, maximum: 1, description: 'Desimal 0-1, f.eks. 0.50' },
+                  belegg_etablert: { type: 'number', minimum: 0, maximum: 1 },
+                  brutto_ar1: { type: 'number', minimum: 0, description: 'nattpris_ar1 × belegg_ar1 × dager i måneden' },
+                },
+              },
+            },
+            scenarier: {
+              type: 'object',
+              required: ['konservativt', 'realistisk', 'sterkt'],
+              properties: {
+                konservativt: scenarioProps,
+                realistisk: scenarioProps,
+                sterkt: scenarioProps,
+              },
+            },
+            kostnader_arlig: {
+              type: 'object',
+              description: 'Årlige driftskostnader i EUR. Utelat felter som ikke er relevante.',
+              properties: {
+                airbnb_kommisjon: { type: 'number' },
+                renhold: { type: 'number' },
+                strom_vann: { type: 'number' },
+                internett: { type: 'number' },
+                comunidad: { type: 'number' },
+                forsikring: { type: 'number' },
+                ibi: { type: 'number' },
+                basura: { type: 'number' },
+                vedlikehold: { type: 'number' },
+                management: { type: 'number' },
+                leietakerregistrering: { type: 'number' },
+              },
+            },
+            langtidsleie: {
+              type: 'object',
+              description: 'Estimat for langtidsleie. Utelat om ikke relevant.',
+              properties: {
+                maaned_lav: { type: 'number' },
+                maaned_hoy: { type: 'number' },
+                arlig_brutto_lav: { type: 'number' },
+                arlig_brutto_hoy: { type: 'number' },
+              },
+            },
+            maks_oppussing: {
+              type: 'object',
+              description: 'Maks oppussing i EUR og fortsatt nå gitt yield.',
+              properties: {
+                yield_5_pct: { type: 'number' },
+                yield_6_pct: { type: 'number' },
+                yield_7_pct: { type: 'number' },
+              },
+            },
+          },
+        },
+      }],
+      tool_choice: { type: 'tool', name: 'lagre_analyse' },
       messages: [{
         role: 'user',
-        content: `Du er ekspert på korttidsutleie på Costa del Sol og spansk eiendomsmarked. Produser strukturert data for denne boligen som skal brukes i utleieanalyse.
+        content: `Du er ekspert på korttidsutleie på Costa del Sol og spansk eiendomsmarked. Produser strukturert analyse for denne boligen via verktøyet lagre_analyse.
 
 ${boligInfo}
 
-Vurder realistiske nattpriser og belegg per måned for TO nivåer:
+Retningslinjer:
 - "år 1" = nystartet utleie, lav synlighet, få anmeldelser
-- "etablert 4.9★" = etablert drift med gode anmeldelser og høyere synlighet
-
-Estimer tre scenarier for årlige inntekter:
-- konservativt = lavere nattpris/belegg, realistisk hvis det går seigt
-- realistisk = forventet utfall
-- sterkt = best-case med gode anmeldelser raskt
-
-Estimer spesifikke årlige driftskostnader for denne eiendommen i dette området.
-
-Returner KUN gyldig JSON uten markdown eller forklaring:
-{
-  "maneder": [
-    { "nr": 1, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 2, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 28 },
-    { "nr": 3, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 4, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
-    { "nr": 5, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 6, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
-    { "nr": 7, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 8, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 9, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
-    { "nr": 10, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 },
-    { "nr": 11, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 30 },
-    { "nr": 12, "nattpris_ar1": 0, "nattpris_etablert": 0, "belegg_ar1_pst": 0, "belegg_etablert_pst": 0, "dager": 31 }
-  ],
-  "scenarioer": {
-    "konservativt": { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 },
-    "realistisk":   { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 },
-    "sterkt":       { "brutto_ar1": 0, "brutto_etablert": 0, "netto_etablert": 0 }
-  },
-  "kostnader_ar": {
-    "airbnb_kommisjon": 0,
-    "renhold": 0,
-    "strom_vann": 0,
-    "internett": 0,
-    "comunidad": 0,
-    "forsikring": 0,
-    "ibi": 0,
-    "soppel": 0,
-    "vedlikehold": 0,
-    "management": 0,
-    "leietakerregistrering": 0
-  },
-  "langtidsleie_maned_lav": 0,
-  "langtidsleie_maned_hoy": 0
-}
-
-Regler:
-- Belegg er prosent (0-100), ikke desimal
-- Sesongvariasjon skal reflektere Costa del Sol / Spania typisk (sommer høyt, vinter lavt; desember/januar typisk bunn)
-- Tall skal være realistiske, ikke runde estimater som avslører gjetning
-- Hvis du ikke har grunnlag for langtidsleie, sett begge lav/hoy til 0`
-      }]
+- "etablert 4.9★" = etablert drift med gode anmeldelser
+- konservativt/realistisk/sterkt = tre scenarier for 12-måneders utfall
+- Sesongvariasjon skal reflektere Costa del Sol (sommer høyt, desember/januar typisk bunn)
+- Tall skal være realistiske og tallfestet, ikke runde gjetninger
+- brutto_ar1 per måned = nattpris_ar1 × belegg_ar1 × dager i måneden (Jan=31, Feb=28, Mar=31, Apr=30, Mai=31, Jun=30, Jul=31, Aug=31, Sep=30, Okt=31, Nov=30, Des=31)
+- Utelat langtidsleie hvis ikke relevant for området/boligen`,
+      }],
     })
 
-    const dataTekst = dataRes.content[0].type === 'text' ? dataRes.content[0].text : ''
-    let airbnbData = null
-    try {
-      const cleanData = dataTekst.replace(/```json|```/g, '').trim()
-      airbnbData = JSON.parse(cleanData)
-    } catch (e) {
-      console.error('Data parse feil:', e)
+    const toolBlock = dataRes.content.find(b => b.type === 'tool_use')
+    let airbnbData: Record<string, unknown> | null = null
+    if (toolBlock && toolBlock.type === 'tool_use') {
+      airbnbData = {
+        ...(toolBlock.input as Record<string, unknown>),
+        versjon: 1,
+        generert: new Date().toISOString(),
+      }
+    } else {
+      console.error('Fikk ikke tool_use-blokk fra agent')
     }
 
     return NextResponse.json({ analyse: analyseTekst, score: scoreData, data: airbnbData })

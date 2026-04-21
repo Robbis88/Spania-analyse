@@ -117,22 +117,33 @@ export type OppussingPost = {
   rekkefolge: number
 }
 
+export type AirbnbVurdering = 'sterk' | 'middels' | 'middels_svak' | 'svak'
+export type AirbnbAnbefaltLeietype = 'korttid' | 'langtid' | 'begge'
+
+export type AirbnbKonklusjon = {
+  vurdering: AirbnbVurdering
+  egnethet_score: number
+  anbefalt_leietype: AirbnbAnbefaltLeietype
+}
+
 export type AirbnbManed = {
-  nr: number
+  maaned: number
   nattpris_ar1: number
   nattpris_etablert: number
-  belegg_ar1_pst: number
-  belegg_etablert_pst: number
-  dager: number
+  belegg_ar1: number
+  belegg_etablert: number
+  brutto_ar1: number
 }
 
 export type AirbnbScenario = {
   brutto_ar1: number
   brutto_etablert: number
   netto_etablert: number
+  yield_pct: number
+  belegg_etablert: number
 }
 
-export type AirbnbKostnaderAr = {
+export type AirbnbKostnaderArlig = {
   airbnb_kommisjon?: number
   renhold?: number
   strom_vann?: number
@@ -140,22 +151,38 @@ export type AirbnbKostnaderAr = {
   comunidad?: number
   forsikring?: number
   ibi?: number
-  soppel?: number
+  basura?: number
   vedlikehold?: number
   management?: number
   leietakerregistrering?: number
 }
 
+export type AirbnbLangtidsleie = {
+  maaned_lav?: number
+  maaned_hoy?: number
+  arlig_brutto_lav?: number
+  arlig_brutto_hoy?: number
+}
+
+export type AirbnbMaksOppussing = {
+  yield_5_pct?: number
+  yield_6_pct?: number
+  yield_7_pct?: number
+}
+
 export type AirbnbData = {
-  maneder: AirbnbManed[]
-  scenarioer: {
+  versjon: number
+  generert: string
+  konklusjon: AirbnbKonklusjon
+  maaneder: AirbnbManed[]
+  scenarier: {
     konservativt: AirbnbScenario
     realistisk: AirbnbScenario
     sterkt: AirbnbScenario
   }
-  kostnader_ar: AirbnbKostnaderAr
-  langtidsleie_maned_lav?: number | null
-  langtidsleie_maned_hoy?: number | null
+  kostnader_arlig: AirbnbKostnaderArlig
+  langtidsleie?: AirbnbLangtidsleie
+  maks_oppussing?: AirbnbMaksOppussing
 }
 
 export type Leietype = 'korttid' | 'langtid'
@@ -173,6 +200,8 @@ export type OppussingPerAr = {
   kostnad: number
 }
 
+export type FaktiskeInntekter = Record<string, number>
+
 export type Utleieanalyse = {
   id: string
   bolig_id: string
@@ -186,6 +215,7 @@ export type Utleieanalyse = {
   oppussing_per_ar: OppussingPerAr[]
   lan: LanInfo | null
   langtidsleie_maned: number | null
+  faktiske_inntekter: FaktiskeInntekter
   analyse_kilde_id: string | null
   analyse_hentet: string | null
   opprettet: string

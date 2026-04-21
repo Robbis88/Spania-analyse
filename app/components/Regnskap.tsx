@@ -1,9 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { useProsjekter } from '../lib/useProsjekter'
-import { type Prosjekt, tomtProsjekt, type Måned } from '../types'
+import { type Prosjekt, tomtProsjekt } from '../types'
 import { totalInvestering, månedligKostnad, månedligCashflow, yield_pst, roi } from '../lib/beregninger'
-import { inputStyle, labelStyle, fieldStyle, fmt, statusFarge } from '../lib/styles'
+import { fmt, statusFarge } from '../lib/styles'
 import { ProsjektFelter } from './ProsjektFelter'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { Utleieanalyse } from './Utleieanalyse'
@@ -19,7 +19,6 @@ export function Regnskap({
   const { prosjekter, laster, leggTil, oppdater, slett } = useProsjekter()
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
-  const [nyMåned, setNyMåned] = useState<Måned>({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
   const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
@@ -41,14 +40,6 @@ export function Regnskap({
     if (!confirm('Er du sikker?')) return
     await slett(id)
     if (visProsjektId === id) onSettVisProsjekt(null)
-  }
-
-  async function leggTilMåned(prosjektId: string) {
-    if (!nyMåned.måned) return
-    const p = prosjekter.find(p => p.id === prosjektId)
-    if (!p) return
-    await oppdater({ ...p, måneder: [...p.måneder, nyMåned] })
-    setNyMåned({ måned: '', inntekt: 0, kostnad: 0, notat: '' })
   }
 
   return (
@@ -141,8 +132,6 @@ export function Regnskap({
         if (!p) return null
         const sf = statusFarge(p.status)
         const cf = månedligCashflow(p)
-        const totalMånedInntekt = p.måneder.reduce((s, m) => s + m.inntekt, 0)
-        const totalMånedKostnad = p.måneder.reduce((s, m) => s + m.kostnad, 0)
         const redigerer = redigerProsjekt?.id === p.id
 
         const arsinntekt = p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).reduce((s, m) => s + m.inntekt, 0)
@@ -334,37 +323,6 @@ export function Regnskap({
               </div>
             )}
 
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>📆 Månedlig logg</div>
-              {p.måneder.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: 8, marginBottom: 6, fontSize: 11, color: '#888', fontWeight: 600 }}>
-                    <div>MÅNED</div><div>INNTEKT</div><div>KOSTNAD</div><div>NOTAT</div>
-                  </div>
-                  {p.måneder.map((m, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: 8, padding: '6px 0', borderTop: '1px solid #f0f0f0', fontSize: 13 }}>
-                      <div style={{ fontWeight: 500 }}>{m.måned}</div>
-                      <div style={{ color: '#2D7D46', fontWeight: 600 }}>{fmt(m.inntekt)}</div>
-                      <div style={{ color: '#C8102E', fontWeight: 600 }}>{fmt(m.kostnad)}</div>
-                      <div style={{ color: '#666' }}>{m.notat}</div>
-                    </div>
-                  ))}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: 8, padding: '8px 0', borderTop: '2px solid #eee', fontSize: 13, fontWeight: 700 }}>
-                    <div>Totalt</div>
-                    <div style={{ color: '#2D7D46' }}>{fmt(totalMånedInntekt)}</div>
-                    <div style={{ color: '#C8102E' }}>{fmt(totalMånedKostnad)}</div>
-                    <div style={{ color: totalMånedInntekt - totalMånedKostnad >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(totalMånedInntekt - totalMånedKostnad)}</div>
-                  </div>
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
-                <div style={fieldStyle}><label style={labelStyle}>Måned</label><input style={inputStyle} type="month" value={nyMåned.måned} onChange={e => setNyMåned(m => ({ ...m, måned: e.target.value }))} /></div>
-                <div style={fieldStyle}><label style={labelStyle}>Inntekt (€)</label><input style={inputStyle} type="number" value={nyMåned.inntekt || ''} onChange={e => setNyMåned(m => ({ ...m, inntekt: Number(e.target.value) }))} placeholder="3000" /></div>
-                <div style={fieldStyle}><label style={labelStyle}>Kostnad (€)</label><input style={inputStyle} type="number" value={nyMåned.kostnad || ''} onChange={e => setNyMåned(m => ({ ...m, kostnad: Number(e.target.value) }))} placeholder="2500" /></div>
-                <div style={fieldStyle}><label style={labelStyle}>Notat</label><input style={inputStyle} type="text" value={nyMåned.notat} onChange={e => setNyMåned(m => ({ ...m, notat: e.target.value }))} placeholder="F.eks. August utleie" /></div>
-              </div>
-              <button onClick={() => leggTilMåned(p.id)} style={{ background: '#7B2D8B', color: 'white', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Legg til måned</button>
-            </div>
           </div>
         )
       })()}

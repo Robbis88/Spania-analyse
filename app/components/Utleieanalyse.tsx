@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import type { AirbnbData, LanInfo, Leietype, OppussingPerAr, Prosjekt, Utleieanalyse as Analyse, UtleieScenario } from '../types'
 import { fmt, inputStyle, labelStyle, fieldStyle } from '../lib/styles'
 import {
-  KOSTNAD_LABEL, MANED_NAVN, aarligYield, beregnAar, manedligLaanebetaling, sumKostnaderAr,
+  KOSTNAD_LABEL, MANED_NAVN, aarligYield, beregnAar, estimertManedligInntekt,
+  faktiskNokkel, manedligLaanebetaling, sumKostnaderAr,
 } from '../lib/utleie'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
@@ -25,6 +26,7 @@ function tomAnalyse(boligId: string, defaultKjopspris: number): Analyse {
     oppussing_per_ar: [],
     lan: null,
     langtidsleie_maned: null,
+    faktiske_inntekter: {},
     analyse_kilde_id: boligId,
     analyse_hentet: iDag.toISOString(),
     opprettet: iDag.toISOString(),
@@ -36,6 +38,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [laster, setLaster] = useState(true)
   const [brukLan, setBrukLan] = useState(false)
+  const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
 
   const last = useCallback(async () => {
     setLaster(true)
@@ -45,6 +48,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     if (!a) {
       a = tomAnalyse(prosjekt.id, prosjekt.kjøpesum || 0)
       await supabase.from('utleieanalyse').insert([a])
+    } else if (!a.faktiske_inntekter) {
+      a = { ...a, faktiske_inntekter: {} }
     }
     setAnalyse(a)
     setBrukLan(!!a.lan && !!a.lan.lanebelop)
@@ -67,6 +72,18 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     if (!analyse) return
     const nyttLan: LanInfo = { ...(analyse.lan || {}), ...endring }
     await oppdater({ lan: nyttLan })
+  }
+
+  async function settFaktisk(ar: number, maned: number, belop: number | null) {
+    if (!analyse) return
+    const n = faktiskNokkel(ar, maned)
+    const neste = { ...(analyse.faktiske_inntekter || {}) }
+    if (belop === null || belop === 0 || Number.isNaN(belop)) {
+      delete neste[n]
+    } else {
+      neste[n] = belop
+    }
+    await oppdater({ faktiske_inntekter: neste })
   }
 
   async function settOppussingAr(ar: number, kostnad: number) {
@@ -138,8 +155,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
           <div style={{ marginTop: 4 }}>
             <label style={labelStyle}>
               Månedsleie (€) — langtidsleie
-              {data.langtidsleie_maned_lav && data.langtidsleie_maned_hoy
-                ? ` · Analysen foreslår €${data.langtidsleie_maned_lav}–${data.langtidsleie_maned_hoy}`
+              {data.langtidsleie?.maaned_lav && data.langtidsleie?.maaned_hoy
+                ? ` · Analysen foreslår €${data.langtidsleie.maaned_lav}–${data.langtidsleie.maaned_hoy}`
                 : ''}
             </label>
             <input style={{ ...inputStyle, width: 200 }} type="number" value={analyse.langtidsleie_maned || ''}
@@ -298,7 +315,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
 
           <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💸 Kostnadsnedbrytning (hele år, fra analysen)</div>
-            {Object.entries(data.kostnader_ar || {}).filter(([, v]) => (v as number) > 0).map(([k, v], i) => (
+            {Object.entries(data.kostnader_arlig || {}).filter(([, v]) => (v as number) > 0).map(([k, v], i) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
                 <span style={{ color: '#555' }}>{KOSTNAD_LABEL[k] || k}</span>
                 <span style={{ fontWeight: 600 }}>{fmt(v as number)}</span>
@@ -311,14 +328,61 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
           </div>
 
           <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📅 Leieinntekt per måned ({iAar + 1})</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>
-              {nesteAarOversikt.per_maned_inntekt.map((belop, i) => (
-                <div key={i} style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
-                  <div style={{ fontSize: 11, color: '#888' }}>{MANED_NAVN[i]}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: belop > 0 ? '#2D7D46' : '#aaa' }}>{belop > 0 ? fmt(belop) : '–'}</div>
-                </div>
-              ))}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>📅 Leieinntekt per måned</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setValgtAr(valgtAr - 1)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>←</button>
+                <div style={{ fontSize: 15, fontWeight: 700, minWidth: 60, textAlign: 'center' }}>{valgtAr}</div>
+                <button onClick={() => setValgtAr(valgtAr + 1)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>→</button>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: '#666', margin: '0 0 12px' }}>Skriv inn faktisk inntekt når tallet er kjent – tomme felt bruker estimatet fra analysen. Verdier kan endres eller slettes når som helst.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              {MANED_NAVN.map((navn, i) => {
+                const maned = i + 1
+                const estimat = estimertManedligInntekt(data, analyse, valgtAr, maned)
+                const nokkel = faktiskNokkel(valgtAr, maned)
+                const faktisk = analyse.faktiske_inntekter?.[nokkel]
+                const harFaktisk = typeof faktisk === 'number' && !Number.isNaN(faktisk)
+                return (
+                  <div key={i} style={{ background: harFaktisk ? '#f0faf4' : '#f8f8f8', border: harFaktisk ? '1.5px solid #2D7D4644' : '1.5px solid transparent', borderRadius: 8, padding: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ fontSize: 11, color: '#888' }}>{navn}</div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: harFaktisk ? '#2D7D46' : '#999' }}>{harFaktisk ? 'FAKTISK' : 'ESTIMAT'}</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={harFaktisk ? faktisk : ''}
+                      placeholder={estimat > 0 ? Math.round(estimat).toString() : '–'}
+                      onBlur={e => {
+                        const v = e.target.value.trim() === '' ? null : Number(e.target.value)
+                        settFaktisk(valgtAr, maned, v)
+                      }}
+                      onChange={e => {
+                        if (!analyse) return
+                        const v = e.target.value.trim() === '' ? null : Number(e.target.value)
+                        const neste = { ...(analyse.faktiske_inntekter || {}) }
+                        if (v === null || v === 0 || Number.isNaN(v)) delete neste[nokkel]
+                        else neste[nokkel] = v
+                        setAnalyse({ ...analyse, faktiske_inntekter: neste })
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: 14, fontWeight: harFaktisk ? 700 : 400, color: harFaktisk ? '#2D7D46' : '#444', borderRadius: 6, border: '1px solid #ddd', background: 'white' }} />
+                    {!harFaktisk && estimat > 0 && (
+                      <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>Estimat {fmt(estimat)}</div>
+                    )}
+                    {harFaktisk && (
+                      <button onClick={() => settFaktisk(valgtAr, maned, null)}
+                        style={{ marginTop: 4, fontSize: 10, background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                        Tilbakestill til estimat
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 10, borderTop: '1px solid #eee', fontSize: 14, fontWeight: 700 }}>
+              <span>Sum {valgtAr}</span>
+              <span>{fmt(beregnAar(valgtAr, data, analyse).brutto_inntekt)}</span>
             </div>
           </div>
         </>

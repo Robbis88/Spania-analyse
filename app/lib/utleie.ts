@@ -1,9 +1,11 @@
-import type { AirbnbData, LanInfo, Utleieanalyse, UtleieScenario } from '../types'
+import type { AirbnbData, FaktiskeInntekter, LanInfo, Utleieanalyse, UtleieScenario } from '../types'
 
 export const MANED_NAVN = [
   'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Desember',
 ]
+
+export const DAGER_I_MANED = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 export function parseManed(iso: string | null): { ar: number; maned: number } | null {
   if (!iso) return null
@@ -11,6 +13,9 @@ export function parseManed(iso: string | null): { ar: number; maned: number } | 
   if (!a || !m) return null
   return { ar: a, maned: m }
 }
+
+export const faktiskNokkel = (ar: number, maned: number) =>
+  `${ar}-${String(maned).padStart(2, '0')}`
 
 export function manedligLaanebetaling(lan: LanInfo | null | undefined): number {
   if (!lan) return 0
@@ -30,8 +35,8 @@ export function interpolasjonFaktor(opYear: number, progresjonEtablert: number):
 }
 
 export function scenarioFaktor(data: AirbnbData, s: UtleieScenario): number {
-  const base = data.scenarioer?.realistisk?.brutto_etablert || 0
-  const v = data.scenarioer?.[s]?.brutto_etablert || 0
+  const base = data.scenarier?.realistisk?.brutto_etablert || 0
+  const v = data.scenarier?.[s]?.brutto_etablert || 0
   if (base <= 0 || v <= 0) return 1
   return v / base
 }
@@ -43,20 +48,47 @@ export function manedligInntektKorttid(
   progresjonEtablert: number,
   scenario: UtleieScenario,
 ): number {
-  const m = data.maneder?.find(x => x.nr === maned1based)
+  const m = data.maaneder?.find(x => x.maaned === maned1based)
   if (!m) return 0
   const frac = interpolasjonFaktor(opYear, progresjonEtablert)
   const nattpris = m.nattpris_ar1 + (m.nattpris_etablert - m.nattpris_ar1) * frac
-  const belegg = m.belegg_ar1_pst + (m.belegg_etablert_pst - m.belegg_ar1_pst) * frac
-  const base = nattpris * (belegg / 100) * m.dager
+  const belegg = m.belegg_ar1 + (m.belegg_etablert - m.belegg_ar1) * frac
+  const dager = DAGER_I_MANED[maned1based - 1] || 30
+  const base = nattpris * belegg * dager
   return base * scenarioFaktor(data, scenario)
 }
 
+export function estimertManedligInntekt(
+  data: AirbnbData,
+  analyse: Utleieanalyse,
+  ar: number,
+  maned1based: number,
+): number {
+  const start = parseManed(analyse.utleiestart)
+  if (!start) return 0
+  const erUtleie = (ar > start.ar) || (ar === start.ar && maned1based >= start.maned)
+  if (!erUtleie) return 0
+  if (analyse.leietype === 'langtid') return analyse.langtidsleie_maned || 0
+  const opYear = ar - start.ar + 1
+  return manedligInntektKorttid(data, maned1based, opYear, analyse.progresjon_til_etablert_ar || 3, analyse.scenario)
+}
+
+export function faktiskEllerEstimat(
+  faktiske: FaktiskeInntekter | null | undefined,
+  ar: number,
+  maned1based: number,
+  estimat: number,
+): { belop: number; kilde: 'faktisk' | 'estimat' } {
+  const f = faktiske?.[faktiskNokkel(ar, maned1based)]
+  if (typeof f === 'number' && !Number.isNaN(f)) return { belop: f, kilde: 'faktisk' }
+  return { belop: estimat, kilde: 'estimat' }
+}
+
 export function sumKostnaderAr(data: AirbnbData): number {
-  const k = data.kostnader_ar || {}
+  const k = data.kostnader_arlig || {}
   return (k.airbnb_kommisjon || 0) + (k.renhold || 0) + (k.strom_vann || 0) +
     (k.internett || 0) + (k.comunidad || 0) + (k.forsikring || 0) +
-    (k.ibi || 0) + (k.soppel || 0) + (k.vedlikehold || 0) +
+    (k.ibi || 0) + (k.basura || 0) + (k.vedlikehold || 0) +
     (k.management || 0) + (k.leietakerregistrering || 0)
 }
 
@@ -73,13 +105,14 @@ export type AarligOversikt = {
   oppussing: number
   netto_uten_lan: number
   netto_med_lan: number
-  per_maned_inntekt: number[]
+  per_maned_inntekt: { belop: number; kilde: 'faktisk' | 'estimat' }[]
 }
 
 export function beregnAar(aar: number, data: AirbnbData | null, analyse: Utleieanalyse): AarligOversikt {
   const kjop = parseManed(analyse.kjopsmaaned)
   const start = parseManed(analyse.utleiestart)
-  const perMnd: number[] = new Array(12).fill(0)
+  const perMnd: { belop: number; kilde: 'faktisk' | 'estimat' }[] =
+    Array.from({ length: 12 }, () => ({ belop: 0, kilde: 'estimat' as const }))
   let manederEid = 0
   let manederUtleie = 0
 
@@ -89,26 +122,28 @@ export function beregnAar(aar: number, data: AirbnbData | null, analyse: Utleiea
       if (!eid) continue
       manederEid++
       const utleie = start && ((aar > start.ar) || (aar === start.ar && m >= start.maned))
-      if (!utleie) continue
-      manederUtleie++
 
-      if (!data) continue
-      const opYear = aar - start!.ar + 1
-      if (analyse.leietype === 'korttid') {
-        perMnd[m - 1] = manedligInntektKorttid(data, m, opYear, analyse.progresjon_til_etablert_ar || 3, analyse.scenario)
-      } else {
-        perMnd[m - 1] = analyse.langtidsleie_maned || 0
+      let estimat = 0
+      if (utleie && data) {
+        manederUtleie++
+        estimat = estimertManedligInntekt(data, analyse, aar, m)
+      }
+      // Faktisk kan også være satt for "tom" måneder (bruker har registrert faktisk leie før planlagt start)
+      const res = faktiskEllerEstimat(analyse.faktiske_inntekter, aar, m, estimat)
+      perMnd[m - 1] = res
+      if (!utleie && res.kilde === 'faktisk' && res.belop > 0) {
+        manederUtleie++
       }
     }
   }
 
-  const brutto = perMnd.reduce((s, x) => s + x, 0)
+  const brutto = perMnd.reduce((s, x) => s + x.belop, 0)
   const kostnaderHele = data ? sumKostnaderAr(data) : 0
   const kostnaderProRatert = kostnaderHele * (manederEid / 12)
 
   const perPost: Record<string, number> = {}
-  if (data?.kostnader_ar) {
-    for (const [key, val] of Object.entries(data.kostnader_ar)) {
+  if (data?.kostnader_arlig) {
+    for (const [key, val] of Object.entries(data.kostnader_arlig)) {
       perPost[key] = ((val as number) || 0) * (manederEid / 12)
     }
   }
@@ -150,7 +185,7 @@ export const KOSTNAD_LABEL: Record<string, string> = {
   comunidad: 'Comunidad',
   forsikring: 'Forsikring',
   ibi: 'IBI',
-  soppel: 'Søppel',
+  basura: 'Basura',
   vedlikehold: 'Vedlikehold',
   management: 'Property management',
   leietakerregistrering: 'Leietakerregistrering',
