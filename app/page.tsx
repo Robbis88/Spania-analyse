@@ -38,9 +38,9 @@ export default function Home() {
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center',
         backgroundSize: 'cover',
-        opacity: 0.15,
+        opacity: 0.2,
       }} />
-      <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px', paddingBottom: 100, position: 'relative', zIndex: 1 }}>
+      <main style={{ maxWidth: 800, margin: '0 auto', padding: '32px 28px', paddingBottom: 100, position: 'relative', zIndex: 1, background: 'rgba(255, 255, 255, 0.82)', minHeight: '100vh', boxShadow: '0 0 40px rgba(0, 0, 0, 0.06)' }}>
         <div style={{ textAlign: 'right', marginBottom: 20 }}>
           <button onClick={() => { setLoggetInn(false); setAktivSeksjon(null); setVisProsjekt(null) }} style={{ background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
         </div>
