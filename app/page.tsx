@@ -130,7 +130,7 @@ export default function Home() {
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 32 }}>
               <div>
                 <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>SNARVEIER</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
                   {SEKSJONER.map(boks => (
                     <div
                       key={boks.id}

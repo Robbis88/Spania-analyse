@@ -46,11 +46,27 @@ export function Oppgaver() {
   }
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📋 Gjøremål</h2>
-        <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
+    <div style={{
+      background: 'white',
+      border: '1.5px solid #D8687F55',
+      borderRadius: 16,
+      marginBottom: 24,
+      overflow: 'hidden',
+      boxShadow: '0 4px 14px rgba(216, 104, 127, 0.12)',
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #FFDDE5 0%, #F4A4B5 100%)',
+        padding: '16px 20px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -10, top: -14, fontSize: 90, opacity: 0.2, lineHeight: 1, transform: 'rotate(14deg)' }}>🌺</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1, gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#6e1f35' }}>🌺 Gjøremål</h2>
+          <button onClick={() => setVisNyOppgave(!visNyOppgave)} style={{ background: '#6e1f35', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ny oppgave</button>
+        </div>
       </div>
+      <div style={{ padding: 20 }}>
       {visNyOppgave && (
         <div style={{ background: '#f8f8f8', borderRadius: 10, padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
@@ -90,6 +106,7 @@ export function Oppgaver() {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
