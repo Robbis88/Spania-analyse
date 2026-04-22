@@ -389,7 +389,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                             }}>
                             {jobb?.status === 'starter' && '⏳ Starter...'}
                             {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
-                            {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.04)`}
+                            {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.08)`}
                           </button>
                         </>
                       )}

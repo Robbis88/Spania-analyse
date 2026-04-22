@@ -6,7 +6,7 @@ import type { TilleggType } from '../../../lib/bilder'
 
 const replicate = new Replicate()
 
-const MODELL = 'black-forest-labs/flux-kontext-pro'
+const MODELL = 'black-forest-labs/flux-kontext-max'
 const SIGNERT_URL_TTL = 60 * 60
 
 type PostRad = { navn: string; notat: string | null }
@@ -32,21 +32,27 @@ function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string |
   // Uten stil: fokus kun på endringene med minimal estetisk endring.
   const linjer: string[] = []
   if (stilPrompt) {
-    linjer.push(`Completely redesign this ${romNavn} in the following style:`)
+    linjer.push(`Completely reimagine this ${romNavn} as a brand-new design from scratch in the following style:`)
     linjer.push(stilPrompt)
     linjer.push('')
-    linjer.push('Apply these specific renovations as part of the redesign:')
+    linjer.push('Required design changes:')
     linjer.push(endringer)
     linjer.push('')
-    linjer.push('Restyle ALL surfaces, finishes, fixtures, furniture, and materials to match the chosen design style — including walls, floors, ceiling, lighting, and décor, even if not explicitly listed above.')
-    linjer.push('Keep the camera angle, room dimensions, window positions, and major structural walls unchanged.')
+    linjer.push('You have full creative freedom to:')
+    linjer.push('- Replace ALL cabinets, fixtures, countertops, appliances, flooring, lighting, furniture and décor with new ones that fit the style')
+    linjer.push('- Rearrange the layout (e.g. island vs peninsula, L-shape vs U-shape, different furniture placement) — it does not need to match the original layout')
+    linjer.push('- Change wall colors, tile patterns, backsplashes, materials, and surface finishes')
+    linjer.push('- Modernize or completely swap appliance models, sinks, faucets, hardware')
+    linjer.push('- Add or remove decorative elements (plants, art, accessories) to fit the style')
+    linjer.push('')
+    linjer.push('Only preserve: the camera angle and viewing direction, the room\'s overall footprint (walls and windows at roughly the same positions), and the natural light direction. Everything else can change.')
   } else {
     linjer.push(`Edit this ${romNavn} to show these renovations applied:`)
     linjer.push(endringer)
     linjer.push('')
     linjer.push('Keep the same camera angle, composition, and existing elements that are not being changed.')
   }
-  linjer.push('Photorealistic, professional architectural photography, high detail.')
+  linjer.push('Photorealistic, magazine-quality architectural photography, high detail.')
   return linjer.join('\n')
 }
 
