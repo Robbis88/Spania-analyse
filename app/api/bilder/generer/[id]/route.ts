@@ -27,6 +27,7 @@ export async function GET(
     const visualisering_type = url.searchParams.get('visualisering_type') || ''
     const generert_av = url.searchParams.get('generert_av') || ''
     const forslag_navn = url.searchParams.get('forslag_navn') || ''
+    const stil = url.searchParams.get('stil') || null
 
     if (!id) return NextResponse.json({ feil: 'id mangler' }, { status: 400 })
 
@@ -86,6 +87,7 @@ export async function GET(
       storage_sti: sti,
       filnavn: null,
       tilleggsnotat: forslag_navn || null,
+      stil: stil || null,
       original_bilde_id,
       replicate_id: prediction.id,
       generert_av,

@@ -86,3 +86,16 @@ export const REGULERING_FARGE: Record<ReguleringVurdering, { bg: string; border:
   ma_sjekkes: { bg: '#fff8e1', border: '#B05E0A', tekst: '#6b3a0a' },
   sannsynlig_problematisk: { bg: '#fde8ec', border: '#C8102E', tekst: '#7a0c1e' },
 }
+
+// Stiler for visualisering. Verdiene lagres på prosjekt_bilder.stil.
+// Prompt-fragmentet legges på slutten av genererings-prompten.
+export const STILER = [
+  { id: '', navn: 'Ingen spesifikk stil', prompt: '' },
+  { id: 'moderne', navn: 'Moderne / minimalistisk', prompt: 'Modern minimalist style: clean lines, neutral palette, matte finishes, integrated lighting, contemporary fixtures.' },
+  { id: 'mediterran', navn: 'Mediterran / klassisk spansk', prompt: 'Mediterranean Spanish style: warm terracotta and white tones, wrought iron details, rustic wood beams, handmade tiles, arched openings where natural.' },
+  { id: 'luksus', navn: 'Luksus / high-end', prompt: 'High-end luxury finish: premium materials like marble and stone, brushed brass accents, sophisticated layered lighting, designer fixtures.' },
+  { id: 'skandinavisk', navn: 'Skandinavisk', prompt: 'Scandinavian style: light oak, white walls, minimalist clutter-free composition, soft daylight, simple functional furniture.' },
+  { id: 'industriell', navn: 'Industriell', prompt: 'Industrial style: exposed concrete and brick, black metal fixtures, Edison-style lighting, raw textures, open layout.' },
+  { id: 'boho', navn: 'Boho / middelhavs-nomadisk', prompt: 'Bohemian Mediterranean style: earthy tones, natural linen textiles, rattan and wicker, abundant greenery, eclectic layered décor.' },
+] as const
+export type StilId = typeof STILER[number]['id']

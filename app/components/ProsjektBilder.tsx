@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
-import { KATEGORIER, estimerAnalyseKostnadEUR, resizKlient, type Kategori } from '../lib/bilder'
+import { KATEGORIER, STILER, estimerAnalyseKostnadEUR, resizKlient, type Kategori, type StilId } from '../lib/bilder'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -16,6 +16,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [urler, setUrler] = useState<Record<string, string>>({})
   const [godkjentCount, setGodkjentCount] = useState<Record<string, number>>({})
   const [jobber, setJobber] = useState<Record<string, GenererJobb>>({})
+  const [valgtStil, setValgtStil] = useState<Record<string, StilId>>({})
   const [laster, setLaster] = useState(true)
   const [apen, setApen] = useState(false)
   const [valgtKategori, setValgtKategori] = useState<Kategori>('Bad')
@@ -81,11 +82,12 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   async function startGenerering(bildeId: string) {
     setJobber(j => ({ ...j, [bildeId]: { prediksjonId: '', status: 'starter', type: 'kombinert' } }))
     const bruker = hentAktivBruker() || 'ukjent'
+    const stil = valgtStil[bildeId] || ''
     try {
       const res = await fetch('/api/bilder/generer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ original_bilde_id: bildeId, generert_av: bruker }),
+        body: JSON.stringify({ original_bilde_id: bildeId, generert_av: bruker, stil }),
       })
       const data = await res.json()
       if (!res.ok || data.feil) throw new Error(data.feil || `HTTP ${res.status}`)
@@ -96,6 +98,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
         original_bilde_id: bildeId,
         visualisering_type: data.visualisering_type,
         generert_av: bruker,
+        stil,
       })
 
       pollRef.current[bildeId] = window.setInterval(async () => {
@@ -355,17 +358,25 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                       </div>
 
                       {b.ai_analysert && antall > 0 && (
-                        <button onClick={() => startGenerering(b.id)}
-                          disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
-                          style={{
-                            background: jobb?.status === 'jobber' || jobb?.status === 'starter' ? '#999' : '#6a4c93',
-                            color: 'white', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 600,
-                            cursor: jobb?.status === 'jobber' || jobb?.status === 'starter' ? 'wait' : 'pointer',
-                          }}>
-                          {jobb?.status === 'starter' && '⏳ Starter...'}
-                          {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
-                          {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.04)`}
-                        </button>
+                        <>
+                          <select value={valgtStil[b.id] || ''}
+                            onChange={e => setValgtStil(v => ({ ...v, [b.id]: e.target.value as StilId }))}
+                            disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
+                            style={{ padding: '5px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #ddd', background: 'white' }}>
+                            {STILER.map(s => <option key={s.id} value={s.id}>{s.navn}</option>)}
+                          </select>
+                          <button onClick={() => startGenerering(b.id)}
+                            disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
+                            style={{
+                              background: jobb?.status === 'jobber' || jobb?.status === 'starter' ? '#999' : '#6a4c93',
+                              color: 'white', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                              cursor: jobb?.status === 'jobber' || jobb?.status === 'starter' ? 'wait' : 'pointer',
+                            }}>
+                            {jobb?.status === 'starter' && '⏳ Starter...'}
+                            {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
+                            {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.04)`}
+                          </button>
+                        </>
                       )}
 
                       {jobb?.status === 'feilet' && (
@@ -382,6 +393,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 4 }}>
                             {barn.map(g => {
                               const gUrl = urler[g.id]
+                              const stilDef = g.stil ? STILER.find(s => s.id === g.stil) : null
                               return (
                                 <div key={g.id} style={{ position: 'relative', background: '#f0f0f0', borderRadius: 6, overflow: 'hidden', aspectRatio: '4/3' }}>
                                   {gUrl ? (
@@ -394,6 +406,12 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                                     style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(200, 16, 46, 0.9)', color: 'white', border: 'none', borderRadius: 3, padding: '1px 5px', fontSize: 9, cursor: 'pointer' }}>
                                     ✕
                                   </button>
+                                  {stilDef && (
+                                    <div title={stilDef.navn}
+                                      style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(106, 76, 147, 0.9)', color: 'white', fontSize: 9, padding: '2px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {stilDef.navn}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}

@@ -1,7 +1,7 @@
 import Replicate from 'replicate'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
-import { BUCKET_BILDER, TILLEGG_ETIKETT } from '../../../lib/bilder'
+import { BUCKET_BILDER, STILER, TILLEGG_ETIKETT } from '../../../lib/bilder'
 import type { TilleggType } from '../../../lib/bilder'
 
 const replicate = new Replicate()
@@ -12,7 +12,7 @@ const SIGNERT_URL_TTL = 60 * 60
 type PostRad = { navn: string; notat: string | null }
 type TilleggRad = { navn: string; tillegg_type: string | null; notat: string | null }
 
-function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string | null): string {
+function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string | null, stilPrompt: string): string {
   const erInterior = kategori ? !['Uteplass/terrasse', 'Basseng', 'Hage', 'Fasade utvendig', 'Tak'].includes(kategori) : false
   const ramme = erInterior ? `interior photo of this ${kategori?.toLowerCase() || 'room'}` : 'outdoor scene'
 
@@ -29,13 +29,15 @@ function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string |
   const alle = [...oppussingsLinjer, ...tilleggsLinjer]
   const endringer = alle.join('\n')
 
-  return [
+  const linjer = [
     `Edit this ${ramme} to show the following renovations and additions applied:`,
     endringer,
     '',
     'Keep the same camera angle, composition, lighting direction, and existing structural elements that are not being changed.',
-    'Photorealistic, professional architectural photography, high detail.',
-  ].join('\n')
+  ]
+  if (stilPrompt) linjer.push('', `Design direction: ${stilPrompt}`)
+  linjer.push('', 'Photorealistic, professional architectural photography, high detail.')
+  return linjer.join('\n')
 }
 
 function utledVisualiseringType(antallPoster: number, antallTillegg: number): 'oppussing' | 'tillegg' | 'kombinert' {
@@ -46,13 +48,17 @@ function utledVisualiseringType(antallPoster: number, antallTillegg: number): 'o
 
 export async function POST(req: NextRequest) {
   try {
-    const { original_bilde_id, generert_av } = await req.json()
+    const { original_bilde_id, generert_av, stil } = await req.json()
 
     if (typeof original_bilde_id !== 'string' || !original_bilde_id) {
       return NextResponse.json({ feil: 'original_bilde_id mangler' }, { status: 400 })
     }
     if (typeof generert_av !== 'string' || !generert_av) {
       return NextResponse.json({ feil: 'generert_av mangler' }, { status: 400 })
+    }
+    const stilDef = STILER.find(s => s.id === (stil || ''))
+    if (!stilDef) {
+      return NextResponse.json({ feil: `Ukjent stil: ${stil}` }, { status: 400 })
     }
 
     const admin = hentSupabaseAdmin()
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ feil: 'Kunne ikke opprette signert URL for original' }, { status: 500 })
     }
 
-    const prompt = byggPrompt(p, t, bilde.kategori)
+    const prompt = byggPrompt(p, t, bilde.kategori, stilDef.prompt)
     const visualiseringType = utledVisualiseringType(p.length, t.length)
 
     const prediction = await replicate.predictions.create({
@@ -102,6 +108,7 @@ export async function POST(req: NextRequest) {
       status: prediction.status,
       visualisering_type: visualiseringType,
       antall_endringer: p.length + t.length,
+      stil: stilDef.id,
       prompt,
     })
   } catch (e) {
