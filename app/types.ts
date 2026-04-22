@@ -200,6 +200,41 @@ export type OppussingPerAr = {
   kostnad: number
 }
 
+export type AIForslagOppussing = {
+  navn: string
+  kostnad_estimat_lav: number
+  kostnad_estimat_hoy: number
+  begrunnelse: string
+}
+
+export type AIForslagTillegg = {
+  tillegg: string
+  beskrivelse: string
+  kostnad_estimat_lav: number
+  kostnad_estimat_hoy: number
+  verdiokning_estimat: string
+  regulering_vurdering: 'sannsynlig_ok' | 'ma_sjekkes' | 'sannsynlig_problematisk'
+  regulering_begrunnelse: string
+  ma_sjekkes_videre: string[]
+  begrunnelse: string
+}
+
+export type OppussingTillegg = {
+  id: string
+  bolig_id: string
+  navn: string
+  tillegg_type: string | null
+  kostnad: number
+  verdiokning_estimat: string | null
+  regulering_vurdering: 'sannsynlig_ok' | 'ma_sjekkes' | 'sannsynlig_problematisk' | null
+  regulering_begrunnelse: string | null
+  ma_sjekkes_videre: string[] | null
+  notat: string | null
+  rekkefolge: number
+  kilde_bilde_id: string | null
+  opprettet: string
+}
+
 export type BildeType = 'original' | 'generert'
 export type VisualiseringType = 'oppussing' | 'tillegg'
 

@@ -20,3 +20,48 @@ export function filendelse(mime: string): string {
 export function lagStorageSti(prosjektId: string, bildeId: string, ext: string): string {
   return `${prosjektId}/${bildeId}.${ext}`
 }
+
+export const AI_MODELL_VERSJON = 'claude-sonnet-4-5'
+
+// Grovt kostnadsestimat for bildeanalyse (Claude vision) i EUR.
+// Base + megapiksel-avhengig tillegg. Resultat er indikativt, ikke nøyaktig pris.
+export function estimerAnalyseKostnadEUR(bilder: { bredde?: number | null; hoyde?: number | null }[]): number {
+  return bilder.reduce((sum, b) => {
+    const mp = ((b.bredde || 1024) * (b.hoyde || 1024)) / 1_000_000
+    const usd = 0.015 + mp * 0.005
+    return sum + usd * 0.92
+  }, 0)
+}
+
+export const TILLEGG_TYPER = [
+  'basseng', 'utebad', 'pergola', 'outdoor_kitchen', 'jacuzzi',
+  'takterrasse', 'carport', 'terrasse_utvidelse', 'solavskjerming', 'annet',
+] as const
+export type TilleggType = typeof TILLEGG_TYPER[number]
+
+export const TILLEGG_ETIKETT: Record<TilleggType, string> = {
+  basseng: 'Basseng',
+  utebad: 'Utebad',
+  pergola: 'Pergola',
+  outdoor_kitchen: 'Outdoor kitchen',
+  jacuzzi: 'Jacuzzi',
+  takterrasse: 'Takterrasse',
+  carport: 'Carport',
+  terrasse_utvidelse: 'Terrasse-utvidelse',
+  solavskjerming: 'Solavskjerming',
+  annet: 'Annet',
+}
+
+export type ReguleringVurdering = 'sannsynlig_ok' | 'ma_sjekkes' | 'sannsynlig_problematisk'
+
+export const REGULERING_ETIKETT: Record<ReguleringVurdering, string> = {
+  sannsynlig_ok: 'Sannsynlig OK',
+  ma_sjekkes: 'Må sjekkes',
+  sannsynlig_problematisk: 'Sannsynlig problematisk',
+}
+
+export const REGULERING_FARGE: Record<ReguleringVurdering, { bg: string; border: string; tekst: string }> = {
+  sannsynlig_ok: { bg: '#e8f5ed', border: '#2D7D46', tekst: '#1a4d2b' },
+  ma_sjekkes: { bg: '#fff8e1', border: '#B05E0A', tekst: '#6b3a0a' },
+  sannsynlig_problematisk: { bg: '#fde8ec', border: '#C8102E', tekst: '#7a0c1e' },
+}

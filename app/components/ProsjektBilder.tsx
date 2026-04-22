@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
-import { KATEGORIER, type Kategori } from '../lib/bilder'
+import { KATEGORIER, estimerAnalyseKostnadEUR, type Kategori } from '../lib/bilder'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -18,6 +18,8 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [lightbox, setLightbox] = useState<string | null>(null)
   const filInputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [analyserer, setAnalyserer] = useState(false)
+  const [analyseFeil, setAnalyseFeil] = useState('')
 
   const hent = useCallback(async () => {
     const { data } = await supabase.from('prosjekt_bilder').select('*')
@@ -74,6 +76,33 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
     setNotat('')
     await hent()
     setTimeout(() => setPending(p => p.filter(x => x.status === 'feilet')), 500)
+  }
+
+  async function analyserBilder() {
+    const uanalyserte = bilder.filter(b => !b.ai_analysert)
+    if (uanalyserte.length === 0) return
+    const kostnad = estimerAnalyseKostnadEUR(uanalyserte)
+    const bekreft = confirm(
+      `Analyser ${uanalyserte.length} ${uanalyserte.length === 1 ? 'bilde' : 'bilder'} med AI?\n\nEstimert kostnad: ~€${kostnad.toFixed(2)}\n\nAI foreslår oppussingsposter og vurderer potensial-tillegg. Forslagene vises deretter i Oppussingsbudsjett.`
+    )
+    if (!bekreft) return
+    setAnalyserer(true); setAnalyseFeil('')
+    try {
+      const bruker = hentAktivBruker() || 'ukjent'
+      const res = await fetch('/api/bilder/analyser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bilde_ids: uanalyserte.map(b => b.id), analysert_av: bruker }),
+      })
+      const data = await res.json()
+      if (data.feilet > 0) {
+        setAnalyseFeil(`${data.feilet} av ${data.feilet + data.suksess} feilet. Sjekk Aktivitetslogg for detaljer.`)
+      }
+      await hent()
+    } catch (e) {
+      setAnalyseFeil(e instanceof Error ? e.message : 'Ukjent feil')
+    }
+    setAnalyserer(false)
   }
 
   async function slettBilde(id: string) {
@@ -163,6 +192,34 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             </div>
           )}
 
+          {bilder.length > 0 && (() => {
+            const uanalyserte = bilder.filter(b => !b.ai_analysert)
+            const analyserte = bilder.length - uanalyserte.length
+            if (uanalyserte.length === 0) {
+              return (
+                <div style={{ fontSize: 12, color: '#2D7D46', background: '#e8f5ed', border: '1px solid #2D7D4644', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                  ✨ Alle {analyserte} bildene er analysert. Forslagene finner du i Oppussing-fanen.
+                </div>
+              )
+            }
+            const kostnad = estimerAnalyseKostnadEUR(uanalyserte)
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <button onClick={analyserBilder} disabled={analyserer}
+                  style={{ background: analyserer ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: analyserer ? 'not-allowed' : 'pointer' }}>
+                  {analyserer ? '⏳ Analyserer...' : `🤖 Analyser ${uanalyserte.length} ${uanalyserte.length === 1 ? 'bilde' : 'bilder'} med AI`}
+                </button>
+                <span style={{ fontSize: 12, color: '#666' }}>~€{kostnad.toFixed(2)}{analyserte > 0 && ` · ${analyserte} allerede analysert`}</span>
+              </div>
+            )
+          })()}
+
+          {analyseFeil && (
+            <div style={{ fontSize: 12, background: '#fde8ec', color: '#7a0c1e', padding: 10, borderRadius: 8, marginBottom: 12 }}>
+              ⚠️ {analyseFeil}
+            </div>
+          )}
+
           {laster && <div style={{ textAlign: 'center', color: '#888', fontSize: 13, padding: 12 }}>⏳ Laster bilder...</div>}
 
           {!laster && bilder.length === 0 && (
@@ -191,6 +248,12 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                         style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200, 16, 46, 0.9)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         ✕
                       </button>
+                      {b.ai_analysert && (
+                        <div title={`Analysert ${new Date(b.ai_analysert).toLocaleDateString('nb-NO')}`}
+                          style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(24, 95, 165, 0.9)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
+                          ✨
+                        </div>
+                      )}
                       {b.tilleggsnotat && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {b.tilleggsnotat}
