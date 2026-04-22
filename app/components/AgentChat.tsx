@@ -97,6 +97,7 @@ export function AgentChat() {
     if (!pendingToolUse) return
     const bruker = hentAktivBruker() || 'ukjent'
     setSender(true)
+    let pdfFeil: string | null = null
     try {
       let vedlegg_pdf_base64: string | undefined
       let vedlegg_filnavn: string | undefined
@@ -106,10 +107,15 @@ export function AgentChat() {
           if (pdfData) {
             vedlegg_pdf_base64 = pdfData.base64
             vedlegg_filnavn = pdfData.filnavn
+          } else {
+            pdfFeil = 'PDF-data ble ikke generert (ukjent grunn)'
           }
         } catch (e) {
+          pdfFeil = e instanceof Error ? e.message : String(e)
           console.error('PDF-bygging feilet:', e)
         }
+      } else if (endret.vedlegg_pdf && !endret.relatert_prosjekt_id) {
+        pdfFeil = 'Mangler prosjekt-kontekst – velg prosjekt i dropdown øverst'
       }
 
       const res = await fetch('/api/epost/send', {
@@ -131,9 +137,18 @@ export function AgentChat() {
         }),
       })
       const data = await res.json()
-      const resultatTekst = data.suksess
-        ? `E-post sendt til ${endret.til}${vedlegg_filnavn ? ' (med vedlegg)' : ''}.`
-        : `Sending feilet: ${data.feil || 'ukjent'}`
+      let resultatTekst: string
+      if (data.suksess) {
+        if (vedlegg_filnavn) {
+          resultatTekst = `E-post sendt til ${endret.til} med PDF-vedlegg (${vedlegg_filnavn}).`
+        } else if (pdfFeil) {
+          resultatTekst = `E-post sendt til ${endret.til}, MEN UTEN PDF-vedlegg: ${pdfFeil}`
+        } else {
+          resultatTekst = `E-post sendt til ${endret.til}.`
+        }
+      } else {
+        resultatTekst = `Sending feilet: ${data.feil || 'ukjent'}`
+      }
       const nyeMeldinger: ChatMelding[] = [
         ...meldinger,
         { role: 'user', content: [{ type: 'tool_result', tool_use_id: pendingToolUse.id, content: resultatTekst }] },
@@ -222,6 +237,7 @@ export function AgentChat() {
               <EpostGodkjenningsKort
                 utkast={pendingToolUse.input as EpostUtkast}
                 prosjektNavn={prosjektNavn}
+                prosjektId={prosjektId || undefined}
                 bruker={hentAktivBruker() || 'ukjent'}
                 sender={sender}
                 onSend={sendEpost}

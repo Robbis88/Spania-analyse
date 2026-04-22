@@ -29,16 +29,18 @@ const FORMAAL_FARGE: Record<Formaal, string> = {
 const SPRAK_LABEL: Record<string, string> = { no: 'NO', es: 'ES', en: 'EN' }
 
 export function EpostGodkjenningsKort({
-  utkast, prosjektNavn, bruker, sender, onSend, onAvbryt, onBeAIEndre,
+  utkast, prosjektNavn, prosjektId, bruker, sender, onSend, onAvbryt, onBeAIEndre,
 }: {
   utkast: EpostUtkast
   prosjektNavn?: string | null
+  prosjektId?: string
   bruker: string
   sender: boolean
   onSend: (endret: EpostUtkast & { bruker_endret: boolean }) => Promise<void>
   onAvbryt: () => void
   onBeAIEndre: (instruks: string) => void
 }) {
+  const effektivProsjektId = utkast.relatert_prosjekt_id || prosjektId
   const [emne, setEmne] = useState(utkast.emne)
   const [innhold, setInnhold] = useState(utkast.innhold)
   const [sporsmal, setSporsmal] = useState<string[]>(utkast.sporsmal || [])
@@ -73,6 +75,7 @@ export function EpostGodkjenningsKort({
       innhold: endeligInnhold,
       sporsmal: rensetSporsmal.length > 0 ? rensetSporsmal : utkast.sporsmal,
       vedlegg_pdf: vedleggPdf,
+      relatert_prosjekt_id: effektivProsjektId,
       bruker_endret: brukerEndret,
     })
   }
@@ -130,10 +133,11 @@ export function EpostGodkjenningsKort({
         </div>
       )}
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8, cursor: 'pointer' }}>
-        <input type="checkbox" checked={vedleggPdf} onChange={e => setVedleggPdf(e.target.checked)} disabled={!utkast.relatert_prosjekt_id} />
-        <span>Vedlegg prosjektanalyse som PDF
-          {!utkast.relatert_prosjekt_id && <span style={{ color: '#aaa' }}> (krever prosjekt-kontekst)</span>}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8, cursor: effektivProsjektId ? 'pointer' : 'not-allowed' }}>
+        <input type="checkbox" checked={vedleggPdf} onChange={e => setVedleggPdf(e.target.checked)} disabled={!effektivProsjektId} />
+        <span>Vedlegg prosjektanalyse som PDF (med før/etter-bilder)
+          {!effektivProsjektId && <span style={{ color: '#aaa' }}> (krever prosjekt-kontekst)</span>}
+          {effektivProsjektId && !utkast.relatert_prosjekt_id && <span style={{ color: '#888' }}> – bruker valgt prosjekt fra dropdown</span>}
         </span>
       </label>
 
