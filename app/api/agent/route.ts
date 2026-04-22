@@ -38,6 +38,7 @@ Svar alltid på norsk. Vær konkret og gi praktiske råd. Hvis du ikke vet noe s
 const EMAIL_SYSTEM = `
 NÅR BRUKEREN BER OM HJELP MED E-POST:
 - Bruk verktøyet foreslaa_epost for å lage utkast. Brukeren godkjenner og kan redigere før sending.
+- VIKTIG: Kall foreslaa_epost MAKS ÉN GANG per respons. Hvis brukeren ber om å sende til flere mottakere, lag utkastet til den FØRSTE mottakeren nå — etter brukerens godkjenning kan du lage den neste i påfølgende respons.
 - Default språk: spansk ("es") for spanske mottakere, norsk ("no") for norske. Engelsk ("en") kun hvis etterspurt.
 - Formell og profesjonell tone for banker/meglere. På spansk: "Estimados señores", "Atentamente". På norsk: "Hei," / "Med vennlig hilsen".
 - ALDRI inkluder signatur manuelt i innhold-feltet. Appen legger til signatur automatisk.
@@ -168,6 +169,49 @@ async function hentProsjektKontekst(id: string): Promise<string> {
   return 'AKTIV PROSJEKT-KONTEKST:\n' + linjer.join('\n')
 }
 
+type Melding = { role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }
+
+// Sikrer at hver assistant.tool_use har en matchende user.tool_result i NESTE melding.
+// Hvis ikke: injiserer auto-avbrutt tool_result. Forhindrer 400-feilen om orphan tool_use.
+function fiksToolUseKjede(input: Melding[]): Melding[] {
+  const m = input.map(x => ({
+    role: x.role,
+    content: typeof x.content === 'string' ? x.content : [...x.content],
+  }))
+  for (let i = 0; i < m.length; i++) {
+    const cur = m[i]
+    if (cur.role !== 'assistant' || typeof cur.content === 'string') continue
+    const toolUses = cur.content.filter(b => b.type === 'tool_use') as Array<{ type: 'tool_use'; id: string }>
+    if (toolUses.length === 0) continue
+
+    const next = m[i + 1]
+    const eksisterendeIds = new Set<string>()
+    if (next && next.role === 'user' && Array.isArray(next.content)) {
+      for (const b of next.content) {
+        if (b.type === 'tool_result') eksisterendeIds.add(b.tool_use_id as string)
+      }
+    }
+    const mangler = toolUses.filter(tu => !eksisterendeIds.has(tu.id))
+    if (mangler.length === 0) continue
+
+    const autoResultater = mangler.map(tu => ({
+      type: 'tool_result',
+      tool_use_id: tu.id,
+      content: 'Brukeren handlet ikke på dette utkastet. Behandle som avbrutt.',
+    }))
+
+    if (next && next.role === 'user') {
+      const eksisterende = typeof next.content === 'string'
+        ? [{ type: 'text', text: next.content }]
+        : next.content
+      next.content = [...autoResultater, ...eksisterende]
+    } else {
+      m.splice(i + 1, 0, { role: 'user', content: autoResultater })
+    }
+  }
+  return m
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { meldinger, relatert_prosjekt_id } = await req.json()
@@ -181,12 +225,14 @@ export async function POST(req: NextRequest) {
 
     const system = [BASE_SYSTEM, EMAIL_SYSTEM, prosjektKontekst].filter(Boolean).join('\n\n')
 
+    const fiksedeMeldinger = fiksToolUseKjede(meldinger as Melding[])
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 2500,
       system,
       tools: [foreslaaEpostTool],
-      messages: meldinger,
+      messages: fiksedeMeldinger as Parameters<typeof client.messages.create>[0]['messages'],
     })
 
     return NextResponse.json({ content: response.content, stop_reason: response.stop_reason })
