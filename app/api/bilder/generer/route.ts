@@ -14,7 +14,7 @@ type TilleggRad = { navn: string; tillegg_type: string | null; notat: string | n
 
 function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string | null, stilPrompt: string): string {
   const erInterior = kategori ? !['Uteplass/terrasse', 'Basseng', 'Hage', 'Fasade utvendig', 'Tak'].includes(kategori) : false
-  const ramme = erInterior ? `interior photo of this ${kategori?.toLowerCase() || 'room'}` : 'outdoor scene'
+  const romNavn = erInterior ? (kategori?.toLowerCase() || 'room') : 'outdoor area'
 
   const oppussingsLinjer = poster.map((p, i) => {
     const beskr = p.notat ? ` (${p.notat})` : ''
@@ -23,20 +23,30 @@ function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string |
   const tilleggsLinjer = tillegg.map((t, i) => {
     const navn = t.tillegg_type ? (TILLEGG_ETIKETT[t.tillegg_type as TilleggType] || t.tillegg_type) : t.navn
     const beskr = t.notat ? ` (${t.notat})` : ''
-    return `${i + 1}. Add ${navn}${beskr}`
+    return `${i + 1 + oppussingsLinjer.length}. Add ${navn}${beskr}`
   })
 
-  const alle = [...oppussingsLinjer, ...tilleggsLinjer]
-  const endringer = alle.join('\n')
+  const endringer = [...oppussingsLinjer, ...tilleggsLinjer].join('\n')
 
-  const linjer = [
-    `Edit this ${ramme} to show the following renovations and additions applied:`,
-    endringer,
-    '',
-    'Keep the same camera angle, composition, lighting direction, and existing structural elements that are not being changed.',
-  ]
-  if (stilPrompt) linjer.push('', `Design direction: ${stilPrompt}`)
-  linjer.push('', 'Photorealistic, professional architectural photography, high detail.')
+  // Stilen er rammeverket — plasseres ØVERST så modellen vekter den tungt.
+  // Uten stil: fokus kun på endringene med minimal estetisk endring.
+  const linjer: string[] = []
+  if (stilPrompt) {
+    linjer.push(`Completely redesign this ${romNavn} in the following style:`)
+    linjer.push(stilPrompt)
+    linjer.push('')
+    linjer.push('Apply these specific renovations as part of the redesign:')
+    linjer.push(endringer)
+    linjer.push('')
+    linjer.push('Restyle ALL surfaces, finishes, fixtures, furniture, and materials to match the chosen design style — including walls, floors, ceiling, lighting, and décor, even if not explicitly listed above.')
+    linjer.push('Keep the camera angle, room dimensions, window positions, and major structural walls unchanged.')
+  } else {
+    linjer.push(`Edit this ${romNavn} to show these renovations applied:`)
+    linjer.push(endringer)
+    linjer.push('')
+    linjer.push('Keep the same camera angle, composition, and existing elements that are not being changed.')
+  }
+  linjer.push('Photorealistic, professional architectural photography, high detail.')
   return linjer.join('\n')
 }
 
