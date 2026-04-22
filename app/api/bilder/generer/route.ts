@@ -48,7 +48,7 @@ function utledVisualiseringType(antallPoster: number, antallTillegg: number): 'o
 
 export async function POST(req: NextRequest) {
   try {
-    const { original_bilde_id, generert_av, stil } = await req.json()
+    const { original_bilde_id, generert_av, stil, egen_prompt } = await req.json()
 
     if (typeof original_bilde_id !== 'string' || !original_bilde_id) {
       return NextResponse.json({ feil: 'original_bilde_id mangler' }, { status: 400 })
@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
     if (!stilDef) {
       return NextResponse.json({ feil: `Ukjent stil: ${stil}` }, { status: 400 })
     }
+    const egenPromptTekst = typeof egen_prompt === 'string' ? egen_prompt.trim() : ''
+    if (stilDef.id === 'egen' && !egenPromptTekst) {
+      return NextResponse.json({ feil: 'Skriv inn en stil-beskrivelse når du har valgt "Egen stil"' }, { status: 400 })
+    }
+    const effektivStilPrompt = stilDef.id === 'egen' ? egenPromptTekst : stilDef.prompt
 
     const admin = hentSupabaseAdmin()
     const { data: bilde } = await admin.from('prosjekt_bilder')
@@ -89,7 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ feil: 'Kunne ikke opprette signert URL for original' }, { status: 500 })
     }
 
-    const prompt = byggPrompt(p, t, bilde.kategori, stilDef.prompt)
+    const prompt = byggPrompt(p, t, bilde.kategori, effektivStilPrompt)
     const visualiseringType = utledVisualiseringType(p.length, t.length)
 
     const prediction = await replicate.predictions.create({

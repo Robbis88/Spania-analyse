@@ -89,6 +89,7 @@ export const REGULERING_FARGE: Record<ReguleringVurdering, { bg: string; border:
 
 // Stiler for visualisering. Verdiene lagres på prosjekt_bilder.stil.
 // Prompt-fragmentet legges på slutten av genererings-prompten.
+// 'egen' lar brukeren skrive fritekst som sendes som egen_prompt-felt.
 export const STILER = [
   { id: '', navn: 'Ingen spesifikk stil', prompt: '' },
   { id: 'moderne', navn: 'Moderne / minimalistisk', prompt: 'Modern minimalist style: clean lines, neutral palette, matte finishes, integrated lighting, contemporary fixtures.' },
@@ -97,5 +98,6 @@ export const STILER = [
   { id: 'skandinavisk', navn: 'Skandinavisk', prompt: 'Scandinavian style: light oak, white walls, minimalist clutter-free composition, soft daylight, simple functional furniture.' },
   { id: 'industriell', navn: 'Industriell', prompt: 'Industrial style: exposed concrete and brick, black metal fixtures, Edison-style lighting, raw textures, open layout.' },
   { id: 'boho', navn: 'Boho / middelhavs-nomadisk', prompt: 'Bohemian Mediterranean style: earthy tones, natural linen textiles, rattan and wicker, abundant greenery, eclectic layered décor.' },
+  { id: 'egen', navn: '✏️ Egen stil (skriv selv)', prompt: '' },
 ] as const
 export type StilId = typeof STILER[number]['id']

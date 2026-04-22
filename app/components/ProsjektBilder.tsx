@@ -17,6 +17,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [godkjentCount, setGodkjentCount] = useState<Record<string, number>>({})
   const [jobber, setJobber] = useState<Record<string, GenererJobb>>({})
   const [valgtStil, setValgtStil] = useState<Record<string, StilId>>({})
+  const [egenPrompt, setEgenPrompt] = useState<Record<string, string>>({})
   const [laster, setLaster] = useState(true)
   const [apen, setApen] = useState(false)
   const [valgtKategori, setValgtKategori] = useState<Kategori>('Bad')
@@ -83,11 +84,16 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
     setJobber(j => ({ ...j, [bildeId]: { prediksjonId: '', status: 'starter', type: 'kombinert' } }))
     const bruker = hentAktivBruker() || 'ukjent'
     const stil = valgtStil[bildeId] || ''
+    const egenTekst = (egenPrompt[bildeId] || '').trim()
+    if (stil === 'egen' && !egenTekst) {
+      setJobber(j => ({ ...j, [bildeId]: { prediksjonId: '', status: 'feilet', feil: 'Skriv inn en stil-beskrivelse', type: 'kombinert' } }))
+      return
+    }
     try {
       const res = await fetch('/api/bilder/generer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ original_bilde_id: bildeId, generert_av: bruker, stil }),
+        body: JSON.stringify({ original_bilde_id: bildeId, generert_av: bruker, stil, egen_prompt: egenTekst }),
       })
       const data = await res.json()
       if (!res.ok || data.feil) throw new Error(data.feil || `HTTP ${res.status}`)
@@ -365,6 +371,15 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                             style={{ padding: '5px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #ddd', background: 'white' }}>
                             {STILER.map(s => <option key={s.id} value={s.id}>{s.navn}</option>)}
                           </select>
+                          {valgtStil[b.id] === 'egen' && (
+                            <textarea
+                              value={egenPrompt[b.id] || ''}
+                              onChange={e => setEgenPrompt(v => ({ ...v, [b.id]: e.target.value }))}
+                              placeholder="F.eks. 'Ibiza-villa med kalkede vegger, bambusdetaljer og turkist vann' eller 'art deco-stil med messing og grønn marmor'"
+                              rows={3}
+                              style={{ padding: '6px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #ddd', fontFamily: 'inherit', resize: 'vertical' }}
+                            />
+                          )}
                           <button onClick={() => startGenerering(b.id)}
                             disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
                             style={{
