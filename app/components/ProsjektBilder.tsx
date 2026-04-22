@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
-import { KATEGORIER, estimerAnalyseKostnadEUR, type Kategori } from '../lib/bilder'
+import { KATEGORIER, estimerAnalyseKostnadEUR, resizKlient, type Kategori } from '../lib/bilder'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -55,12 +55,13 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
     for (let i = 0; i < filer.length; i++) {
       const f = filer[i]
       try {
+        const resized = f.type.startsWith('image/') ? await resizKlient(f) : f
         const form = new FormData()
         form.append('prosjekt_id', prosjektId)
         form.append('kategori', valgtKategori)
         form.append('notat', notat)
         form.append('opplastet_av', bruker)
-        form.append('fil', f)
+        form.append('fil', resized)
         const res = await fetch('/api/bilder/last-opp', { method: 'POST', body: form })
         const tekst = await res.text()
         let data: { suksess?: boolean; feil?: string } = {}

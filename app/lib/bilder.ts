@@ -21,6 +21,27 @@ export function lagStorageSti(prosjektId: string, bildeId: string, ext: string):
   return `${prosjektId}/${bildeId}.${ext}`
 }
 
+// Resizer bilde i nettleseren før opplasting — unngår Vercel sin 4.5 MB body-grense
+// og respekterer EXIF-orientering (iPhone-bilder).
+export async function resizKlient(fil: File, maksBredde = MAKS_BREDDE_PIKSLER, kvalitet = 0.85): Promise<File> {
+  const bitmap = await createImageBitmap(fil, { imageOrientation: 'from-image' })
+  const skala = Math.min(1, maksBredde / bitmap.width)
+  const w = Math.round(bitmap.width * skala)
+  const h = Math.round(bitmap.height * skala)
+  const canvas = typeof OffscreenCanvas !== 'undefined'
+    ? new OffscreenCanvas(w, h)
+    : Object.assign(document.createElement('canvas'), { width: w, height: h })
+  const ctx = (canvas as HTMLCanvasElement | OffscreenCanvas).getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+  if (!ctx) throw new Error('Kunne ikke opprette canvas-context')
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  bitmap.close()
+  const blob: Blob = canvas instanceof OffscreenCanvas
+    ? await canvas.convertToBlob({ type: 'image/jpeg', quality: kvalitet })
+    : await new Promise<Blob>((res, rej) => (canvas as HTMLCanvasElement).toBlob(b => b ? res(b) : rej(new Error('toBlob feilet')), 'image/jpeg', kvalitet))
+  const nyttNavn = fil.name.replace(/\.[^.]+$/, '') + '.jpg'
+  return new File([blob], nyttNavn, { type: 'image/jpeg', lastModified: Date.now() })
+}
+
 export const AI_MODELL_VERSJON = 'claude-sonnet-4-5'
 
 // Grovt kostnadsestimat for bildeanalyse (Claude vision) i EUR.
