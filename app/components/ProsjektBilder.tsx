@@ -7,9 +7,15 @@ import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
 
+type GenererStatus = 'idle' | 'starter' | 'jobber' | 'feilet'
+type GenererJobb = { prediksjonId: string; status: GenererStatus; feil?: string; type: 'oppussing' | 'tillegg' | 'kombinert' }
+
 export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [bilder, setBilder] = useState<Prosjektbilde[]>([])
+  const [genererte, setGenererte] = useState<Record<string, Prosjektbilde[]>>({})
   const [urler, setUrler] = useState<Record<string, string>>({})
+  const [godkjentCount, setGodkjentCount] = useState<Record<string, number>>({})
+  const [jobber, setJobber] = useState<Record<string, GenererJobb>>({})
   const [laster, setLaster] = useState(true)
   const [apen, setApen] = useState(false)
   const [valgtKategori, setValgtKategori] = useState<Kategori>('Bad')
@@ -20,30 +26,104 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [dragOver, setDragOver] = useState(false)
   const [analyserer, setAnalyserer] = useState(false)
   const [analyseFeil, setAnalyseFeil] = useState('')
+  const pollRef = useRef<Record<string, number>>({})
+
+  useEffect(() => () => {
+    for (const id of Object.values(pollRef.current)) window.clearInterval(id)
+  }, [])
 
   const hent = useCallback(async () => {
     const { data } = await supabase.from('prosjekt_bilder').select('*')
       .eq('prosjekt_id', prosjektId)
-      .eq('type', 'original')
       .order('opprettet', { ascending: false })
-    const liste = (data || []) as Prosjektbilde[]
-    setBilder(liste)
-    if (liste.length > 0) {
+    const alle = (data || []) as Prosjektbilde[]
+    const originaler = alle.filter(b => b.type === 'original')
+    const generertePerOriginal: Record<string, Prosjektbilde[]> = {}
+    for (const b of alle) {
+      if (b.type === 'generert' && b.original_bilde_id) {
+        (generertePerOriginal[b.original_bilde_id] ||= []).push(b)
+      }
+    }
+    setBilder(originaler)
+    setGenererte(generertePerOriginal)
+
+    const alleIds = alle.map(b => b.id)
+    if (alleIds.length > 0) {
       const res = await fetch('/api/bilder/signert-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bilde_ids: liste.map(b => b.id) }),
+        body: JSON.stringify({ bilde_ids: alleIds }),
       })
       const data = await res.json()
       if (data?.urler) setUrler(data.urler)
     } else {
       setUrler({})
     }
+
+    // Tell godtatte forslag per bilde (oppussing_poster + oppussing_tillegg med kilde_bilde_id)
+    const originalIds = originaler.map(b => b.id)
+    if (originalIds.length > 0) {
+      const [{ data: poster }, { data: tillegg }] = await Promise.all([
+        supabase.from('oppussing_poster').select('kilde_bilde_id').in('kilde_bilde_id', originalIds),
+        supabase.from('oppussing_tillegg').select('kilde_bilde_id').in('kilde_bilde_id', originalIds),
+      ])
+      const tell: Record<string, number> = {}
+      for (const r of [...(poster || []), ...(tillegg || [])]) {
+        const k = (r as { kilde_bilde_id: string | null }).kilde_bilde_id
+        if (k) tell[k] = (tell[k] || 0) + 1
+      }
+      setGodkjentCount(tell)
+    }
+
     setLaster(false)
   }, [prosjektId])
 
+  async function startGenerering(bildeId: string) {
+    setJobber(j => ({ ...j, [bildeId]: { prediksjonId: '', status: 'starter', type: 'kombinert' } }))
+    const bruker = hentAktivBruker() || 'ukjent'
+    try {
+      const res = await fetch('/api/bilder/generer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ original_bilde_id: bildeId, generert_av: bruker }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.feil) throw new Error(data.feil || `HTTP ${res.status}`)
+
+      setJobber(j => ({ ...j, [bildeId]: { prediksjonId: data.prediction_id, status: 'jobber', type: data.visualisering_type } }))
+
+      const params = new URLSearchParams({
+        original_bilde_id: bildeId,
+        visualisering_type: data.visualisering_type,
+        generert_av: bruker,
+      })
+
+      pollRef.current[bildeId] = window.setInterval(async () => {
+        try {
+          const p = await fetch(`/api/bilder/generer/${data.prediction_id}?${params}`)
+          const pd = await p.json()
+          if (pd.status === 'ferdig' && pd.bilde_id) {
+            window.clearInterval(pollRef.current[bildeId])
+            delete pollRef.current[bildeId]
+            setJobber(j => { const n = { ...j }; delete n[bildeId]; return n })
+            await hent()
+          } else if (pd.status === 'failed' || pd.status === 'canceled' || pd.status === 'feilet') {
+            window.clearInterval(pollRef.current[bildeId])
+            delete pollRef.current[bildeId]
+            setJobber(j => ({ ...j, [bildeId]: { ...j[bildeId], status: 'feilet', feil: pd.feil || `Generering ${pd.status}` } }))
+          }
+        } catch (e) {
+          window.clearInterval(pollRef.current[bildeId])
+          delete pollRef.current[bildeId]
+          setJobber(j => ({ ...j, [bildeId]: { ...j[bildeId], status: 'feilet', feil: e instanceof Error ? e.message : 'Polling feilet' } }))
+        }
+      }, 3000) as unknown as number
+    } catch (e) {
+      setJobber(j => ({ ...j, [bildeId]: { prediksjonId: '', status: 'feilet', feil: e instanceof Error ? e.message : 'Ukjent feil', type: 'kombinert' } }))
+    }
+  }
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void hent()
   }, [hent])
 
@@ -234,32 +314,90 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
           {kategoriRekkefolge.map(kat => (
             <div key={kat} style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6, letterSpacing: '0.05em' }}>{kat.toUpperCase()} <span style={{ color: '#aaa', fontWeight: 400 }}>({grupper[kat].length})</span></div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
                 {grupper[kat].map(b => {
                   const url = urler[b.id]
+                  const antall = godkjentCount[b.id] || 0
+                  const jobb = jobber[b.id]
+                  const barn = genererte[b.id] || []
                   return (
-                    <div key={b.id} style={{ position: 'relative', background: '#f0f0f0', borderRadius: 8, overflow: 'hidden', aspectRatio: '4/3' }}>
-                      {url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={url} alt={b.filnavn || ''} onClick={() => setLightbox(url)}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 24, color: '#aaa' }}>📷</div>
+                    <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ position: 'relative', background: '#f0f0f0', borderRadius: 8, overflow: 'hidden', aspectRatio: '4/3' }}>
+                        {url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt={b.filnavn || ''} onClick={() => setLightbox(url)}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 24, color: '#aaa' }}>📷</div>
+                        )}
+                        <button onClick={() => slettBilde(b.id)}
+                          title="Slett"
+                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200, 16, 46, 0.9)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                          ✕
+                        </button>
+                        {b.ai_analysert && (
+                          <div title={`Analysert ${new Date(b.ai_analysert).toLocaleDateString('nb-NO')}`}
+                            style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(24, 95, 165, 0.9)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
+                            ✨
+                          </div>
+                        )}
+                        {antall > 0 && (
+                          <div title={`${antall} godtatte forslag`}
+                            style={{ position: 'absolute', top: 4, left: 34, background: 'rgba(45, 125, 70, 0.95)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
+                            ✓{antall}
+                          </div>
+                        )}
+                        {b.tilleggsnotat && (
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {b.tilleggsnotat}
+                          </div>
+                        )}
+                      </div>
+
+                      {b.ai_analysert && antall > 0 && (
+                        <button onClick={() => startGenerering(b.id)}
+                          disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
+                          style={{
+                            background: jobb?.status === 'jobber' || jobb?.status === 'starter' ? '#999' : '#6a4c93',
+                            color: 'white', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                            cursor: jobb?.status === 'jobber' || jobb?.status === 'starter' ? 'wait' : 'pointer',
+                          }}>
+                          {jobb?.status === 'starter' && '⏳ Starter...'}
+                          {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
+                          {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.04)`}
+                        </button>
                       )}
-                      <button onClick={() => slettBilde(b.id)}
-                        title="Slett"
-                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(200, 16, 46, 0.9)', color: 'white', border: 'none', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
-                        ✕
-                      </button>
-                      {b.ai_analysert && (
-                        <div title={`Analysert ${new Date(b.ai_analysert).toLocaleDateString('nb-NO')}`}
-                          style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(24, 95, 165, 0.9)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
-                          ✨
+
+                      {jobb?.status === 'feilet' && (
+                        <div style={{ fontSize: 10, color: '#C8102E', background: '#fde8ec', borderRadius: 4, padding: '4px 6px' }}>
+                          ⚠️ {jobb.feil}
                         </div>
                       )}
-                      {b.tilleggsnotat && (
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {b.tilleggsnotat}
+
+                      {barn.length > 0 && (
+                        <div style={{ borderLeft: '3px solid #6a4c93', paddingLeft: 6 }}>
+                          <div style={{ fontSize: 9, color: '#6a4c93', fontWeight: 700, marginBottom: 3, letterSpacing: '0.05em' }}>
+                            ✨ GENERERT ({barn.length})
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 4 }}>
+                            {barn.map(g => {
+                              const gUrl = urler[g.id]
+                              return (
+                                <div key={g.id} style={{ position: 'relative', background: '#f0f0f0', borderRadius: 6, overflow: 'hidden', aspectRatio: '4/3' }}>
+                                  {gUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={gUrl} alt="" onClick={() => setLightbox(gUrl)}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
+                                  ) : <div style={{ fontSize: 18, textAlign: 'center', padding: 10 }}>✨</div>}
+                                  <button onClick={() => slettBilde(g.id)}
+                                    title="Slett"
+                                    style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(200, 16, 46, 0.9)', color: 'white', border: 'none', borderRadius: 3, padding: '1px 5px', fontSize: 9, cursor: 'pointer' }}>
+                                    ✕
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

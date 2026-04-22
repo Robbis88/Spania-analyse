@@ -1,8 +1,7 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
-import { hentAktivBruker } from '../lib/aktivBruker'
 import type { AIForslagOppussing, AIForslagTillegg, LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt, Prosjektbilde } from '../types'
 import { inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
 import {
@@ -111,6 +110,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
       kostnad,
       notat: f.data.begrunnelse || null,
       rekkefolge: poster.length,
+      kilde_bilde_id: f.bildeId,
     }
     setPoster([...poster, ny])
     await supabase.from('oppussing_poster').insert([ny])
@@ -427,12 +427,6 @@ function ForslagOppussingKort({ forslag, onGodta, onAvvis }: {
           Avvis
         </button>
       </div>
-      <GenererForEtter
-        originalBildeId={forslag.bildeId}
-        visualiseringType="oppussing"
-        forslag={{ navn: d.navn, begrunnelse: d.begrunnelse }}
-        forslagNavn={d.navn}
-      />
     </div>
   )
 }
@@ -498,112 +492,6 @@ function ForslagTilleggKort({ forslag, onGodta, onAvvis }: {
           Avvis
         </button>
       </div>
-      <GenererForEtter
-        originalBildeId={forslag.bildeId}
-        visualiseringType="tillegg"
-        forslag={{ tillegg: d.tillegg, beskrivelse: d.beskrivelse }}
-        forslagNavn={standardNavn}
-      />
-    </div>
-  )
-}
-
-function GenererForEtter({ originalBildeId, visualiseringType, forslag, forslagNavn }: {
-  originalBildeId: string
-  visualiseringType: 'oppussing' | 'tillegg'
-  forslag: Record<string, unknown>
-  forslagNavn: string
-}) {
-  const [status, setStatus] = useState<'idle' | 'starter' | 'jobber' | 'ferdig' | 'feilet'>('idle')
-  const [feil, setFeil] = useState('')
-  const [url, setUrl] = useState<string | null>(null)
-  const pollRef = useRef<number | null>(null)
-
-  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current) }, [])
-
-  async function start() {
-    setStatus('starter'); setFeil(''); setUrl(null)
-    const bruker = hentAktivBruker() || 'ukjent'
-    try {
-      const res = await fetch('/api/bilder/generer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          original_bilde_id: originalBildeId,
-          visualisering_type: visualiseringType,
-          forslag,
-          generert_av: bruker,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.feil) throw new Error(data.feil || `HTTP ${res.status}`)
-
-      setStatus('jobber')
-      const params = new URLSearchParams({
-        original_bilde_id: originalBildeId,
-        visualisering_type: visualiseringType,
-        generert_av: bruker,
-        forslag_navn: forslagNavn,
-      })
-
-      pollRef.current = window.setInterval(async () => {
-        try {
-          const p = await fetch(`/api/bilder/generer/${data.prediction_id}?${params}`)
-          const pd = await p.json()
-          if (pd.status === 'ferdig' && pd.bilde_id) {
-            window.clearInterval(pollRef.current!)
-            pollRef.current = null
-            const sres = await fetch('/api/bilder/signert-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ bilde_id: pd.bilde_id }),
-            })
-            const sdata = await sres.json()
-            setUrl(sdata.url || null)
-            setStatus('ferdig')
-          } else if (pd.status === 'failed' || pd.status === 'canceled' || pd.status === 'feilet') {
-            window.clearInterval(pollRef.current!)
-            pollRef.current = null
-            setFeil(pd.feil || `Generering ${pd.status}`)
-            setStatus('feilet')
-          }
-        } catch (e) {
-          window.clearInterval(pollRef.current!)
-          pollRef.current = null
-          setFeil(e instanceof Error ? e.message : 'Polling feilet')
-          setStatus('feilet')
-        }
-      }, 3000) as unknown as number
-    } catch (e) {
-      setFeil(e instanceof Error ? e.message : 'Ukjent feil')
-      setStatus('feilet')
-    }
-  }
-
-  if (status === 'ferdig' && url) {
-    return (
-      <div style={{ marginTop: 10, borderTop: '1px dashed #c5d9f4', paddingTop: 10 }}>
-        <div style={{ fontSize: 11, color: '#185FA5', fontWeight: 700, marginBottom: 6 }}>✨ ETTER-VISUALISERING</div>
-        <img src={url} alt="Generert visualisering"
-          style={{ width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
-        <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>
-          AI-generert. Ligger også i bildegalleriet.
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <button onClick={start} disabled={status === 'starter' || status === 'jobber'}
-        style={{ background: status === 'jobber' || status === 'starter' ? '#999' : '#6a4c93', color: 'white', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: status === 'jobber' || status === 'starter' ? 'wait' : 'pointer' }}>
-        {status === 'starter' && '⏳ Starter...'}
-        {status === 'jobber' && '🎨 Genererer (10–30 s)...'}
-        {(status === 'idle' || status === 'feilet') && '✨ Generer før/etter (~€0.04)'}
-      </button>
-      {status === 'feilet' && (
-        <span style={{ fontSize: 11, color: '#C8102E' }}>⚠️ {feil}</span>
-      )}
     </div>
   )
 }

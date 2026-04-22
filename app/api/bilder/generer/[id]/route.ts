@@ -49,7 +49,8 @@ export async function GET(
       return NextResponse.json({ status: 'feilet', feil: 'Ingen output-URL fra modellen' })
     }
 
-    if (!original_bilde_id || (visualisering_type !== 'oppussing' && visualisering_type !== 'tillegg') || !generert_av) {
+    const gyldigeTyper = ['oppussing', 'tillegg', 'kombinert']
+    if (!original_bilde_id || !gyldigeTyper.includes(visualisering_type) || !generert_av) {
       return NextResponse.json({
         status: 'succeeded',
         output_url: outputUrl,

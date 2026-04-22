@@ -115,6 +115,7 @@ export type OppussingPost = {
   kostnad: number
   notat: string | null
   rekkefolge: number
+  kilde_bilde_id?: string | null
 }
 
 export type AirbnbVurdering = 'sterk' | 'middels' | 'middels_svak' | 'svak'
@@ -236,7 +237,7 @@ export type OppussingTillegg = {
 }
 
 export type BildeType = 'original' | 'generert'
-export type VisualiseringType = 'oppussing' | 'tillegg'
+export type VisualiseringType = 'oppussing' | 'tillegg' | 'kombinert'
 
 export type Prosjektbilde = {
   id: string
