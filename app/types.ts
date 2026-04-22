@@ -200,6 +200,38 @@ export type OppussingPerAr = {
   kostnad: number
 }
 
+export type BildeType = 'original' | 'generert'
+export type VisualiseringType = 'oppussing' | 'tillegg'
+
+export type Prosjektbilde = {
+  id: string
+  prosjekt_id: string
+  type: BildeType
+  visualisering_type: VisualiseringType | null
+  kategori: string | null
+  storage_sti: string
+  filnavn: string | null
+  bredde: number | null
+  hoyde: number | null
+  original_bilde_id: string | null
+  stil: string | null
+  standard: string | null
+  tillegg_type: string | null
+  tilleggsnotat: string | null
+  er_valgt_for_pdf: boolean
+  ai_beskrivelse: string | null
+  ai_synlige_problemer: unknown
+  ai_foreslatte_poster: unknown
+  ai_potensielle_tillegg: unknown
+  ai_salgbarhet_score: number | null
+  ai_analysert: string | null
+  ai_modell_versjon: string | null
+  replicate_id: string | null
+  generert_av: string | null
+  opprettet_av: string
+  opprettet: string
+}
+
 export type FaktiskeInntekter = Record<string, number>
 
 export type Utleieanalyse = {

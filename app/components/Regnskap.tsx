@@ -8,6 +8,7 @@ import { ProsjektFelter } from './ProsjektFelter'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { Utleieanalyse } from './Utleieanalyse'
 import { SendteEposter } from './SendteEposter'
+import { ProsjektBilder } from './ProsjektBilder'
 import { lastNedPDF } from '../lib/pdf'
 
 export function Regnskap({
@@ -245,6 +246,7 @@ export function Regnskap({
               </div>
             )}
 
+            {aktivTab === 'oversikt' && <ProsjektBilder prosjektId={p.id} />}
             {aktivTab === 'oversikt' && <SendteEposter prosjektId={p.id} />}
 
             {aktivTab === 'arsrapport' && (
