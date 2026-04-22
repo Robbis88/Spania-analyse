@@ -62,7 +62,9 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
         form.append('opplastet_av', bruker)
         form.append('fil', f)
         const res = await fetch('/api/bilder/last-opp', { method: 'POST', body: form })
-        const data = await res.json()
+        const tekst = await res.text()
+        let data: { suksess?: boolean; feil?: string } = {}
+        try { data = JSON.parse(tekst) } catch { data = { feil: `HTTP ${res.status}: ${tekst.slice(0, 200)}` } }
         if (!data.suksess) {
           setPending(p => p.map((x, j) => j === i ? { ...x, status: 'feilet', feilmelding: data.feil || 'Ukjent feil' } : x))
         } else {
