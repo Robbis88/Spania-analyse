@@ -7,6 +7,7 @@ import { fmt, statusFarge } from '../lib/styles'
 import { ProsjektFelter } from './ProsjektFelter'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { Utleieanalyse } from './Utleieanalyse'
+import { SendteEposter } from './SendteEposter'
 import { lastNedPDF } from '../lib/pdf'
 
 export function Regnskap({
@@ -243,6 +244,8 @@ export function Regnskap({
                 </div>
               </div>
             )}
+
+            {aktivTab === 'oversikt' && <SendteEposter prosjektId={p.id} />}
 
             {aktivTab === 'arsrapport' && (
               <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
