@@ -1,7 +1,16 @@
-import type { AirbnbData, BoligData, OppussingBudsjett, OppussingPost, Prosjekt, Utleieanalyse } from '../types'
+import type { AirbnbData, BoligData, OppussingBudsjett, OppussingPost, Prosjekt, Prosjektbilde, Utleieanalyse } from '../types'
 import { månedligKostnad } from './beregninger'
 import { lopendeTotal, totalPoster } from './oppussing'
 import { aarligYield, beregnAar } from './utleie'
+import { STILER, TILLEGG_ETIKETT, type TilleggType } from './bilder'
+
+export type BildeParPdf = {
+  original: Prosjektbilde
+  originalBase64: string | null
+  genererte: Array<{ bilde: Prosjektbilde; base64: string | null }>
+  oppussingsposter: OppussingPost[]
+  tilleggsposter: Array<{ navn: string; tillegg_type: string | null; kostnad: number }>
+}
 
 export async function lastNedPDF(p: Prosjekt, ar: number) {
   const { jsPDF } = await import('jspdf')
@@ -138,6 +147,7 @@ export type ProsjektrapportData = {
   oppussingPoster?: OppussingPost[]
   utleieanalyse?: Utleieanalyse | null
   airbnbData?: AirbnbData | null
+  bildePar?: BildeParPdf[]
 }
 
 const EUR = (n: number) => n ? 'EUR ' + Math.round(n).toLocaleString('nb-NO') : '-'
@@ -292,6 +302,80 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
     if (o2.lan_ar > 0) rad('Netto med lån', EUR(o2.netto_med_lan), 3, true)
     const y2 = aarligYield(o2.brutto_inntekt, ua.total_kjopspris || 0)
     rad('Yield brutto (kjøpspris)', y2.toFixed(1) + ' %', 4, true)
+  }
+
+  // BILDESEKSJON — før/etter visualiseringer per kildebilde
+  const par = data.bildePar || []
+  if (par.length > 0) {
+    doc.addPage()
+    y = 20
+    seksjon('FØR / ETTER VISUALISERINGER')
+
+    for (const pp of par) {
+      const harGenerert = pp.genererte.some(g => g.base64)
+      const totalForslagKost = pp.oppussingsposter.reduce((s, x) => s + (x.kostnad || 0), 0)
+        + pp.tilleggsposter.reduce((s, x) => s + (x.kostnad || 0), 0)
+
+      // Trenger ca 100mm vertikal plass per par. Sidebrudd hvis nødvendig.
+      if (y > 200) { doc.addPage(); y = 20 }
+
+      // Tittel: kategori + filnavn + ev. kostnadssum
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(26, 42, 62)
+      const tittel = (pp.original.kategori || 'Bilde') + (totalForslagKost > 0 ? '  —  Estimert: ' + EUR(totalForslagKost) : '')
+      doc.text(tittel, 20, y)
+      y += 6
+
+      // Før- og etter-bilder side ved side. 85mm bredde hver, 60mm høy.
+      const bildebredde = 85
+      const bildehoyde = 60
+      const venstreX = 20
+      const hoyreX = 20 + bildebredde + 5
+
+      // Før
+      if (pp.originalBase64) {
+        try { doc.addImage(pp.originalBase64, 'JPEG', venstreX, y, bildebredde, bildehoyde) } catch {}
+      } else {
+        doc.setFillColor(245, 245, 245); doc.rect(venstreX, y, bildebredde, bildehoyde, 'F')
+      }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(80, 80, 80)
+      doc.text('FØR', venstreX + 2, y + bildehoyde - 2)
+
+      // Etter (siste genererte variant)
+      const sisteGenerert = pp.genererte.filter(g => g.base64).slice(-1)[0]
+      if (sisteGenerert?.base64) {
+        try { doc.addImage(sisteGenerert.base64, 'JPEG', hoyreX, y, bildebredde, bildehoyde) } catch {}
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(106, 76, 147)
+        const stilDef = sisteGenerert.bilde.stil ? STILER.find(s => s.id === sisteGenerert.bilde.stil) : null
+        const etikett = 'ETTER' + (stilDef ? ' — ' + stilDef.navn : '')
+        doc.text(etikett, hoyreX + 2, y + bildehoyde - 2)
+      } else if (harGenerert) {
+        doc.setFillColor(245, 245, 245); doc.rect(hoyreX, y, bildebredde, bildehoyde, 'F')
+      } else {
+        doc.setFillColor(252, 250, 245); doc.rect(hoyreX, y, bildebredde, bildehoyde, 'F')
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(150, 150, 150)
+        doc.text('Ingen visualisering generert', hoyreX + 6, y + bildehoyde / 2)
+      }
+      y += bildehoyde + 3
+
+      // Forslagsliste under bildene
+      const forslag: Array<[string, number]> = [
+        ...pp.oppussingsposter.map(o => [o.navn, o.kostnad] as [string, number]),
+        ...pp.tilleggsposter.map(t => [
+          (t.tillegg_type ? (TILLEGG_ETIKETT[t.tillegg_type as TilleggType] || t.navn) : t.navn) + ' (tillegg)',
+          t.kostnad,
+        ] as [string, number]),
+      ]
+      if (forslag.length > 0) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+        for (const [navn, kost] of forslag) {
+          if (y > 280) { doc.addPage(); y = 20 }
+          doc.text('• ' + navn, 22, y)
+          if (kost > 0) doc.text(EUR(kost), 190, y, { align: 'right' })
+          y += 5
+        }
+      }
+      y += 8
+    }
   }
 
   // Footer
