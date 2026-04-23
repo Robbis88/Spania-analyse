@@ -4,6 +4,7 @@ import { useProsjekter } from '../lib/useProsjekter'
 import type { Prosjekt, SalgInput } from '../types'
 import { beregnSalg, månedligCashflow, totalInvestering } from '../lib/beregninger'
 import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, statusFarge } from '../lib/styles'
+import { SalgsanalyseVisning } from './SalgsanalyseVisning'
 
 type Markedsdata = {
   markedspris_bra_m2?: number
@@ -13,7 +14,7 @@ type Markedsdata = {
 }
 
 export function Selge({ onTilbake }: { onTilbake: () => void }) {
-  const { prosjekter, laster, oppdater } = useProsjekter()
+  const { prosjekter, laster, oppdater, hent } = useProsjekter()
   const [selgBolig, setSelgBolig] = useState<string | null>(null)
   const [salgInput, setSalgInput] = useState<SalgInput>({
     salgspris: 0, megler_pst: 5, advokat_pst: 1, plusvalia: 0, skatteresidens: 'eu', ventetid_ar: 0,
@@ -65,6 +66,8 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
             <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
           </div>
         </div>
+
+        <SalgsanalyseVisning prosjekt={p} onOppdatert={hent} />
 
         <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Sett salgspris</div>

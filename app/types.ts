@@ -81,6 +81,59 @@ export type Prosjekt = {
   airbnb_analyse?: string | null
   airbnb_score?: AirbnbScore | null
   airbnb_data?: AirbnbData | null
+  salgsanalyse_data?: SalgsanalyseData | null
+  salgsanalyse_generert?: string | null
+  salgsanalyse_modell_versjon?: string | null
+}
+
+export type SalgsanalyseData = {
+  salgsannonse: {
+    intro: string
+    bullets: string[]
+    beskrivelse: string
+    omraade: string
+    cta: string
+  }
+  bildeplan: {
+    interior: string[]
+    eksterior: string[]
+    fasiliteter: string[]
+    naeromraade: string[]
+    tips: string[]
+  }
+  dokumentcheck: Array<{
+    navn: string
+    status: 'ok' | 'mangler' | 'maa_sjekkes'
+    kommentar: string
+  }>
+  prisstrategi: {
+    estimert_markedspris_eur: number
+    estimert_markedspris_begrunnelse: string
+    strategi_rask: { pris_eur: number; begrunnelse: string }
+    strategi_maks: { pris_eur: number; begrunnelse: string }
+    anbefalte_tiltak: string[]
+  }
+  investeringsanalyse: {
+    korttid_arlig_inntekt_eur: number
+    korttid_begrunnelse: string
+    langtid_arlig_inntekt_eur: number
+    langtid_begrunnelse: string
+    yield_pst: number
+    roi_kommentar: string
+    sesong_varierer: string
+    vurdering: 'sterk' | 'middels' | 'svak'
+  }
+  forbedringsforslag: Array<{
+    tiltak: string
+    kostnad_estimat_eur: number
+    verdi_potensial_eur: number
+    prioritet: 'hoy' | 'middels' | 'lav'
+  }>
+  malgruppe: {
+    primaer: 'investor' | 'feriebolig' | 'fastboende' | 'utleie'
+    sekundaer: 'investor' | 'feriebolig' | 'fastboende' | 'utleie' | 'ingen'
+    begrunnelse: string
+  }
 }
 
 export type OppussingStandard = 'standard' | 'bra' | 'luksus'
