@@ -396,3 +396,116 @@ export function rapportFilnavn(prosjektNavn: string): string {
   const rent = prosjektNavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
   return 'Analyse_' + rent + '_' + iDag + '.pdf'
 }
+
+async function urlTilBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch { return null }
+}
+
+export type ProsjektPdfFremdrift = (fase: string, steg?: number, totalt?: number) => void
+
+// Bygger en komplett prosjekt-PDF med før/etter-bilder. Kan kalles fra
+// både AgentChat (vedlegg) og direkte PDF-knapp i Regnskap.
+// onFremdrift kalles for hvert steg så UI kan vise progress.
+export async function byggProsjektPdf(
+  prosjektId: string,
+  supabaseKlient: typeof import('./supabase').supabase,
+  onFremdrift?: ProsjektPdfFremdrift,
+): Promise<{ base64: string; filnavn: string } | null> {
+  onFremdrift?.('Henter prosjektdata')
+  const { data: pRad } = await supabaseKlient.from('prosjekter').select('*').eq('id', prosjektId).single()
+  if (!pRad) return null
+  const p = pRad as Prosjekt
+
+  let oppussingBudsjett: OppussingBudsjett | null = null
+  let oppussingPoster: OppussingPost[] = []
+
+  if (p.kategori === 'flipp') {
+    const { data: b } = await supabaseKlient.from('oppussing_budsjett').select('*').eq('bolig_id', p.id).maybeSingle()
+    if (b) {
+      oppussingBudsjett = b as OppussingBudsjett
+      const { data: poster } = await supabaseKlient.from('oppussing_poster').select('*').eq('budsjett_id', oppussingBudsjett.id).order('rekkefolge')
+      oppussingPoster = (poster || []) as OppussingPost[]
+    }
+  }
+
+  let utleieanalyse: Utleieanalyse | null = null
+  if (p.kategori === 'utleie') {
+    const { data: u } = await supabaseKlient.from('utleieanalyse').select('*').eq('bolig_id', p.id).maybeSingle()
+    if (u) utleieanalyse = u as Utleieanalyse
+  }
+  const airbnbData = (p.airbnb_data || null) as AirbnbData | null
+
+  // Bildepar (original + genererte barn + godkjente forslag per bilde)
+  onFremdrift?.('Henter bilder')
+  const { data: bilderRader } = await supabaseKlient.from('prosjekt_bilder').select('*')
+    .eq('prosjekt_id', prosjektId).order('opprettet', { ascending: true })
+  const alleBilder = (bilderRader || []) as Prosjektbilde[]
+  const originaler = alleBilder.filter(b => b.type === 'original')
+
+  const bildePar: BildeParPdf[] = []
+  if (originaler.length > 0) {
+    const { data: tilleggRader } = await supabaseKlient.from('oppussing_tillegg').select('*').eq('bolig_id', prosjektId)
+    const tillegg = (tilleggRader || []) as Array<{ navn: string; tillegg_type: string | null; kostnad: number; kilde_bilde_id: string | null }>
+
+    // Signerte URL-er for alle bilder (original + genererte) via API
+    const alleIds = alleBilder.map(b => b.id)
+    const sres = await fetch('/api/bilder/signert-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bilde_ids: alleIds }),
+    })
+    const sdata = await sres.json()
+    const urler: Record<string, string> = sdata?.urler || {}
+
+    // Filtrer til bare originaler som har godkjente forslag eller genererte barn
+    const relevante = originaler.filter(orig => {
+      const oppForBilde = oppussingPoster.filter(o => o.kilde_bilde_id === orig.id)
+      const tillForBilde = tillegg.filter(t => t.kilde_bilde_id === orig.id)
+      const genererte = alleBilder.filter(b => b.type === 'generert' && b.original_bilde_id === orig.id)
+      return oppForBilde.length + tillForBilde.length + genererte.length > 0
+    })
+
+    for (let i = 0; i < relevante.length; i++) {
+      const orig = relevante[i]
+      onFremdrift?.('Konverterer bilde', i + 1, relevante.length)
+      const oppForBilde = oppussingPoster.filter(o => o.kilde_bilde_id === orig.id)
+      const tillForBilde = tillegg.filter(t => t.kilde_bilde_id === orig.id)
+      const genererte = alleBilder.filter(b => b.type === 'generert' && b.original_bilde_id === orig.id)
+
+      const originalBase64 = urler[orig.id] ? await urlTilBase64(urler[orig.id]) : null
+      const genererteBase64 = await Promise.all(genererte.map(async g => ({
+        bilde: g,
+        base64: urler[g.id] ? await urlTilBase64(urler[g.id]) : null,
+      })))
+
+      bildePar.push({
+        original: orig,
+        originalBase64,
+        genererte: genererteBase64,
+        oppussingsposter: oppForBilde,
+        tilleggsposter: tillForBilde,
+      })
+    }
+  }
+
+  onFremdrift?.('Bygger PDF')
+  const base64 = await prosjektrapportBase64({
+    prosjekt: p,
+    oppussingBudsjett,
+    oppussingPoster,
+    utleieanalyse,
+    airbnbData,
+    bildePar,
+  })
+  return { base64, filnavn: rapportFilnavn(p.navn) }
+}

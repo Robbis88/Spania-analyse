@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
-import { prosjektrapportBase64, rapportFilnavn, type BildeParPdf } from '../lib/pdf'
-import type { AirbnbData, OppussingBudsjett, OppussingPost, Prosjekt, Prosjektbilde, Utleieanalyse } from '../types'
+import { byggProsjektPdf } from '../lib/pdf'
 import { EpostGodkjenningsKort, type EpostUtkast } from './EpostGodkjenningsKort'
 
 type TekstBlokk = { type: 'text'; text: string }
@@ -103,7 +102,7 @@ export function AgentChat() {
       let vedlegg_filnavn: string | undefined
       if (endret.vedlegg_pdf && endret.relatert_prosjekt_id) {
         try {
-          const pdfData = await byggPdfForProsjekt(endret.relatert_prosjekt_id)
+          const pdfData = await byggProsjektPdf(endret.relatert_prosjekt_id, supabase)
           if (pdfData) {
             vedlegg_pdf_base64 = pdfData.base64
             vedlegg_filnavn = pdfData.filnavn
@@ -276,89 +275,3 @@ export function AgentChat() {
   )
 }
 
-async function urlTilBase64(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return await new Promise<string | null>(resolve => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    })
-  } catch { return null }
-}
-
-async function byggBildePar(prosjektId: string, oppussingPoster: OppussingPost[]): Promise<BildeParPdf[]> {
-  const { data: bilderRader } = await supabase.from('prosjekt_bilder').select('*')
-    .eq('prosjekt_id', prosjektId)
-    .order('opprettet', { ascending: true })
-  const bilder = (bilderRader || []) as Prosjektbilde[]
-  const originaler = bilder.filter(b => b.type === 'original')
-  if (originaler.length === 0) return []
-
-  const { data: tilleggRader } = await supabase.from('oppussing_tillegg').select('*').eq('bolig_id', prosjektId)
-  const tillegg = (tilleggRader || []) as Array<{ navn: string; tillegg_type: string | null; kostnad: number; kilde_bilde_id: string | null }>
-
-  const alleIds = bilder.map(b => b.id)
-  const sres = await fetch('/api/bilder/signert-url', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bilde_ids: alleIds }),
-  })
-  const sdata = await sres.json()
-  const urler: Record<string, string> = sdata?.urler || {}
-
-  const par: BildeParPdf[] = []
-  for (const orig of originaler) {
-    const oppForBilde = oppussingPoster.filter(o => o.kilde_bilde_id === orig.id)
-    const tillForBilde = tillegg.filter(t => t.kilde_bilde_id === orig.id)
-    const genererte = bilder.filter(b => b.type === 'generert' && b.original_bilde_id === orig.id)
-
-    // Bare ta med bilder som har enten godtatte forslag, eller en generert variant
-    if (oppForBilde.length === 0 && tillForBilde.length === 0 && genererte.length === 0) continue
-
-    const originalBase64 = urler[orig.id] ? await urlTilBase64(urler[orig.id]) : null
-    const genererteBase64 = await Promise.all(genererte.map(async g => ({
-      bilde: g,
-      base64: urler[g.id] ? await urlTilBase64(urler[g.id]) : null,
-    })))
-
-    par.push({
-      original: orig,
-      originalBase64,
-      genererte: genererteBase64,
-      oppussingsposter: oppForBilde,
-      tilleggsposter: tillForBilde,
-    })
-  }
-  return par
-}
-
-async function byggPdfForProsjekt(prosjektId: string): Promise<{ base64: string; filnavn: string } | null> {
-  const { data: pRad } = await supabase.from('prosjekter').select('*').eq('id', prosjektId).single()
-  if (!pRad) return null
-  const p = pRad as Prosjekt
-
-  let oppussingBudsjett: OppussingBudsjett | null = null
-  let oppussingPoster: OppussingPost[] = []
-  let utleieanalyse: Utleieanalyse | null = null
-
-  if (p.kategori === 'flipp') {
-    const { data: b } = await supabase.from('oppussing_budsjett').select('*').eq('bolig_id', p.id).maybeSingle()
-    if (b) {
-      oppussingBudsjett = b as OppussingBudsjett
-      const { data: poster } = await supabase.from('oppussing_poster').select('*').eq('budsjett_id', oppussingBudsjett.id).order('rekkefolge')
-      oppussingPoster = (poster || []) as OppussingPost[]
-    }
-  } else if (p.kategori === 'utleie') {
-    const { data: u } = await supabase.from('utleieanalyse').select('*').eq('bolig_id', p.id).maybeSingle()
-    if (u) utleieanalyse = u as Utleieanalyse
-  }
-
-  const airbnbData = (p.airbnb_data || null) as AirbnbData | null
-  const bildePar = await byggBildePar(prosjektId, oppussingPoster)
-  const base64 = await prosjektrapportBase64({ prosjekt: p, oppussingBudsjett, oppussingPoster, utleieanalyse, airbnbData, bildePar })
-  return { base64, filnavn: rapportFilnavn(p.navn) }
-}
