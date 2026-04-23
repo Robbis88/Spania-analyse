@@ -79,10 +79,19 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
     setBudsjett(b)
     const { data: pRader } = await supabase
       .from('oppussing_poster').select('*').eq('budsjett_id', b.id).order('rekkefolge')
-    setPoster((pRader || []) as OppussingPost[])
+    const lastedePosters = (pRader || []) as OppussingPost[]
+    setPoster(lastedePosters)
     await hentAIForslag()
+
+    // Retroaktiv synk: hvis sum ikke matcher lagret oppussing_faktisk, fiks det.
+    const sum = lastedePosters.reduce((s, p) => s + (p.kostnad || 0), 0)
+    if (sum > 0 && sum !== prosjekt.oppussing_faktisk) {
+      await supabase.from('prosjekter').update({ oppussing_faktisk: sum }).eq('id', boligId)
+      onProsjektOppdatert?.()
+    }
+
     setLaster(false)
-  }, [boligId, hentAIForslag])
+  }, [boligId, hentAIForslag, prosjekt.oppussing_faktisk, onProsjektOppdatert])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
