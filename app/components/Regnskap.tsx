@@ -9,7 +9,9 @@ import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { Utleieanalyse } from './Utleieanalyse'
 import { SendteEposter } from './SendteEposter'
 import { ProsjektBilder } from './ProsjektBilder'
-import { lastNedPDF } from '../lib/pdf'
+import { lastNedPDF, byggProsjektPdf } from '../lib/pdf'
+import { visToast } from '../lib/toast'
+import { supabase } from '../lib/supabase'
 
 export function Regnskap({
   onTilbake, visProsjektId, onSettVisProsjekt,
@@ -24,24 +26,61 @@ export function Regnskap({
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
   const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
+  const [pdfFremdrift, setPdfFremdrift] = useState('')
 
   async function leggTilProsjekt() {
     if (!nyttProsjekt.navn) return
     await leggTil(nyttProsjekt)
     setNyttProsjekt(tomtProsjekt())
     setVisNyttSkjema(false)
+    visToast('Prosjekt opprettet')
   }
 
   async function lagreRedigering() {
     if (!redigerProsjekt) return
     await oppdater(redigerProsjekt)
     setRedigerProsjekt(null)
+    visToast('Endringer lagret')
+  }
+
+  async function lastNedProsjektPdf(prosjektId: string, prosjektNavn: string) {
+    setPdfFremdrift('Starter...')
+    try {
+      const pdf = await byggProsjektPdf(prosjektId, supabase, (fase, steg, totalt) => {
+        setPdfFremdrift(totalt && steg ? `${fase} (${steg}/${totalt})` : fase)
+      })
+      if (!pdf) {
+        visToast('PDF-bygging feilet — prosjektdata ikke funnet', 'feil')
+        return
+      }
+      // Last ned
+      const byter = atob(pdf.base64)
+      const u8 = new Uint8Array(byter.length)
+      for (let i = 0; i < byter.length; i++) u8[i] = byter.charCodeAt(i)
+      const blob = new Blob([u8], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = pdf.filnavn
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      visToast(`PDF lastet ned: ${pdf.filnavn}`)
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e)
+      visToast('PDF-bygging feilet: ' + m, 'feil', 5000)
+    } finally {
+      setPdfFremdrift('')
+    }
+    void prosjektNavn
   }
 
   async function slettProsjekt(id: string) {
-    if (!confirm('Er du sikker?')) return
+    if (!confirm('Slett prosjektet? Dette kan ikke angres.')) return
     await slett(id)
     if (visProsjektId === id) onSettVisProsjekt(null)
+    visToast('Prosjekt slettet')
   }
 
   return (
@@ -152,7 +191,14 @@ export function Regnskap({
                 <span style={{ background: sf.bg, color: sf.color, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{p.status}</span>
                 <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{p.kategori === 'flipp' ? '🔨 Flipp' : '🏖️ Utleie'}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => lastNedProsjektPdf(p.id, p.navn)}
+                  disabled={!!pdfFremdrift}
+                  title="Lag komplett analyse-PDF med før/etter-bilder, oppussingsbudsjett og ROI — klar til banken"
+                  style={{ background: pdfFremdrift ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: pdfFremdrift ? 'wait' : 'pointer' }}>
+                  {pdfFremdrift ? `⏳ ${pdfFremdrift}` : '📄 Last ned PDF-analyse'}
+                </button>
                 <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })} style={{ background: redigerer ? '#f0f0f0' : '#1a1a2e', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {redigerer ? 'Avbryt' : '✏️ Rediger'}
                 </button>

@@ -10,6 +10,8 @@ import { Selge } from './components/Selge'
 import { Regnskap } from './components/Regnskap'
 import { Aktivitetslogg } from './components/Aktivitetslogg'
 import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from './lib/aktivBruker'
+import { supabase } from './lib/supabase'
+import { BREAKPOINT } from './lib/styles'
 
 type Seksjon = 'analyse' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
 
@@ -35,6 +37,41 @@ const SEKSJONER: Snarvei[] = [
   { id: 'regnskap', emoji: '📈', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport', gradient: 'linear-gradient(135deg, #EDF4E4 0%, #C0D9A5 100%)', ring: '#6b9055', tekst: '#2e4a1d' },
 ]
 
+const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
+  analyse: 'Boliganalyse',
+  flipp: 'Flipp',
+  utleie: 'Utleie',
+  selge: 'Selge',
+  regnskap: 'Regnskap',
+  logg: 'Aktivitetslogg',
+}
+
+function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbakeSeksjon }: {
+  aktivSeksjon: Exclude<Seksjon, null>
+  visProsjekt: string | null
+  prosjektNavn: Record<string, string>
+  onHjem: () => void
+  onTilbakeSeksjon: () => void
+}) {
+  const seksjonLbl = SEKSJON_LBL[aktivSeksjon]
+  const navn = visProsjekt ? prosjektNavn[visProsjekt] : null
+  return (
+    <div style={{ fontSize: 12, color: '#777', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <button onClick={onHjem} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 0, fontSize: 12 }}>🏠 Hjem</button>
+      <span style={{ color: '#bbb' }}>›</span>
+      {visProsjekt ? (
+        <>
+          <button onClick={onTilbakeSeksjon} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 0, fontSize: 12 }}>{seksjonLbl}</button>
+          <span style={{ color: '#bbb' }}>›</span>
+          <span style={{ color: '#1a2a3e', fontWeight: 600 }}>{navn || 'Prosjekt'}</span>
+        </>
+      ) : (
+        <span style={{ color: '#1a2a3e', fontWeight: 600 }}>{seksjonLbl}</span>
+      )}
+    </div>
+  )
+}
+
 type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
 const NAV_LINKS: NavLink[] = [
   { id: 'analyse', lbl: 'Boliganalyse' },
@@ -50,12 +87,31 @@ export default function Home() {
   const [bruker, setBruker] = useState<string | null>(null)
   const [aktivSeksjon, setAktivSeksjon] = useState<Seksjon>(null)
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
+  const [erMobil, setErMobil] = useState(false)
+  const [mobilMenyApen, setMobilMenyApen] = useState(false)
+  const [prosjektNavn, setProsjektNavn] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const lagret = hentAktivBruker()
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (lagret) setBruker(lagret)
   }, [])
+
+  useEffect(() => {
+    function sjekkBredde() { setErMobil(window.innerWidth < BREAKPOINT.mobil) }
+    sjekkBredde()
+    window.addEventListener('resize', sjekkBredde)
+    return () => window.removeEventListener('resize', sjekkBredde)
+  }, [])
+
+  useEffect(() => {
+    if (!bruker) return
+    supabase.from('prosjekter').select('id, navn').then(({ data }) => {
+      const map: Record<string, string> = {}
+      for (const p of (data || []) as Array<{ id: string; navn: string }>) map[p.id] = p.navn
+      setProsjektNavn(map)
+    })
+  }, [bruker, visProsjekt])
 
   function loggInn(b: string) {
     settAktivBruker(b)
@@ -99,34 +155,73 @@ export default function Home() {
         position: 'sticky', top: 0, zIndex: 20,
         background: CREAM_LYS,
         borderBottom: `1px solid ${GULL}44`,
-        padding: '10px 24px',
-        display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+        padding: erMobil ? '8px 14px' : '10px 24px',
+        display: 'flex', alignItems: 'center', gap: 16,
       }}>
-        <button onClick={hjem} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={48} height={48} style={{ objectFit: 'contain' }} priority />
-          <span style={{ fontSize: 14, fontWeight: 700, color: MØRK, letterSpacing: '0.08em' }}>LEGANGER &amp; OSVAAG</span>
+        <button onClick={hjem} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 12, flex: erMobil ? 1 : 'initial' }}>
+          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={erMobil ? 36 : 48} height={erMobil ? 36 : 48} style={{ objectFit: 'contain' }} priority />
+          {!erMobil && <span style={{ fontSize: 14, fontWeight: 700, color: MØRK, letterSpacing: '0.08em' }}>LEGANGER &amp; OSVAAG</span>}
         </button>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 22, flexWrap: 'wrap' }}>
+
+        {!erMobil && (
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 22, flexWrap: 'wrap' }}>
+            {NAV_LINKS.map(l => {
+              const aktiv = aktivSeksjon === l.id
+              const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
+              return (
+                <button key={l.id} onClick={onClick}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 14, fontWeight: aktiv ? 700 : 500,
+                    color: aktiv ? MØRK : '#555',
+                    padding: '6px 2px',
+                    borderBottom: aktiv ? `2px solid ${GULL}` : '2px solid transparent',
+                  }}>{l.lbl}</button>
+              )
+            })}
+          </div>
+        )}
+
+        {!erMobil && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
+            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
+          </div>
+        )}
+
+        {erMobil && (
+          <button onClick={() => setMobilMenyApen(o => !o)}
+            aria-label="Meny"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, fontSize: 24, color: MØRK }}>
+            {mobilMenyApen ? '✕' : '☰'}
+          </button>
+        )}
+      </nav>
+
+      {erMobil && mobilMenyApen && (
+        <div style={{ background: CREAM_LYS, borderBottom: `1px solid ${GULL}44`, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {NAV_LINKS.map(l => {
             const aktiv = aktivSeksjon === l.id
-            const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
+            const onClick = () => {
+              if (l.id === 'gjoremal') gåTilGjoremal()
+              else gåTil(l.id as Seksjon)
+              setMobilMenyApen(false)
+            }
             return (
               <button key={l.id} onClick={onClick}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 14, fontWeight: aktiv ? 700 : 500,
-                  color: aktiv ? MØRK : '#555',
-                  padding: '6px 2px',
-                  borderBottom: aktiv ? `2px solid ${GULL}` : '2px solid transparent',
+                  background: aktiv ? `${GULL}22` : 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 15, fontWeight: aktiv ? 700 : 500, color: MØRK,
+                  padding: '10px 12px', textAlign: 'left', borderRadius: 6,
                 }}>{l.lbl}</button>
             )
           })}
+          <div style={{ borderTop: '1px solid #eee', margin: '6px 0', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px' }}>
+            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
+            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer' }}>Logg ut</button>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-          <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
-        </div>
-      </nav>
+      )}
 
       {!aktivSeksjon && (
         <>
@@ -199,7 +294,9 @@ export default function Home() {
       )}
 
       {aktivSeksjon && (
-        <main style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 28px', paddingBottom: 100 }}>
+        <main style={{ maxWidth: 1000, margin: '0 auto', padding: erMobil ? '16px 14px 100px' : '32px 28px 100px' }}>
+          <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
+
           {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
           {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
