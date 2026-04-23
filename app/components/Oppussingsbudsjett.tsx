@@ -10,6 +10,7 @@ import {
   roiOppussing, totalPoster, totalkostnad,
 } from '../lib/oppussing'
 import { REGULERING_ETIKETT, REGULERING_FARGE, TILLEGG_ETIKETT, type ReguleringVurdering, type TilleggType } from '../lib/bilder'
+import { visToast } from '../lib/toast'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
@@ -117,6 +118,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
     await fjernForslag(f.bildeId, 'ai_foreslatte_poster', f.index)
     await loggAktivitet({ handling: 'godtok AI-forslag (oppussing)', tabell: 'oppussing_poster', rad_id: ny.id, detaljer: { bolig: prosjekt.navn, navn: ny.navn, kilde_bilde_id: f.bildeId } })
     await hentAIForslag()
+    visToast(`Lagt til: ${ny.navn}`)
   }
 
   async function godtaTilleggForslag(f: { bildeId: string; index: number; data: AIForslagTillegg }, navn: string, kostnad: number) {
@@ -139,6 +141,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
     await fjernForslag(f.bildeId, 'ai_potensielle_tillegg', f.index)
     await loggAktivitet({ handling: 'godtok AI-forslag (tillegg)', tabell: 'oppussing_tillegg', rad_id: tilleggId, detaljer: { bolig: prosjekt.navn, tillegg_type: f.data.tillegg, navn: rad.navn } })
     await hentAIForslag()
+    visToast(`Lagt til tillegg: ${rad.navn}`)
   }
 
   async function avvisForslag(bildeId: string, index: number, type: 'oppussing' | 'tillegg', beskrivelse: string) {
@@ -146,6 +149,7 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
     await fjernForslag(bildeId, kolonne, index)
     await loggAktivitet({ handling: 'avviste AI-forslag', tabell: 'prosjekt_bilder', rad_id: bildeId, detaljer: { type, beskrivelse, bolig: prosjekt.navn } })
     await hentAIForslag()
+    visToast('Forslag avvist', 'info', 1800)
   }
 
   async function leggTilPost(navn: string) {

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { KATEGORIER, STILER, estimerAnalyseKostnadEUR, resizKlient, type Kategori, type StilId } from '../lib/bilder'
+import { visToast } from '../lib/toast'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -28,6 +29,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [dragOver, setDragOver] = useState(false)
   const [analyserer, setAnalyserer] = useState(false)
   const [analyseFeil, setAnalyseFeil] = useState('')
+  const [analyseFremdrift, setAnalyseFremdrift] = useState<{ ferdig: number; total: number }>({ ferdig: 0, total: 0 })
   const pollRef = useRef<Record<string, number>>({})
 
   useEffect(() => () => {
@@ -179,22 +181,35 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
     )
     if (!bekreft) return
     setAnalyserer(true); setAnalyseFeil('')
-    try {
-      const bruker = hentAktivBruker() || 'ukjent'
-      const res = await fetch('/api/bilder/analyser', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bilde_ids: uanalyserte.map(b => b.id), analysert_av: bruker }),
-      })
-      const data = await res.json()
-      if (data.feilet > 0) {
-        setAnalyseFeil(`${data.feilet} av ${data.feilet + data.suksess} feilet. Sjekk Aktivitetslogg for detaljer.`)
+    setAnalyseFremdrift({ ferdig: 0, total: uanalyserte.length })
+
+    const bruker = hentAktivBruker() || 'ukjent'
+    let suksess = 0, feilet = 0
+    let idx = 0
+    async function worker() {
+      while (idx < uanalyserte.length) {
+        const i = idx++
+        const b = uanalyserte[i]
+        try {
+          const res = await fetch('/api/bilder/analyser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bilde_ids: [b.id], analysert_av: bruker }),
+          })
+          const data = await res.json()
+          if (data.suksess >= 1) suksess++
+          else feilet++
+        } catch { feilet++ }
+        setAnalyseFremdrift({ ferdig: suksess + feilet, total: uanalyserte.length })
       }
-      await hent()
-    } catch (e) {
-      setAnalyseFeil(e instanceof Error ? e.message : 'Ukjent feil')
     }
+    await Promise.all([worker(), worker(), worker()])
+
+    if (feilet > 0) setAnalyseFeil(`${feilet} av ${suksess + feilet} feilet. Sjekk Aktivitetslogg for detaljer.`)
+    if (suksess > 0) visToast(`${suksess} ${suksess === 1 ? 'bilde' : 'bilder'} analysert — se forslag i Oppussing-fanen`)
+    setAnalyseFremdrift({ ferdig: 0, total: 0 })
     setAnalyserer(false)
+    await hent()
   }
 
   async function slettBilde(id: string) {
@@ -206,6 +221,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
       body: JSON.stringify({ bilde_id: id, slettet_av: bruker }),
     })
     await hent()
+    visToast('Bilde slettet')
   }
 
   function onDrop(e: React.DragEvent) {
@@ -299,7 +315,11 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                 <button onClick={analyserBilder} disabled={analyserer}
                   style={{ background: analyserer ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: analyserer ? 'not-allowed' : 'pointer' }}>
-                  {analyserer ? '⏳ Analyserer...' : `🤖 Analyser ${uanalyserte.length} ${uanalyserte.length === 1 ? 'bilde' : 'bilder'} med AI`}
+                  {analyserer
+                    ? (analyseFremdrift.total > 0
+                      ? `⏳ Analyserer ${analyseFremdrift.ferdig + 1}/${analyseFremdrift.total}...`
+                      : '⏳ Analyserer...')
+                    : `🤖 Analyser ${uanalyserte.length} ${uanalyserte.length === 1 ? 'bilde' : 'bilder'} med AI`}
                 </button>
                 <span style={{ fontSize: 12, color: '#666' }}>~€{kostnad.toFixed(2)}{analyserte > 0 && ` · ${analyserte} allerede analysert`}</span>
               </div>
@@ -345,19 +365,20 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                           ✕
                         </button>
                         {b.ai_analysert && (
-                          <div title={`Analysert ${new Date(b.ai_analysert).toLocaleDateString('nb-NO')}`}
+                          <div title={`AI-analysert ${new Date(b.ai_analysert).toLocaleDateString('nb-NO')} — se forslag i Oppussing-fanen`}
                             style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(24, 95, 165, 0.9)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
                             ✨
                           </div>
                         )}
                         {antall > 0 && (
-                          <div title={`${antall} godtatte forslag`}
+                          <div title={`${antall} godtatte forslag for dette bildet — klikk "Generer før/etter" for visualisering`}
                             style={{ position: 'absolute', top: 4, left: 34, background: 'rgba(45, 125, 70, 0.95)', color: 'white', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700 }}>
                             ✓{antall}
                           </div>
                         )}
                         {b.tilleggsnotat && (
-                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div title={b.tilleggsnotat}
+                            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {b.tilleggsnotat}
                           </div>
                         )}
