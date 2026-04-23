@@ -30,7 +30,7 @@ function tomtBudsjett(boligId: string): OppussingBudsjett {
   }
 }
 
-export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
+export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt: Prosjekt; onProsjektOppdatert?: () => void }) {
   const boligId = prosjekt.id
   const [budsjett, setBudsjett] = useState<OppussingBudsjett | null>(null)
   const [poster, setPoster] = useState<OppussingPost[]>([])
@@ -40,6 +40,14 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
   const [egenPost, setEgenPost] = useState('')
   const [forslagOppussing, setForslagOppussing] = useState<Array<{ bildeId: string; index: number; data: AIForslagOppussing }>>([])
   const [forslagTillegg, setForslagTillegg] = useState<Array<{ bildeId: string; index: number; data: AIForslagTillegg }>>([])
+
+  // Synker sum av poster til prosjekt.oppussing_faktisk så totalberegningene (ROI etc) stemmer.
+  async function synkOppussingFaktisk(nyePosters: OppussingPost[]) {
+    const sum = nyePosters.reduce((s, p) => s + (p.kostnad || 0), 0)
+    if (sum === prosjekt.oppussing_faktisk) return
+    await supabase.from('prosjekter').update({ oppussing_faktisk: sum }).eq('id', boligId)
+    onProsjektOppdatert?.()
+  }
 
   const hentAIForslag = useCallback(async () => {
     const { data: bilder } = await supabase.from('prosjekt_bilder')
@@ -113,11 +121,13 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
       rekkefolge: poster.length,
       kilde_bilde_id: f.bildeId,
     }
-    setPoster([...poster, ny])
+    const nye = [...poster, ny]
+    setPoster(nye)
     await supabase.from('oppussing_poster').insert([ny])
     await fjernForslag(f.bildeId, 'ai_foreslatte_poster', f.index)
     await loggAktivitet({ handling: 'godtok AI-forslag (oppussing)', tabell: 'oppussing_poster', rad_id: ny.id, detaljer: { bolig: prosjekt.navn, navn: ny.navn, kilde_bilde_id: f.bildeId } })
     await hentAIForslag()
+    await synkOppussingFaktisk(nye)
     visToast(`Lagt til: ${ny.navn}`)
   }
 
@@ -162,21 +172,27 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
       notat: null,
       rekkefolge: poster.length,
     }
-    setPoster([...poster, ny])
+    const nye = [...poster, ny]
+    setPoster(nye)
     await supabase.from('oppussing_poster').insert([ny])
     await loggAktivitet({ handling: 'la til oppussingspost', tabell: 'oppussing_poster', rad_id: ny.id, detaljer: { bolig: prosjekt.navn, navn: ny.navn } })
+    await synkOppussingFaktisk(nye)
   }
 
   async function oppdaterPost(id: string, endring: Partial<OppussingPost>) {
-    setPoster(poster.map(p => p.id === id ? { ...p, ...endring } : p))
+    const nye = poster.map(p => p.id === id ? { ...p, ...endring } : p)
+    setPoster(nye)
     await supabase.from('oppussing_poster').update(endring).eq('id', id)
+    if ('kostnad' in endring) await synkOppussingFaktisk(nye)
   }
 
   async function slettPost(id: string) {
     const p = poster.find(x => x.id === id)
-    setPoster(poster.filter(p => p.id !== id))
+    const nye = poster.filter(p => p.id !== id)
+    setPoster(nye)
     await supabase.from('oppussing_poster').delete().eq('id', id)
     await loggAktivitet({ handling: 'slettet oppussingspost', tabell: 'oppussing_poster', rad_id: id, detaljer: { bolig: prosjekt.navn, navn: p?.navn } })
+    await synkOppussingFaktisk(nye)
   }
 
   async function estimerSalgspris() {
@@ -274,7 +290,10 @@ export function Oppussingsbudsjett({ prosjekt }: { prosjekt: Prosjekt }) {
         ))}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', marginTop: 6, fontSize: 14, fontWeight: 700 }}>
-          <span>Sum poster</span><span>{fmt(posterSum)}</span>
+          <span title="Oppdaterer automatisk 'Oppussing faktisk' på prosjektet">Sum poster</span><span>{fmt(posterSum)}</span>
+        </div>
+        <div style={{ fontSize: 11, color: '#888', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>
+          Synkes automatisk til &quot;Oppussing faktisk&quot; i oversikten
         </div>
 
         <div style={{ marginTop: 16, fontSize: 12, color: '#666', marginBottom: 6 }}>Legg til forhåndsdefinert post:</div>

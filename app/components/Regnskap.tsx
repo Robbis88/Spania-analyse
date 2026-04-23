@@ -20,7 +20,7 @@ export function Regnskap({
   visProsjektId: string | null
   onSettVisProsjekt: (id: string | null) => void
 }) {
-  const { prosjekter, laster, leggTil, oppdater, slett } = useProsjekter()
+  const { prosjekter, laster, leggTil, oppdater, slett, hent } = useProsjekter()
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
@@ -246,7 +246,7 @@ export function Regnskap({
             </div>
 
             {aktivTab === 'oppussing' && p.kategori === 'flipp' && (
-              <Oppussingsbudsjett prosjekt={p} />
+              <Oppussingsbudsjett prosjekt={p} onProsjektOppdatert={hent} />
             )}
 
             {aktivTab === 'utleie' && p.kategori === 'utleie' && (
