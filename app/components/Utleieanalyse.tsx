@@ -192,16 +192,26 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
               onChange={e => setAnalyse({ ...analyse, utleiestart: e.target.value || null })} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Etablert fra og med år</label>
+            <label style={labelStyle} title="År 1 bruker lavere nattpris og belegg (nybegynner-tall). Når du setter f.eks. 3, interpoleres det lineært i 2 år, og fra år 3 kjører utleien på full kapasitet.">
+              Etablert fra og med år <span style={{ color: '#aaa', cursor: 'help' }}>ⓘ</span>
+            </label>
             <input style={inputStyle} type="number" min={1} max={10} value={analyse.progresjon_til_etablert_ar || ''}
               onBlur={e => oppdater({ progresjon_til_etablert_ar: Number(e.target.value) || 3 })}
               onChange={e => setAnalyse({ ...analyse, progresjon_til_etablert_ar: Number(e.target.value) || 3 })} />
+            <div style={{ fontSize: 10, color: '#888', marginTop: 3, lineHeight: 1.4 }}>
+              Antall år til full kapasitet (nattpris + belegg). 3 er typisk for Airbnb.
+            </div>
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Horisont (år)</label>
+            <label style={labelStyle} title="Hvor langt frem i tid prognosen skal vises i tabellen. Påvirker kun visning, ikke beregning.">
+              Horisont (år) <span style={{ color: '#aaa', cursor: 'help' }}>ⓘ</span>
+            </label>
             <input style={inputStyle} type="number" min={1} max={15} value={analyse.horisont_ar || ''}
               onBlur={e => oppdater({ horisont_ar: Number(e.target.value) || 5 })}
               onChange={e => setAnalyse({ ...analyse, horisont_ar: Number(e.target.value) || 5 })} />
+            <div style={{ fontSize: 10, color: '#888', marginTop: 3, lineHeight: 1.4 }}>
+              Hvor mange år fremover prognosen skal vise.
+            </div>
           </div>
         </div>
       </div>
