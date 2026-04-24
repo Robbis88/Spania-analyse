@@ -84,6 +84,13 @@ export type Prosjekt = {
   salgsanalyse_data?: SalgsanalyseData | null
   salgsanalyse_generert?: string | null
   salgsanalyse_modell_versjon?: string | null
+  dokumentcheck_status?: Record<string, DokumentStatus> | null
+}
+
+export type DokumentStatus = {
+  huket: boolean
+  notat: string
+  oppdatert: string
 }
 
 export type SalgsanalyseData = {

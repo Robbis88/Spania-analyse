@@ -1,8 +1,9 @@
 'use client'
-import { Component, type ErrorInfo, type ReactNode, useState } from 'react'
-import type { Prosjekt, SalgsanalyseData } from '../types'
+import { Component, type ErrorInfo, type ReactNode, useEffect, useRef, useState } from 'react'
+import type { DokumentStatus, Prosjekt, SalgsanalyseData } from '../types'
 import { fmt } from '../lib/styles'
 import { visToast } from '../lib/toast'
+import { supabase } from '../lib/supabase'
 
 type Props = {
   prosjekt: Prosjekt
@@ -176,18 +177,12 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
 
       {dokumenter.length > 0 && (
         <Seksjon tittel="🧾 Dokumentcheck" farge="#2D7D46">
-          {dokumenter.map((d, i) => {
-            const s = STATUS_ETIKETT[d?.status as keyof typeof STATUS_ETIKETT] || STATUS_ETIKETT.maa_sjekkes
-            return (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'start', padding: '8px 0', borderTop: i > 0 ? '1px solid #eee' : 'none' }}>
-                <span style={{ background: s.bg, color: s.farge, fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 12, whiteSpace: 'nowrap' }}>{s.tekst}</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{d?.navn || 'Dokument'}</div>
-                  {d?.kommentar && <div style={{ fontSize: 12, color: '#666', marginTop: 2, lineHeight: 1.5 }}>{d.kommentar}</div>}
-                </div>
-              </div>
-            )
-          })}
+          <DokumentcheckListe
+            prosjektId={prosjekt.id}
+            dokumenter={dokumenter}
+            status={prosjekt.dokumentcheck_status || {}}
+            onOppdatert={onOppdatert}
+          />
         </Seksjon>
       )}
 
@@ -310,6 +305,91 @@ function Seksjon({ tittel, farge, children }: { tittel: string; farge: string; c
       <div style={{ fontSize: 13, fontWeight: 700, color: farge, marginBottom: 10, letterSpacing: '0.02em' }}>{tittel}</div>
       {children}
     </div>
+  )
+}
+
+function DokumentcheckListe({ prosjektId, dokumenter, status, onOppdatert }: {
+  prosjektId: string
+  dokumenter: Array<{ navn: string; status: 'ok' | 'mangler' | 'maa_sjekkes'; kommentar: string }>
+  status: Record<string, DokumentStatus>
+  onOppdatert: () => void
+}) {
+  // Lokalt state for optimistisk UI. Synkes til DB med debounce på notat-input
+  // og umiddelbart for checkbox.
+  const [lokalt, setLokalt] = useState<Record<string, DokumentStatus>>(status)
+  const debounceRef = useRef<Record<string, number>>({})
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setLokalt(status) }, [status])
+
+  async function lagre(alt: Record<string, DokumentStatus>) {
+    await supabase.from('prosjekter').update({ dokumentcheck_status: alt }).eq('id', prosjektId)
+    onOppdatert()
+  }
+
+  function settHuket(navn: string, huket: boolean) {
+    const forrige = lokalt[navn] || { huket: false, notat: '', oppdatert: '' }
+    const nytt = { ...forrige, huket, oppdatert: new Date().toISOString() }
+    const alt = { ...lokalt, [navn]: nytt }
+    setLokalt(alt)
+    void lagre(alt)
+  }
+
+  function settNotat(navn: string, notat: string) {
+    const forrige = lokalt[navn] || { huket: false, notat: '', oppdatert: '' }
+    const nytt = { ...forrige, notat, oppdatert: new Date().toISOString() }
+    const alt = { ...lokalt, [navn]: nytt }
+    setLokalt(alt)
+    // Debounce lagring for ikke å pepre Supabase mens bruker skriver
+    if (debounceRef.current[navn]) window.clearTimeout(debounceRef.current[navn])
+    debounceRef.current[navn] = window.setTimeout(() => {
+      void lagre(alt)
+    }, 700) as unknown as number
+  }
+
+  const antallHuket = Object.values(lokalt).filter(s => s?.huket).length
+  const antallTotal = dokumenter.length
+
+  return (
+    <>
+      <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+        <strong style={{ color: antallHuket === antallTotal && antallTotal > 0 ? '#2D7D46' : '#444' }}>{antallHuket} av {antallTotal} fullført</strong>
+      </div>
+      {dokumenter.map((d, i) => {
+        const navn = d?.navn || `Dokument ${i + 1}`
+        const s = STATUS_ETIKETT[d?.status as keyof typeof STATUS_ETIKETT] || STATUS_ETIKETT.maa_sjekkes
+        const brukerStatus = lokalt[navn] || { huket: false, notat: '', oppdatert: '' }
+        const huket = !!brukerStatus.huket
+        return (
+          <div key={navn + i} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid #eee' : 'none', opacity: huket ? 0.65 : 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: 10, alignItems: 'start' }}>
+              <input
+                type="checkbox"
+                checked={huket}
+                onChange={e => settHuket(navn, e.target.checked)}
+                title={huket ? 'Marker som ikke gjort' : 'Marker som gjort'}
+                style={{ width: 18, height: 18, cursor: 'pointer', marginTop: 2 }}
+              />
+              <span style={{ background: s.bg, color: s.farge, fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 12, whiteSpace: 'nowrap' }}>{s.tekst}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, textDecoration: huket ? 'line-through' : 'none' }}>{navn}</div>
+                {d?.kommentar && <div style={{ fontSize: 12, color: '#666', marginTop: 2, lineHeight: 1.5 }}>{d.kommentar}</div>}
+                <textarea
+                  value={brukerStatus.notat || ''}
+                  onChange={e => settNotat(navn, e.target.value)}
+                  placeholder="Ditt notat (ref.nr, hvor det ligger, ventetid osv.)"
+                  rows={brukerStatus.notat ? 2 : 1}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd', fontFamily: 'inherit', marginTop: 6, resize: 'vertical', background: '#fafafa' }}
+                />
+                {brukerStatus.oppdatert && brukerStatus.notat && (
+                  <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>Sist oppdatert: {new Date(brukerStatus.oppdatert).toLocaleString('nb-NO')}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </>
   )
 }
 
