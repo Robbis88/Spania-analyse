@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 import {
-  FRA_ADRESSE, byggInnholdMedSignatur, erGyldigFormaal, erGyldigMottakerType,
-  hentResendKlient, validerEpostadresse,
+  FRA_ADRESSE, SVAR_ADRESSE, byggHtmlFraTekst, byggInnholdMedSignatur,
+  erGyldigFormaal, erGyldigMottakerType, hentResendKlient, validerEpostadresse,
 } from '../../../lib/epost'
 
 const nyId = () => Date.now().toString()
@@ -60,11 +60,17 @@ export async function POST(req: NextRequest) {
     let feilmelding: string | null = null
 
     try {
+      const htmlVersjon = byggHtmlFraTekst(innholdSendt)
       const res = await klient.emails.send({
         from: FRA_ADRESSE,
         to: [String(til)],
+        replyTo: SVAR_ADRESSE,
         subject: emne,
         text: innholdSendt,
+        html: htmlVersjon,
+        headers: {
+          'X-Entity-Ref-ID': epostId,
+        },
         attachments: harVedlegg
           ? [{ filename: filnavn || 'Analyse.pdf', content: vedlegg_pdf_base64 as string }]
           : undefined,

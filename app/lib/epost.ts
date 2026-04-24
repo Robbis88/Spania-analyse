@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 
 export const FRA_ADRESSE = 'Leganger Eiendom <post@loeiendom.com>'
+export const SVAR_ADRESSE = 'post@loeiendom.com'
 
 export const FORMAAL = [
   'bank_finansieringssamtale',
@@ -41,6 +42,51 @@ export function byggSignatur(bruker: string): string {
 
 export function byggInnholdMedSignatur(innhold: string, bruker: string): string {
   return innhold.trimEnd() + '\n\n' + byggSignatur(bruker)
+}
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// Bygger en enkel HTML-versjon av e-posten. Microsoft/Outlook foretrekker
+// at både text/plain og text/html er tilstede — begge tolkes av spam-
+// filtre, og mangler på HTML-versjon er en svak negativ signal.
+export function byggHtmlFraTekst(tekst: string): string {
+  // Del på --- for å markere signatur-skiller med HR
+  const deler = tekst.split(/\n---\n/)
+  const kropp = deler[0]
+  const signatur = deler[1]
+
+  // Auto-lenke enkle URL-er
+  const urlRegex = /(https?:\/\/[^\s<>"']+)/g
+  function lenk(s: string) {
+    return escHtml(s).replace(urlRegex, '<a href="$1" style="color:#185FA5">$1</a>')
+  }
+
+  const avsnitt = kropp.split(/\n\n+/).map(a => {
+    const linjer = a.split('\n').map(l => lenk(l)).join('<br>')
+    return `<p style="margin:0 0 14px 0">${linjer}</p>`
+  }).join('\n')
+
+  const signaturHtml = signatur
+    ? `<hr style="border:none;border-top:1px solid #ddd;margin:20px 0 12px">\n<div style="color:#666;font-size:13px;line-height:1.5">${signatur.split('\n').map(l => lenk(l)).join('<br>')}</div>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head><meta charset="utf-8"><title></title></head>
+<body style="margin:0;padding:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#222;font-size:14px;line-height:1.6">
+<div style="max-width:620px;margin:0 auto;padding:20px">
+${avsnitt}
+${signaturHtml}
+</div>
+</body>
+</html>`
 }
 
 const EPOST_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
