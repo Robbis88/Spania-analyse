@@ -34,6 +34,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   const [result, setResult] = useState<AnalyseResultat | null>(null)
   const [loading, setLoading] = useState(false)
   const [airbnbLoading, setAirbnbLoading] = useState(false)
+  const [steg, setSteg] = useState<'idle' | 'analyserer' | 'utleie' | 'ferdig'>('idle')
   const [airbnbAnalyse, setAirbnbAnalyse] = useState('')
   const [airbnbScore, setAirbnbScore] = useState<Score | null>(null)
   const [airbnbData, setAirbnbData] = useState<AirbnbData | null>(null)
@@ -42,16 +43,29 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   const [bolig, setBolig] = useState<Bolig>(tomBolig())
 
   function nullstill() {
-    setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding('')
+    setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding(''); setSteg('idle')
+  }
+
+  async function kjørAirbnbAnalyse(boligForAnalyse: Bolig) {
+    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null)
+    try {
+      const res = await fetch('/api/airbnb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bolig: boligForAnalyse }) })
+      const data = await res.json()
+      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null); setAirbnbData(data.data || null)
+    } catch {
+      setAirbnbAnalyse('Noe gikk galt, prøv igjen.')
+    }
+    setAirbnbLoading(false)
   }
 
   async function analyser() {
     setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding('')
+    setSteg('analyserer')
     try {
       const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: input }) })
       const data: AnalyseResultat = await res.json()
       setResult(data)
-      setBolig({
+      const nyBolig: Bolig = {
         type: data.type || '',
         beliggenhet: data.beliggenhet || '',
         soverom: data.soverom?.toString() || '',
@@ -64,24 +78,20 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
         ekstra: '',
         markedspris_bra_m2: data.markedspris_bra_m2?.toString() || '',
         oppbudsjett: '',
-      })
+      }
+      setBolig(nyBolig)
       setVisSkjema(true)
+      setLoading(false)
+
+      // Kjør utleieanalyse umiddelbart i samme flyt
+      setSteg('utleie')
+      await kjørAirbnbAnalyse(nyBolig)
+      setSteg('ferdig')
     } catch {
       setResult({ ai_vurdering: 'Noe gikk galt, prøv igjen.' })
+      setLoading(false)
+      setSteg('idle')
     }
-    setLoading(false)
-  }
-
-  async function kjørAirbnbAnalyse() {
-    setAirbnbLoading(true); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null)
-    try {
-      const res = await fetch('/api/airbnb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bolig }) })
-      const data = await res.json()
-      setAirbnbAnalyse(data.analyse || ''); setAirbnbScore(data.score || null); setAirbnbData(data.data || null)
-    } catch {
-      setAirbnbAnalyse('Noe gikk galt, prøv igjen.')
-    }
-    setAirbnbLoading(false)
   }
 
   async function lagreAnalyseSomProsjekt(kategori: 'flipp' | 'utleie') {
@@ -153,7 +163,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
         </div>
       </div>
       <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Analyser boligen</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lim inn bolig-info</div>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -161,8 +171,10 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           style={{ width: '100%', height: 120, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
         />
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button onClick={analyser} disabled={loading || !input} style={{ flex: 1, background: loading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? '⏳ Analyserer...' : '🔍 Analyser eiendom'}
+          <button onClick={analyser} disabled={loading || airbnbLoading || !input} style={{ flex: 1, background: (loading || airbnbLoading) ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer' }}>
+            {steg === 'analyserer' && '⏳ Analyserer bolig...'}
+            {steg === 'utleie' && '⏳ Kjører utleieanalyse (20–30 s)...'}
+            {(steg === 'idle' || steg === 'ferdig') && '🚀 Kjør full analyse'}
           </button>
           {(input || result) && <button onClick={nullstill} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: '14px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🗑️ Nullstill</button>}
         </div>
@@ -198,8 +210,8 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           )}
           {visSkjema && (
             <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Fyll inn og sjekk info</div>
-              <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Sjekk og legg til det som mangler.</p>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sjekk og korriger detaljer (valgfritt)</div>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Hvis du korrigerer noe under, klikk &quot;Oppdater analyse&quot; nederst for å kjøre utleieanalysen på nytt med de nye verdiene.</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
                   { key: 'type', lbl: 'Type bolig', placeholder: 'Villa / Leilighet', type: 'text' },
@@ -241,22 +253,15 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
                   </div>
                 ))}
               </div>
-              <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Oppussingsbudsjett (valgfritt)</div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <input type="number" value={bolig.oppbudsjett} onChange={e => setBolig(b => ({ ...b, oppbudsjett: e.target.value }))} placeholder="F.eks. 100000" style={{ flex: 1, padding: '10px 14px', fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd' }} />
-                  <span style={{ fontSize: 13, color: '#666', whiteSpace: 'nowrap' }}>euro</span>
-                </div>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 4 – Kjør full analyse</div>
-              <button onClick={kjørAirbnbAnalyse} disabled={airbnbLoading} style={{ width: '100%', background: airbnbLoading ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 16, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer' }}>
-                {airbnbLoading ? '⏳ Analyserer – 20-30 sekunder...' : '🚀 Kjør full analyse og få score'}
+              <button onClick={() => kjørAirbnbAnalyse(bolig)} disabled={airbnbLoading}
+                style={{ width: '100%', background: airbnbLoading ? '#999' : '#185FA5', color: 'white', border: 'none', padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer', marginTop: 4 }}>
+                {airbnbLoading ? '⏳ Oppdaterer...' : '🔄 Oppdater analyse med korrigerte verdier'}
               </button>
             </div>
           )}
           {airbnbScore && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 5 – Score og trafikklys</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score og trafikklys</div>
               <ScoreKort s={airbnbScore} />
             </div>
           )}
