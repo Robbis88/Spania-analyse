@@ -14,7 +14,7 @@ type ChatMelding =
   | { role: 'user'; content: string | ContentBlock[] }
   | { role: 'assistant'; content: ContentBlock[] }
 
-type ProsjektValg = { id: string; navn: string }
+type ProsjektValg = { id: string; navn: string; status?: string | null }
 
 function harTextFra(c: string | ContentBlock[]): string {
   if (typeof c === 'string') return c
@@ -54,10 +54,29 @@ export function AgentChat() {
 
   useEffect(() => {
     let avbrutt = false
-    supabase.from('prosjekter').select('id, navn').order('opprettet', { ascending: false }).then(({ data }) => {
+    supabase.from('prosjekter').select('id, navn, status').order('opprettet', { ascending: false }).then(({ data }) => {
       if (!avbrutt && data) setProsjekter(data as ProsjektValg[])
     })
     return () => { avbrutt = true }
+  }, [])
+
+  // Lytter etter «åpne chat med pre-valgt prosjekt» — sendes f.eks. fra Boliganalyse
+  // når brukeren har lagret en bolig til vurdering og vil sende den videre.
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ prosjektId?: string }>).detail
+      const id = detail?.prosjektId
+      if (id) {
+        // Refresh prosjektliste i tilfelle den nye boligen ikke er lastet inn enda
+        supabase.from('prosjekter').select('id, navn, status').order('opprettet', { ascending: false }).then(({ data }) => {
+          if (data) setProsjekter(data as ProsjektValg[])
+        })
+        setProsjektId(id)
+      }
+      setApen(true)
+    }
+    window.addEventListener('app-open-chat', handler as EventListener)
+    return () => window.removeEventListener('app-open-chat', handler as EventListener)
   }, [])
 
   const pendingToolUse = finnPendingToolUse(meldinger)
@@ -204,7 +223,24 @@ export function AgentChat() {
             <select value={prosjektId} onChange={e => setProsjektId(e.target.value)}
               style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }}>
               <option value="">Ingen – generell samtale</option>
-              {prosjekter.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
+              {(() => {
+                const underVurdering = prosjekter.filter(p => p.status === 'Under vurdering')
+                const andre = prosjekter.filter(p => p.status !== 'Under vurdering')
+                return (
+                  <>
+                    {underVurdering.length > 0 && (
+                      <optgroup label="🏠 Under vurdering">
+                        {underVurdering.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
+                      </optgroup>
+                    )}
+                    {andre.length > 0 && (
+                      <optgroup label="📁 Eide / aktive prosjekter">
+                        {andre.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
+                      </optgroup>
+                    )}
+                  </>
+                )
+              })()}
             </select>
           </div>
 

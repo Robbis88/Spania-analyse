@@ -6,6 +6,23 @@ import { loggAktivitet } from '../lib/logg'
 import { type AirbnbData, type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
 import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct } from '../lib/styles'
 import { ScoreKort, type Score } from './ScoreKort'
+import { byggProsjektPdf } from '../lib/pdf'
+import { visToast } from '../lib/toast'
+
+function lastNedBase64Pdf(base64: string, filnavn: string) {
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filnavn
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
 type AnalyseResultat = {
   tittel?: string
@@ -41,9 +58,35 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   const [visSkjema, setVisSkjema] = useState(false)
   const [lagreMelding, setLagreMelding] = useState('')
   const [bolig, setBolig] = useState<Bolig>(tomBolig())
+  const [lagretId, setLagretId] = useState<string | null>(null)
+  const [pdfLaster, setPdfLaster] = useState(false)
 
   function nullstill() {
     setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding(''); setSteg('idle')
+    setLagretId(null); setPdfLaster(false)
+  }
+
+  async function lastNedPdf(id: string) {
+    setPdfLaster(true)
+    try {
+      const data = await byggProsjektPdf(id, supabase)
+      if (!data) {
+        visToast('Klarte ikke å bygge PDF', 'feil')
+      } else {
+        lastNedBase64Pdf(data.base64, data.filnavn)
+        visToast('PDF lastet ned: ' + data.filnavn, 'suksess', 3500)
+      }
+    } catch (e) {
+      const m = e instanceof Error ? e.message : 'Ukjent feil'
+      visToast('PDF-bygging feilet: ' + m, 'feil', 4000)
+    }
+    setPdfLaster(false)
+  }
+
+  function apneChatMedProsjekt(id: string) {
+    window.dispatchEvent(new CustomEvent<{ prosjektId: string }>('app-open-chat', {
+      detail: { prosjektId: id },
+    }))
   }
 
   async function kjørAirbnbAnalyse(boligForAnalyse: Bolig) {
@@ -145,11 +188,14 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
     const { error } = await supabase.from('prosjekter').insert([{ ...nytt, bruker }])
     if (error) {
       setLagreMelding('❌ Feil ved lagring: ' + error.message)
-    } else {
-      await loggAktivitet({ handling: 'lagret ny bolig fra Boliganalyse', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn, kategori } })
-      setLagreMelding(`✅ Lagret som ${kategori === 'flipp' ? 'flipp-prosjekt' : 'utleieprosjekt'}! Finn det under "${kategori === 'flipp' ? 'Boligflipp' : 'Boligutleie'}" eller "Regnskap".`)
+      setTimeout(() => setLagreMelding(''), 5000)
+      return
     }
-    setTimeout(() => setLagreMelding(''), 5000)
+    await loggAktivitet({ handling: 'lagret ny bolig fra Boliganalyse', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn, kategori } })
+    setLagretId(nytt.id)
+    setLagreMelding(`✅ Lagret som ${kategori === 'flipp' ? 'flipp-prosjekt' : 'utleieprosjekt'} med status «Under vurdering». Henter PDF...`)
+    // Auto-last ned PDF i samme flyt slik brukeren har en fysisk fil
+    void lastNedPdf(nytt.id)
   }
 
   return (
@@ -272,15 +318,31 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
             </div>
           )}
           <div style={{ background: '#f0f7ff', border: '2px solid #185FA544', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hva vil du gjøre med denne boligen?</div>
-            <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Lagre boligen som et prosjekt – den blir lagt til i riktig kategori og vises også i Regnskap.</p>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legg til som bolig til vurdering</div>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten — boligen blir liggende der til du sletter den eller endrer status.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} style={{ background: '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🔨 Lagre som flipp-prosjekt</button>
-              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} style={{ background: '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🏖️ Lagre som utleieprosjekt</button>
+              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} style={{ background: lagretId ? '#9bbf9d' : '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer' }}>🏖️ Til vurdering – utleie</button>
+              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{ background: lagretId ? '#9bb1cf' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer' }}>🔨 Til vurdering – flipp</button>
             </div>
             {lagreMelding && (
               <div style={{ marginTop: 12, padding: 12, background: lagreMelding.startsWith('✅') ? '#e8f5ed' : '#fde8ec', border: `1.5px solid ${lagreMelding.startsWith('✅') ? '#2D7D46' : '#C8102E'}`, borderRadius: 8, fontSize: 13, color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500 }}>
                 {lagreMelding}
+              </div>
+            )}
+            {lagretId && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #185FA522' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send analysen videre</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                  <button onClick={() => lastNedPdf(lagretId)} disabled={pdfLaster}
+                    style={{ background: pdfLaster ? '#999' : '#1a2a3e', color: 'white', border: 'none', borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 600, cursor: pdfLaster ? 'not-allowed' : 'pointer' }}>
+                    {pdfLaster ? '⏳ Bygger PDF...' : '📄 Last ned PDF igjen'}
+                  </button>
+                  <button onClick={() => apneChatMedProsjekt(lagretId)}
+                    style={{ background: '#c9a876', color: 'white', border: 'none', borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    📧 Send til megler / bank
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 10, lineHeight: 1.5 }}>Chat-roboten åpnes med boligen pre-valgt. Be den om å lage e-postutkast til megler eller bank — du får godkjenne før det sendes, og PDF-en blir lagt ved automatisk.</div>
               </div>
             )}
           </div>

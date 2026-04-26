@@ -229,6 +229,84 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
     y += 2
   }
 
+  // Score-seksjon — fullverdig vurdering når Boliganalyse har generert score
+  if (p.airbnb_score) {
+    const sc = p.airbnb_score
+    if (y > 220) { doc.addPage(); y = 20 }
+    seksjon('SCORE OG VURDERING')
+
+    // Topp-bånd: lys + total
+    const lysFarge: [number, number, number] =
+      sc.lys === '🟢' ? [45, 125, 70] : sc.lys === '🟡' ? [176, 94, 10] : [200, 16, 46]
+    doc.setFillColor(lysFarge[0], lysFarge[1], lysFarge[2])
+    doc.rect(15, y, 180, 18, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+    doc.text((sc.lysTekst || sc.lys || '') + (sc.total !== undefined ? '   —   ' + sc.total + '/10' : ''), 20, y + 11)
+    y += 22
+    if (sc.lysInfo) { doc.setTextColor(60, 60, 60); avsnitt(sc.lysInfo) }
+
+    // 7 delkarakterer
+    const delkarakterer: Array<[string, number | undefined]> = [
+      ['Lokasjon', sc.lokasjon],
+      ['Eiendom', sc.eiendom],
+      ['Pris vs marked', sc.pris_vs_marked],
+      ['Airbnb-potensial', sc.airbnb_potensial],
+      ['Cashflow', sc.cashflow],
+      ['Oppussing-potensial', sc.oppussing_potensial],
+      ['Risiko', sc.risiko],
+    ].filter(([, v]) => v !== undefined) as Array<[string, number]>
+    delkarakterer.forEach(([lbl, v], i) => rad(lbl, v + ' / 10', i))
+    y += 4
+
+    // Inntektsestimat
+    if (sc.brutto_ar1 || sc.brutto_etablert || sc.netto_estimat) {
+      if (y > 250) { doc.addPage(); y = 20 }
+      seksjon('INNTEKTSESTIMAT')
+      const innt: Array<[string, string]> = []
+      if (sc.brutto_ar1) innt.push(['Brutto år 1', EUR(sc.brutto_ar1)])
+      if (sc.brutto_etablert) innt.push(['Brutto etablert (etter innkjøring)', EUR(sc.brutto_etablert)])
+      if (sc.netto_estimat) innt.push(['Netto estimat', EUR(sc.netto_estimat)])
+      innt.forEach(([l, v], i) => rad(l, v, i, true))
+      y += 4
+    }
+
+    // Maks oppussingsbudsjett ved ulik yield
+    if (sc.maks_oppussing_5pst || sc.maks_oppussing_6pst || sc.maks_oppussing_7pst) {
+      if (y > 250) { doc.addPage(); y = 20 }
+      seksjon('MAKS OPPUSSINGSBUDSJETT (FOR Å OPPNÅ YIELD)')
+      const maks: Array<[string, string]> = []
+      if (sc.maks_oppussing_5pst) maks.push(['Ved 5 % yield', EUR(sc.maks_oppussing_5pst)])
+      if (sc.maks_oppussing_6pst) maks.push(['Ved 6 % yield', EUR(sc.maks_oppussing_6pst)])
+      if (sc.maks_oppussing_7pst) maks.push(['Ved 7 % yield', EUR(sc.maks_oppussing_7pst)])
+      maks.forEach(([l, v], i) => rad(l, v, i))
+      y += 4
+    }
+
+    // Tips for å nå grønn
+    if (sc.tips && sc.tips.length > 0) {
+      if (y > 240) { doc.addPage(); y = 20 }
+      seksjon('HVA SKAL TIL FOR GRØNN?')
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60)
+      for (const tip of sc.tips) {
+        const linjer = doc.splitTextToSize('• ' + tip, 175)
+        for (const l of linjer) {
+          if (y > 280) { doc.addPage(); y = 20 }
+          doc.text(l, 20, y); y += 5
+        }
+        y += 1
+      }
+      y += 2
+    }
+  }
+
+  // Fullstendig airbnb-tekstanalyse (hvis lagret)
+  if (p.airbnb_analyse) {
+    if (y > 240) { doc.addPage(); y = 20 }
+    seksjon('FULLSTENDIG ANALYSE')
+    avsnitt(p.airbnb_analyse)
+    y += 2
+  }
+
   if (p.kategori === 'flipp' && data.oppussingBudsjett) {
     const b = data.oppussingBudsjett
     const poster = data.oppussingPoster || []
