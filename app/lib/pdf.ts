@@ -172,7 +172,13 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
   doc.setTextColor(0, 0, 0)
   let y = 46
 
+  // Sidebrudd hvis vi nærmer oss bunnen. Footer ligger på 290, så 275 er trygt.
+  const sjekkSidebrudd = (plass = 10) => {
+    if (y + plass > 275) { doc.addPage(); y = 20 }
+  }
+
   const seksjon = (tittel: string) => {
+    sjekkSidebrudd(20)
     doc.setFillColor(240, 237, 228)
     doc.rect(15, y, 180, 8, 'F')
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
@@ -184,6 +190,7 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
   }
 
   const rad = (lbl: string, val: string, i: number, bold = false) => {
+    sjekkSidebrudd(8)
     if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 7, 'F') }
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
     doc.text(lbl, 20, y + 2)
@@ -193,9 +200,12 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
   }
 
   const avsnitt = (tekst: string) => {
-    const linjer = doc.splitTextToSize(tekst, 175)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60)
-    linjer.forEach((l: string) => { doc.text(l, 20, y); y += 5 })
+    const linjer = doc.splitTextToSize(tekst, 175)
+    linjer.forEach((l: string) => {
+      sjekkSidebrudd(6)
+      doc.text(l, 20, y); y += 5
+    })
     y += 2
   }
 
