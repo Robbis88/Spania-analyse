@@ -35,19 +35,17 @@ export async function GET(req: NextRequest) {
       .eq('er_marketing', true)
       .order('marketing_rekkefolge', { ascending: true, nullsFirst: false })
 
-    const førstebildePerProsjekt: Record<string, { id: string; sti: string }> = {}
+    const bilderPerProsjekt: Record<string, Array<{ id: string; sti: string }>> = {}
     for (const b of bilder || []) {
-      if (!førstebildePerProsjekt[b.prosjekt_id]) {
-        førstebildePerProsjekt[b.prosjekt_id] = { id: b.id, sti: b.storage_sti }
-      }
+      (bilderPerProsjekt[b.prosjekt_id] ||= []).push({ id: b.id, sti: b.storage_sti })
     }
 
     const boliger = await Promise.all((prosjekter || []).map(async p => {
-      const bilde = førstebildePerProsjekt[p.id]
-      let bilde_url: string | null = null
-      if (bilde) {
-        const { data: signert } = await admin.storage.from(BUCKET_BILDER).createSignedUrl(bilde.sti, VARIGHET_SEKUNDER)
-        bilde_url = signert?.signedUrl || null
+      const liste = bilderPerProsjekt[p.id] || []
+      const bilde_urler: string[] = []
+      for (const b of liste) {
+        const { data: signert } = await admin.storage.from(BUCKET_BILDER).createSignedUrl(b.sti, VARIGHET_SEKUNDER)
+        if (signert?.signedUrl) bilde_urler.push(signert.signedUrl)
       }
       return {
         id: p.id,
@@ -63,7 +61,8 @@ export async function GET(req: NextRequest) {
         soverom: p.bolig_data?.soverom || null,
         bad: p.bolig_data?.bad || null,
         areal: p.bolig_data?.areal || null,
-        bilde_url,
+        bilde_url: bilde_urler[0] || null,    // bakoverkompatibel
+        bilde_urler,                           // alle marketing-bilder, sortert
       }
     }))
 

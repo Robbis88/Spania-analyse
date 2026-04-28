@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PortalHeader } from './components/portal/PortalHeader'
 import { InteresseModal } from './components/portal/InteresseModal'
 import { useSprak } from './lib/i18n'
@@ -25,6 +25,7 @@ type Bolig = {
   bad: string | number | null
   areal: string | number | null
   bilde_url: string | null
+  bilde_urler?: string[]
 }
 
 type Filter = 'alle' | 'leie' | 'salgs'
@@ -124,7 +125,7 @@ export default function Forside() {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 32 }}>
-          {filtrert.map(b => <BoligKort key={b.id} bolig={b} />)}
+          {filtrert.map((b, i) => <BoligKort key={b.id} bolig={b} kortIndex={i} />)}
         </div>
       </section>
 
@@ -160,7 +161,7 @@ function FilterTabs({ aktiv, setAktiv }: { aktiv: Filter; setAktiv: (f: Filter) 
   )
 }
 
-function BoligKort({ bolig }: { bolig: Bolig }) {
+function BoligKort({ bolig, kortIndex }: { bolig: Bolig; kortIndex: number }) {
   const { t } = useSprak()
   const visKort = bolig.til_salgs ? bolig.salg_kort : bolig.utleie_kort
 
@@ -170,20 +171,12 @@ function BoligKort({ bolig }: { bolig: Bolig }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-6px)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
       >
-        <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#e8e4d8', position: 'relative', overflow: 'hidden' }}>
-          {bolig.bilde_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={bolig.bilde_url} alt={bolig.navn} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.6s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLImageElement).style.transform = 'scale(1.04)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLImageElement).style.transform = 'scale(1)' }} />
-          ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56, color: '#ccc8b8' }}>—</div>
-          )}
-          <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 6 }}>
+        <BildeSlideshow bilder={bolig.bilde_urler && bolig.bilde_urler.length > 0 ? bolig.bilde_urler : (bolig.bilde_url ? [bolig.bilde_url] : [])} alt={bolig.navn} offsetMs={kortIndex * 800}>
+          <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 6, zIndex: 2 }}>
             {bolig.til_salgs && <Badge>{t.til_salgs}</Badge>}
             {bolig.til_leie && <Badge>{t.til_leie}</Badge>}
           </div>
-        </div>
+        </BildeSlideshow>
 
         <div style={{ padding: '24px 6px 8px' }}>
           <div style={{ fontSize: 10, color: GULL, letterSpacing: '0.16em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -203,6 +196,53 @@ function BoligKort({ bolig }: { bolig: Bolig }) {
         </div>
       </article>
     </Link>
+  )
+}
+
+// Slideshow med myk fade-loop. Forhåndslaster alle bilder så det ikke flimrer.
+// offsetMs forsinkelser starten på hvert kort så ikke alle skifter samtidig.
+const SKIFT_INTERVAL = 4500
+const FADE_MS = 700
+
+function BildeSlideshow({ bilder, alt, offsetMs, children }: { bilder: string[]; alt: string; offsetMs: number; children?: React.ReactNode }) {
+  const [aktiv, setAktiv] = useState(0)
+  const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (bilder.length <= 1) return
+    // Forhåndslast bilder slik at fade ikke avslører lasting
+    bilder.forEach(url => { const img = new Image(); img.src = url })
+
+    const startDelay = window.setTimeout(() => {
+      timer.current = window.setInterval(() => {
+        setAktiv(i => (i + 1) % bilder.length)
+      }, SKIFT_INTERVAL)
+    }, offsetMs)
+
+    return () => {
+      window.clearTimeout(startDelay)
+      if (timer.current) window.clearInterval(timer.current)
+    }
+  }, [bilder, offsetMs])
+
+  return (
+    <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#e8e4d8', position: 'relative', overflow: 'hidden' }}>
+      {bilder.length === 0 ? (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56, color: '#ccc8b8' }}>—</div>
+      ) : (
+        bilder.map((url, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={url} alt={alt}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%', objectFit: 'cover',
+              opacity: i === aktiv ? 1 : 0,
+              transition: `opacity ${FADE_MS}ms ease-in-out`,
+            }} />
+        ))
+      )}
+      {children}
+    </div>
   )
 }
 
