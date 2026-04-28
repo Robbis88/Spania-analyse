@@ -1,318 +1,166 @@
 'use client'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Innlogging } from './components/Innlogging'
-import { Oppgaver } from './components/Oppgaver'
-import { AgentChat } from './components/AgentChat'
-import { Boliganalyse } from './components/Boliganalyse'
-import { BoligerSeksjon } from './components/BoligerSeksjon'
-import { Selge } from './components/Selge'
-import { Regnskap } from './components/Regnskap'
-import { Aktivitetslogg } from './components/Aktivitetslogg'
-import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from './lib/aktivBruker'
-import { supabase } from './lib/supabase'
-import { BREAKPOINT } from './lib/styles'
-
-type Seksjon = 'analyse' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
 
 const MØRK = '#1a2a3e'
 const CREAM = '#f8f5ee'
 const CREAM_LYS = '#faf7f0'
 const GULL = '#c9a876'
 
-type Snarvei = {
-  id: Exclude<Seksjon, null>
-  emoji: string
-  tittel: string
-  beskrivelse: string
-  gradient: string
-  ring: string
-  tekst: string
+type Bolig = {
+  id: string
+  navn: string
+  kort_beskrivelse: string | null
+  pris_natt: number | null
+  maks_gjester: number | null
+  beliggenhet: string | null
+  soverom: string | number | null
+  bilde_url: string | null
 }
 
-const SEKSJONER: Snarvei[] = [
-  { id: 'flipp', emoji: '🔨', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste', gradient: 'linear-gradient(135deg, #FFE8D4 0%, #F5C294 100%)', ring: '#D4814E', tekst: '#7a3b10' },
-  { id: 'utleie', emoji: '🏝️', tittel: 'Boligutleie', beskrivelse: 'Dine utleieboliger i solen', gradient: 'linear-gradient(135deg, #D7F0EC 0%, #9BD7CB 100%)', ring: '#4FA3AE', tekst: '#1e5b62' },
-  { id: 'selge', emoji: '💎', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle', gradient: 'linear-gradient(135deg, #FBEFC9 0%, #E8CD7B 100%)', ring: '#B08030', tekst: '#6e4812' },
-  { id: 'regnskap', emoji: '📈', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport', gradient: 'linear-gradient(135deg, #EDF4E4 0%, #C0D9A5 100%)', ring: '#6b9055', tekst: '#2e4a1d' },
-]
+const fmtEur = (n: number | null) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : null
 
-const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
-  analyse: 'Boliganalyse',
-  flipp: 'Flipp',
-  utleie: 'Utleie',
-  selge: 'Selge',
-  regnskap: 'Regnskap',
-  logg: 'Aktivitetslogg',
-}
+export default function Forside() {
+  const [boliger, setBoliger] = useState<Bolig[]>([])
+  const [laster, setLaster] = useState(true)
+  const [feil, setFeil] = useState<string | null>(null)
 
-function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbakeSeksjon }: {
-  aktivSeksjon: Exclude<Seksjon, null>
-  visProsjekt: string | null
-  prosjektNavn: Record<string, string>
-  onHjem: () => void
-  onTilbakeSeksjon: () => void
-}) {
-  const seksjonLbl = SEKSJON_LBL[aktivSeksjon]
-  const navn = visProsjekt ? prosjektNavn[visProsjekt] : null
+  useEffect(() => {
+    let avbrutt = false
+    fetch('/api/utleie-portal')
+      .then(r => r.json())
+      .then((data: { boliger?: Bolig[]; feil?: string }) => {
+        if (avbrutt) return
+        if (data.feil) setFeil(data.feil)
+        else setBoliger(data.boliger || [])
+        setLaster(false)
+      })
+      .catch(e => {
+        if (avbrutt) return
+        setFeil(e instanceof Error ? e.message : 'Ukjent feil')
+        setLaster(false)
+      })
+    return () => { avbrutt = true }
+  }, [])
+
   return (
-    <div style={{ fontSize: 12, color: '#777', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <button onClick={onHjem} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 0, fontSize: 12 }}>🏠 Hjem</button>
-      <span style={{ color: '#bbb' }}>›</span>
-      {visProsjekt ? (
-        <>
-          <button onClick={onTilbakeSeksjon} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 0, fontSize: 12 }}>{seksjonLbl}</button>
-          <span style={{ color: '#bbb' }}>›</span>
-          <span style={{ color: '#1a2a3e', fontWeight: 600 }}>{navn || 'Prosjekt'}</span>
-        </>
-      ) : (
-        <span style={{ color: '#1a2a3e', fontWeight: 600 }}>{seksjonLbl}</span>
-      )}
+    <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh' }}>
+      <Header />
+
+      <section style={{ background: `linear-gradient(135deg, ${CREAM} 0%, ${CREAM_LYS} 100%)`, borderBottom: `1px solid ${GULL}22` }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 28px 64px', textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: GULL, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 14 }}>FERIEUTLEIE I SPANIA</div>
+          <h1 style={{ fontSize: 46, lineHeight: 1.15, fontWeight: 700, color: MØRK, margin: 0, marginBottom: 18 }}>
+            Solfylte hjem ved Middelhavet
+          </h1>
+          <p style={{ fontSize: 17, lineHeight: 1.6, color: '#555', margin: '0 auto 32px', maxWidth: 600 }}>
+            Håndplukkede utleieboliger i Spanias mest ettertraktede områder. Direkte kontakt med eier — ingen skjulte gebyrer.
+          </p>
+          <a href="#boliger" style={{ background: MØRK, color: 'white', textDecoration: 'none', borderRadius: 10, padding: '16px 32px', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em', display: 'inline-block' }}>
+            Se ledige boliger ↓
+          </a>
+        </div>
+      </section>
+
+      <section id="boliger" style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 28px 96px' }}>
+        <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 12 }}>VÅRE BOLIGER</div>
+        <h2 style={{ fontSize: 28, fontWeight: 700, color: MØRK, margin: '0 0 32px' }}>Tilgjengelige nå</h2>
+
+        {laster && <div style={{ textAlign: 'center', color: '#888', padding: 60 }}>⏳ Henter boliger...</div>}
+        {feil && <div style={{ background: '#fde8ec', border: '1.5px solid #C8102E', borderRadius: 10, padding: 20, color: '#7a0c1e' }}>Feil ved lasting: {feil}</div>}
+        {!laster && !feil && boliger.length === 0 && (
+          <div style={{ textAlign: 'center', color: '#888', padding: 60, background: '#fff', borderRadius: 16, border: `1px solid ${GULL}33` }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🏖️</div>
+            <p style={{ fontSize: 15, margin: 0 }}>Ingen boliger publisert ennå. Kom tilbake snart!</p>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+          {boliger.map(b => <BoligKort key={b.id} bolig={b} />)}
+        </div>
+      </section>
+
+      <Footer />
     </div>
   )
 }
 
-type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
-const NAV_LINKS: NavLink[] = [
-  { id: 'analyse', lbl: 'Boliganalyse' },
-  { id: 'flipp', lbl: 'Flipp' },
-  { id: 'utleie', lbl: 'Utleie' },
-  { id: 'selge', lbl: 'Selge' },
-  { id: 'regnskap', lbl: 'Regnskap' },
-  { id: 'gjoremal', lbl: 'Gjøremål' },
-  { id: 'logg', lbl: 'Aktivitetslogg' },
-]
-
-export default function Home() {
-  const [bruker, setBruker] = useState<string | null>(null)
-  const [aktivSeksjon, setAktivSeksjon] = useState<Seksjon>(null)
-  const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
-  const [erMobil, setErMobil] = useState(false)
-  const [mobilMenyApen, setMobilMenyApen] = useState(false)
-  const [prosjektNavn, setProsjektNavn] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    const lagret = hentAktivBruker()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (lagret) setBruker(lagret)
-  }, [])
-
-  useEffect(() => {
-    function sjekkBredde() { setErMobil(window.innerWidth < BREAKPOINT.mobil) }
-    sjekkBredde()
-    window.addEventListener('resize', sjekkBredde)
-    return () => window.removeEventListener('resize', sjekkBredde)
-  }, [])
-
-  useEffect(() => {
-    if (!bruker) return
-    supabase.from('prosjekter').select('id, navn').then(({ data }) => {
-      const map: Record<string, string> = {}
-      for (const p of (data || []) as Array<{ id: string; navn: string }>) map[p.id] = p.navn
-      setProsjektNavn(map)
-    })
-  }, [bruker, visProsjekt])
-
-  function loggInn(b: string) {
-    settAktivBruker(b)
-    setBruker(b)
-  }
-
-  function loggUt() {
-    fjernAktivBruker()
-    setBruker(null)
-    setAktivSeksjon(null)
-    setVisProsjekt(null)
-  }
-
-  if (!bruker) return <Innlogging onLoggetInn={loggInn} />
-
-  function åpneProsjekt(id: string) {
-    setAktivSeksjon('regnskap')
-    setVisProsjekt(id)
-  }
-
-  function hjem() {
-    setAktivSeksjon(null)
-    setVisProsjekt(null)
-  }
-
-  function gåTil(s: Seksjon) {
-    setAktivSeksjon(s)
-    setVisProsjekt(null)
-  }
-
-  function gåTilGjoremal() {
-    hjem()
-    setTimeout(() => {
-      document.getElementById('gjoremal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 100)
-  }
-
+function Header() {
   return (
-    <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh' }}>
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 20,
-        background: CREAM_LYS,
-        borderBottom: `1px solid ${GULL}44`,
-        padding: erMobil ? '8px 14px' : '10px 24px',
-        display: 'flex', alignItems: 'center', gap: 16,
-      }}>
-        <button onClick={hjem} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 12, flex: erMobil ? 1 : 'initial' }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={erMobil ? 36 : 48} height={erMobil ? 36 : 48} style={{ objectFit: 'contain' }} priority />
-          {!erMobil && <span style={{ fontSize: 14, fontWeight: 700, color: MØRK, letterSpacing: '0.08em' }}>LEGANGER &amp; OSVAAG</span>}
-        </button>
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 20,
+      background: CREAM_LYS,
+      borderBottom: `1px solid ${GULL}44`,
+      padding: '12px 24px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
+      <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+        <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={44} height={44} style={{ objectFit: 'contain' }} priority />
+        <span style={{ fontSize: 14, fontWeight: 700, color: MØRK, letterSpacing: '0.08em' }}>LEGANGER &amp; OSVAAG</span>
+      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <a href="#boliger" style={{ fontSize: 14, color: MØRK, textDecoration: 'none', fontWeight: 500 }}>Boliger</a>
+        <a href="#kontakt" style={{ fontSize: 14, color: MØRK, textDecoration: 'none', fontWeight: 500 }}>Kontakt</a>
+        <Link href="/admin" style={{ fontSize: 12, color: '#777', textDecoration: 'none', border: `1px solid ${GULL}66`, padding: '6px 12px', borderRadius: 6 }}>Logg inn</Link>
+      </div>
+    </nav>
+  )
+}
 
-        {!erMobil && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 22, flexWrap: 'wrap' }}>
-            {NAV_LINKS.map(l => {
-              const aktiv = aktivSeksjon === l.id
-              const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
-              return (
-                <button key={l.id} onClick={onClick}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 14, fontWeight: aktiv ? 700 : 500,
-                    color: aktiv ? MØRK : '#555',
-                    padding: '6px 2px',
-                    borderBottom: aktiv ? `2px solid ${GULL}` : '2px solid transparent',
-                  }}>{l.lbl}</button>
-              )
-            })}
-          </div>
-        )}
-
-        {!erMobil && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, cursor: 'pointer' }}>Logg ut</button>
-          </div>
-        )}
-
-        {erMobil && (
-          <button onClick={() => setMobilMenyApen(o => !o)}
-            aria-label="Meny"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, fontSize: 24, color: MØRK }}>
-            {mobilMenyApen ? '✕' : '☰'}
-          </button>
-        )}
-      </nav>
-
-      {erMobil && mobilMenyApen && (
-        <div style={{ background: CREAM_LYS, borderBottom: `1px solid ${GULL}44`, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {NAV_LINKS.map(l => {
-            const aktiv = aktivSeksjon === l.id
-            const onClick = () => {
-              if (l.id === 'gjoremal') gåTilGjoremal()
-              else gåTil(l.id as Seksjon)
-              setMobilMenyApen(false)
-            }
-            return (
-              <button key={l.id} onClick={onClick}
-                style={{
-                  background: aktiv ? `${GULL}22` : 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 15, fontWeight: aktiv ? 700 : 500, color: MØRK,
-                  padding: '10px 12px', textAlign: 'left', borderRadius: 6,
-                }}>{l.lbl}</button>
-            )
-          })}
-          <div style={{ borderTop: '1px solid #eee', margin: '6px 0', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px' }}>
-            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600 }}>👤 {bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer' }}>Logg ut</button>
+function BoligKort({ bolig }: { bolig: Bolig }) {
+  const pris = fmtEur(bolig.pris_natt)
+  return (
+    <Link href={`/bolig/${bolig.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div style={{ background: 'white', borderRadius: 16, overflow: 'hidden', border: `1px solid ${GULL}33`, transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 16px 32px ${MØRK}22` }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
+      >
+        <div style={{ width: '100%', height: 220, background: '#f0ede5', position: 'relative' }}>
+          {bolig.bilde_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={bolig.bilde_url} alt={bolig.navn} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#ccc' }}>🏖️</div>
+          )}
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ fontSize: 11, color: '#888', letterSpacing: '0.05em', marginBottom: 6 }}>{bolig.beliggenhet || 'Spania'}</div>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: MØRK, margin: '0 0 10px', lineHeight: 1.3 }}>{bolig.navn}</h3>
+          {bolig.kort_beskrivelse && <p style={{ fontSize: 13, color: '#666', lineHeight: 1.5, margin: '0 0 14px' }}>{bolig.kort_beskrivelse}</p>}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${GULL}22`, paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#777' }}>
+              {bolig.soverom ? `${bolig.soverom} sov` : ''}
+              {bolig.soverom && bolig.maks_gjester ? ' · ' : ''}
+              {bolig.maks_gjester ? `${bolig.maks_gjester} gjester` : ''}
+            </div>
+            {pris && <div style={{ fontSize: 16, fontWeight: 700, color: MØRK }}>{pris}<span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}> /natt</span></div>}
           </div>
         </div>
-      )}
+      </div>
+    </Link>
+  )
+}
 
-      {!aktivSeksjon && (
-        <>
-          <section style={{ background: `linear-gradient(135deg, ${CREAM} 0%, ${CREAM_LYS} 100%)`, borderBottom: `1px solid ${GULL}22` }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 28px', display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)', gap: 48, alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 13, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 12 }}>INVESTERER I HUS I SPANIA</div>
-                <h1 style={{ fontSize: 42, lineHeight: 1.15, fontWeight: 700, color: MØRK, margin: 0, marginBottom: 16 }}>
-                  Din partner for eiendoms&shy;investering i Spania
-                </h1>
-                <p style={{ fontSize: 16, lineHeight: 1.6, color: '#555', margin: 0, marginBottom: 28, maxWidth: 520 }}>
-                  Analyser eiendommer, følg opp prosjekter og få AI-drevne salgs- og utleieestimater — alt på ett sted.
-                </p>
-                <button onClick={() => gåTil('analyse')} style={{ background: MØRK, color: 'white', border: 'none', borderRadius: 10, padding: '16px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}>
-                  🔍  Analyser ny bolig  →
-                </button>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={340} height={340} style={{ objectFit: 'contain', maxWidth: '100%', height: 'auto' }} priority />
-              </div>
-            </div>
-          </section>
-
-          <section style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 28px 80px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 32 }}>
-              <div>
-                <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>SNARVEIER</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-                  {SEKSJONER.map(boks => (
-                    <div
-                      key={boks.id}
-                      onClick={() => gåTil(boks.id)}
-                      style={{
-                        background: boks.gradient,
-                        border: `1.5px solid ${boks.ring}55`,
-                        borderRadius: 16,
-                        padding: 24,
-                        cursor: 'pointer',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                      }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px) rotate(-0.5deg)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 28px ${boks.ring}44`
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0) rotate(0)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'
-                      }}
-                    >
-                      <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 96, opacity: 0.18, lineHeight: 1, transform: 'rotate(12deg)' }}>{boks.emoji}</div>
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ fontSize: 40, marginBottom: 10 }}>{boks.emoji}</div>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: boks.tekst, marginBottom: 4 }}>{boks.tittel}</div>
-                        <div style={{ fontSize: 12.5, color: boks.tekst, opacity: 0.75, lineHeight: 1.4 }}>{boks.beskrivelse}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div id="gjoremal">
-                <div style={{ fontSize: 12, color: GULL, letterSpacing: '0.12em', fontWeight: 700, marginBottom: 14 }}>GJØREMÅL</div>
-                <Oppgaver />
-              </div>
-            </div>
-          </section>
-        </>
-      )}
-
-      {aktivSeksjon && (
-        <main style={{ maxWidth: 1000, margin: '0 auto', padding: erMobil ? '16px 14px 100px' : '32px 28px 100px' }}>
-          <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
-
-          {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
-          {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
-          {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
-          {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
-          {aktivSeksjon === 'regnskap' && (
-            <Regnskap
-              onTilbake={hjem}
-              visProsjektId={visProsjekt}
-              onSettVisProsjekt={setVisProsjekt}
-            />
-          )}
-          {aktivSeksjon === 'logg' && <Aktivitetslogg onTilbake={hjem} />}
-        </main>
-      )}
-
-      <AgentChat />
-    </div>
+function Footer() {
+  return (
+    <footer id="kontakt" style={{ background: MØRK, color: 'white', padding: '48px 28px' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 32 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 12 }}>LEGANGER &amp; OSVAAG</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>Eiendomsutleie i Spania siden 2024</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 10, color: GULL }}>KONTAKT</div>
+          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <a href="mailto:post@loeiendom.com" style={{ color: 'white', textDecoration: 'none' }}>post@loeiendom.com</a><br />
+            <a href="https://loeiendom.com" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>loeiendom.com</a>
+          </div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 1200, margin: '32px auto 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+        © {new Date().getFullYear()} Leganger &amp; Osvaag Eiendom
+      </div>
+    </footer>
   )
 }

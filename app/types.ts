@@ -85,6 +85,29 @@ export type Prosjekt = {
   salgsanalyse_generert?: string | null
   salgsanalyse_modell_versjon?: string | null
   dokumentcheck_status?: Record<string, DokumentStatus> | null
+  publisert_utleie?: boolean
+  utleie_pris_natt?: number | null
+  utleie_pris_uke?: number | null
+  utleie_min_netter?: number | null
+  utleie_maks_gjester?: number | null
+  utleie_beskrivelse?: string | null
+  utleie_kort_beskrivelse?: string | null
+  utleie_fasiliteter?: string[] | null
+}
+
+export type UtleieForesporsel = {
+  id: string
+  prosjekt_id: string | null
+  navn: string
+  epost: string
+  telefon: string | null
+  fra_dato: string | null
+  til_dato: string | null
+  antall_gjester: number | null
+  melding: string | null
+  sendt_til_epost: string | null
+  resend_id: string | null
+  opprettet: string
 }
 
 export type DokumentStatus = {
@@ -326,6 +349,8 @@ export type Prosjektbilde = {
   generert_av: string | null
   opprettet_av: string
   opprettet: string
+  er_marketing?: boolean
+  marketing_rekkefolge?: number | null
 }
 
 export type FaktiskeInntekter = Record<string, number>
