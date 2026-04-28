@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { PortalHeader } from '../../components/portal/PortalHeader'
 import { InteresseModal } from '../../components/portal/InteresseModal'
-import { useSprak } from '../../lib/i18n'
+import { useSprak, useValuta } from '../../lib/i18n'
 
 const MØRK = '#0e1726'
 const CREAM = '#fafaf6'
@@ -36,7 +36,6 @@ type BoligDetalj = {
   bilder: { id: string; url: string | null }[]
 }
 
-const fmtEur = (n: number | null) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : null
 
 export default function BoligDetaljSide({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -167,18 +166,19 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
 
 function PrisStripe({ bolig, onForesporsel }: { bolig: BoligDetalj; onForesporsel: () => void }) {
   const { t } = useSprak()
+  const { formater } = useValuta()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap', borderTop: `1px solid ${GULL}33`, paddingTop: 28 }}>
       {bolig.til_salgs && bolig.salgspris_eur && (
         <div>
           <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.til_salgs}</div>
-          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{fmtEur(bolig.salgspris_eur)}</div>
+          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
         </div>
       )}
       {bolig.til_leie && bolig.pris_natt && (
         <div>
           <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.til_leie}</div>
-          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{fmtEur(bolig.pris_natt)}<span style={{ fontSize: 14, color: '#888', fontWeight: 300 }}>{t.per_natt}</span></div>
+          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 14, color: '#888', fontWeight: 300 }}>{t.per_natt}</span></div>
         </div>
       )}
       {bolig.bolig_data.areal && (
@@ -280,20 +280,21 @@ function BildeGalleri({ bilder, aktiv, onVelg }: { bilder: { id: string; url: st
 
 function SidePanel({ bolig, onForesporsel }: { bolig: BoligDetalj; onForesporsel: () => void }) {
   const { t } = useSprak()
+  const { formater } = useValuta()
   return (
     <aside style={{ position: 'sticky', top: 96, alignSelf: 'start', background: 'white', border: `1px solid ${GULL}33`, padding: 32 }}>
       <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${GULL}22` }}>
         {bolig.til_salgs && bolig.salgspris_eur && (
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>{t.til_salgs}</div>
-            <div style={{ fontSize: 26, fontWeight: 400, color: MØRK }}>{fmtEur(bolig.salgspris_eur)}</div>
+            <div style={{ fontSize: 26, fontWeight: 400, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
           </div>
         )}
         {bolig.til_leie && (
           <div>
             <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>{t.til_leie}</div>
-            {bolig.pris_natt && <div style={{ fontSize: 22, fontWeight: 400, color: MØRK }}>{fmtEur(bolig.pris_natt)}<span style={{ fontSize: 13, color: '#888' }}>{t.per_natt}</span></div>}
-            {bolig.pris_uke && <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>{fmtEur(bolig.pris_uke)}{t.per_uke}</div>}
+            {bolig.pris_natt && <div style={{ fontSize: 22, fontWeight: 400, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 13, color: '#888' }}>{t.per_natt}</span></div>}
+            {bolig.pris_uke && <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>{formater(bolig.pris_uke)}{t.per_uke}</div>}
             {bolig.min_netter && <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>{t.min_opphold}: {bolig.min_netter} {t.natter}</div>}
           </div>
         )}

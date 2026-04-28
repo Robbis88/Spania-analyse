@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { PortalHeader } from './components/portal/PortalHeader'
 import { InteresseModal } from './components/portal/InteresseModal'
-import { useSprak } from './lib/i18n'
+import { useSprak, useValuta } from './lib/i18n'
 
 const MØRK = '#0e1726'
 const CREAM = '#fafaf6'
@@ -30,7 +30,6 @@ type Bolig = {
 
 type Filter = 'alle' | 'leie' | 'salgs'
 
-const fmtEur = (n: number | null) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : null
 
 export default function Forside() {
   const { t } = useSprak()
@@ -248,11 +247,12 @@ function BildeSlideshow({ bilder, alt, offsetMs, children }: { bilder: string[];
 
 function Pris({ bolig }: { bolig: Bolig }) {
   const { t } = useSprak()
+  const { formater } = useValuta()
   if (bolig.til_salgs && bolig.salgspris_eur) {
-    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{fmtEur(bolig.salgspris_eur)}</div>
+    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
   }
   if (bolig.til_leie && bolig.pris_natt) {
-    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{fmtEur(bolig.pris_natt)}<span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>{t.per_natt}</span></div>
+    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>{t.per_natt}</span></div>
   }
   return <div style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>{t.pris_paa_foresporsel}</div>
 }

@@ -271,3 +271,87 @@ export function useSprak(): { sprak: Sprak; settSprak: (s: Sprak) => void; t: St
 
   return { sprak, settSprak, t: hentStrenger(sprak) }
 }
+
+// === VALUTA ===
+// Følger språkvalget. Priser er lagret i EUR i databasen — vi konverterer
+// til visningsvaluta og formaterer etter locale.
+
+export type Valuta = 'EUR' | 'NOK' | 'DKK' | 'SEK'
+
+export const VALUTA_PER_SPRAK: Record<Sprak, Valuta> = {
+  no: 'NOK', en: 'EUR', es: 'EUR', fr: 'EUR', de: 'EUR', nl: 'EUR', da: 'DKK', sv: 'SEK',
+}
+
+const VALUTA_LOCALE: Record<Valuta, string> = {
+  EUR: 'de-DE', NOK: 'nb-NO', DKK: 'da-DK', SEK: 'sv-SE',
+}
+
+const VALUTA_SYMBOL: Record<Valuta, string> = {
+  EUR: '€', NOK: 'kr', DKK: 'kr', SEK: 'kr',
+}
+
+const KURS_NOEKKEL = 'lo-portal-kurser'
+const KURS_TTL_MS = 1000 * 60 * 60 * 24 // 24 timer
+
+type KursData = { hentet: number; rates: Record<string, number> }
+
+async function hentKurser(): Promise<Record<string, number>> {
+  if (typeof window === 'undefined') return { EUR: 1, NOK: 11.8, DKK: 7.46, SEK: 11.3 }
+
+  // Sjekk localStorage
+  try {
+    const lagret = window.localStorage.getItem(KURS_NOEKKEL)
+    if (lagret) {
+      const data: KursData = JSON.parse(lagret)
+      if (Date.now() - data.hentet < KURS_TTL_MS) return data.rates
+    }
+  } catch { /* ignore */ }
+
+  // Hent fra ECB via frankfurter.app (gratis, ingen nøkkel)
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=NOK,DKK,SEK')
+    const data = await res.json()
+    const rates = { EUR: 1, ...(data.rates || {}) }
+    window.localStorage.setItem(KURS_NOEKKEL, JSON.stringify({ hentet: Date.now(), rates }))
+    return rates
+  } catch {
+    // Fallback til omtrentlige kurser hvis API-et er nede
+    return { EUR: 1, NOK: 11.8, DKK: 7.46, SEK: 11.3 }
+  }
+}
+
+export function useValuta(): {
+  valuta: Valuta
+  formater: (eurBeloep: number | null | undefined) => string
+  symbol: string
+} {
+  const { sprak } = useSprak()
+  const valuta = VALUTA_PER_SPRAK[sprak] || 'EUR'
+  const [kurser, setKurser] = useState<Record<string, number>>({ EUR: 1, NOK: 11.8, DKK: 7.46, SEK: 11.3 })
+
+  useEffect(() => {
+    let aktiv = true
+    void hentKurser().then(r => { if (aktiv) setKurser(r) })
+    return () => { aktiv = false }
+  }, [])
+
+  function formater(eurBeloep: number | null | undefined): string {
+    if (!eurBeloep || !Number.isFinite(eurBeloep)) return '–'
+    const kurs = kurser[valuta] || 1
+    const omregnet = eurBeloep * kurs
+    // Avrund: små tall presist, store tall til nærmeste 100/1000
+    let avrundet = omregnet
+    if (omregnet > 100000) avrundet = Math.round(omregnet / 1000) * 1000
+    else if (omregnet > 1000) avrundet = Math.round(omregnet / 10) * 10
+    else avrundet = Math.round(omregnet)
+    try {
+      return new Intl.NumberFormat(VALUTA_LOCALE[valuta], {
+        style: 'currency', currency: valuta, maximumFractionDigits: 0,
+      }).format(avrundet)
+    } catch {
+      return `${VALUTA_SYMBOL[valuta]} ${avrundet.toLocaleString()}`
+    }
+  }
+
+  return { valuta, formater, symbol: VALUTA_SYMBOL[valuta] }
+}
