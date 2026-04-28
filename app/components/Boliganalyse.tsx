@@ -29,8 +29,14 @@ type AnalyseResultat = {
   type?: string
   beliggenhet?: string
   soverom?: number
+  bad?: number
   areal?: number
+  byggear?: number
+  tomt_m2?: number
   avstand_strand_m?: number
+  basseng?: string
+  parkering?: string
+  havutsikt?: string
   bolig_standard?: string
   pris?: number
   markedspris_standard_m2?: number
@@ -44,6 +50,9 @@ type AnalyseResultat = {
   yield_estimat?: number
   vft_score?: number
   ai_vurdering?: string
+  annonse_beskrivelse?: string
+  kort_oppsummering?: string
+  fasiliteter?: string[]
 }
 
 export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
@@ -198,6 +207,102 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
     void lastNedPdf(nytt.id)
   }
 
+  // Lagre + auto-fyll portal-feltene fra analysen, slik at admin bare må
+  // gjennomgå og publisere i Portal-fanen. Setter ikke publisert-flaggene —
+  // det skal være et bevisst valg.
+  async function lagreTilPortal() {
+    if (!result) return
+    const navn = result.tittel || result.beliggenhet || 'Analysert bolig'
+    const bolig_data: BoligData = {
+      type: bolig.type || result.type,
+      beliggenhet: bolig.beliggenhet || result.beliggenhet,
+      soverom: bolig.soverom || result.soverom,
+      bad: bolig.bad || result.bad,
+      areal: bolig.areal || result.areal,
+      avstand_strand: bolig.avstand_strand || result.avstand_strand_m,
+      basseng: bolig.basseng || result.basseng,
+      parkering: bolig.parkering || result.parkering,
+      havutsikt: bolig.havutsikt || result.havutsikt,
+      standard: bolig.standard || result.bolig_standard,
+      pris: bolig.pris || result.pris,
+      ekstra: bolig.ekstra,
+      markedspris_standard_m2: result.markedspris_standard_m2,
+      markedspris_bra_m2: Number(bolig.markedspris_bra_m2) || result.markedspris_bra_m2,
+      markedspris_luksus_m2: result.markedspris_luksus_m2,
+      markedspris_begrunnelse: result.markedspris_begrunnelse,
+      oppussing_vurdering: result.oppussing_vurdering,
+      anbefalt_strategi: result.anbefalt_strategi,
+      vft_score: result.vft_score,
+    }
+
+    // Hent gjennomsnittlig nattpris fra airbnb-analysen om mulig
+    const realistisk = airbnbData?.scenarier?.realistisk
+    const nattpris = realistisk
+      ? Math.round(realistisk.brutto_etablert / 365 / (realistisk.belegg_etablert || 0.6))
+      : null
+    const ukepris = nattpris ? nattpris * 7 : null
+
+    const soverom = Number(bolig.soverom || result.soverom) || 0
+    const maksGjester = soverom > 0 ? soverom * 2 : null
+
+    const kortBeskrivelse = result.kort_oppsummering
+      || (result.ai_vurdering ? result.ai_vurdering.slice(0, 140) : '')
+    const fullBeskrivelse = result.annonse_beskrivelse || result.ai_vurdering || ''
+
+    const portalFelter = {
+      // Pre-fyll, men ikke publiser — admin må huke av selv
+      utleie_pris_natt: nattpris,
+      utleie_pris_uke: ukepris,
+      utleie_maks_gjester: maksGjester,
+      utleie_min_netter: 3,
+      utleie_kort_beskrivelse: kortBeskrivelse,
+      utleie_beskrivelse: fullBeskrivelse,
+      utleie_fasiliteter: result.fasiliteter && result.fasiliteter.length > 0 ? result.fasiliteter : null,
+      salgspris_eur: bolig.pris ? Number(bolig.pris) : (result.pris || null),
+      salg_kort_beskrivelse: kortBeskrivelse,
+      salg_beskrivelse: fullBeskrivelse,
+      byggear: result.byggear || null,
+      tomt_m2: result.tomt_m2 || null,
+    }
+
+    const nytt: Prosjekt = {
+      ...tomtProsjekt(),
+      id: Date.now().toString(),
+      navn,
+      kategori: 'utleie',
+      status: 'Under vurdering',
+      kjøpesum: Number(bolig.pris) || result.pris || 0,
+      oppussingsbudsjett: Number(bolig.oppbudsjett) || 0,
+      lån_mnd: result.mnd_betaling || 0,
+      notater:
+        `Lagret til portal-vurdering ${new Date().toLocaleDateString('nb-NO')}\n\n` +
+        `Type: ${bolig_data.type || '-'}\n` +
+        `Beliggenhet: ${bolig_data.beliggenhet || '-'}\n` +
+        `Pris: €${(Number(bolig.pris) || result.pris || 0).toLocaleString('nb-NO')}\n` +
+        (airbnbScore ? `\nScore: ${airbnbScore.total}/10 ${airbnbScore.lys}\n` : '') +
+        (result.ai_vurdering ? `\nAI-vurdering: ${result.ai_vurdering}` : ''),
+      bolig_data,
+      ai_vurdering: result.ai_vurdering || null,
+      airbnb_analyse: airbnbAnalyse || null,
+      airbnb_score: airbnbScore,
+      airbnb_data: airbnbData,
+    }
+
+    const bruker = hentAktivBruker() || 'ukjent'
+    const { error } = await supabase
+      .from('prosjekter')
+      .insert([{ ...nytt, ...portalFelter, bruker }])
+    if (error) {
+      setLagreMelding('❌ Feil ved lagring: ' + error.message)
+      setTimeout(() => setLagreMelding(''), 5000)
+      return
+    }
+    await loggAktivitet({ handling: 'lagret ny bolig til portal-vurdering', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn } })
+    setLagretId(nytt.id)
+    setLagreMelding('✅ Lagret med auto-utfylte portalfelter. Åpne «🌐 Portal»-fanen i Regnskap for å gjennomgå og publisere. Henter PDF...')
+    void lastNedPdf(nytt.id)
+  }
+
   return (
     <div>
       <button onClick={() => { onTilbake(); nullstill() }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
@@ -319,10 +424,22 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           )}
           <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f33', borderRadius: 6, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legg til som bolig til vurdering</div>
-            <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten — boligen blir liggende der til du sletter den eller endrer status.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
               <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — utleie</button>
               <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : 'transparent', color: lagretId ? 'white' : '#0e1726', border: '1px solid #b89a6f55', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — flipp</button>
+            </div>
+            <div style={{ borderTop: '1px solid #b89a6f33', paddingTop: 12 }}>
+              <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px', letterSpacing: '0.04em' }}>
+                ELLER — auto-fyll alle portal-feltene fra Finn-annonsen i tillegg
+              </p>
+              <button onClick={lagreTilPortal} disabled={!!lagretId}
+                style={{ width: '100%', background: lagretId ? '#888' : '#b89a6f', color: 'white', border: 'none', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                🌐 Til portal — auto-fyll fra annonsen
+              </button>
+              <p style={{ fontSize: 11, color: '#999', margin: '8px 0 0', lineHeight: 1.5 }}>
+                Lagrer + setter pris/uke/natt, beskrivelser, fasiliteter, byggeår og tomt fra annonsen. Du gjennomgår og publiserer i Portal-fanen i Regnskap.
+              </p>
             </div>
             {lagreMelding && (
               <div style={{ marginTop: 12, padding: 12, background: lagreMelding.startsWith('✅') ? '#e8f5ed' : '#fde8ec', border: `1.5px solid ${lagreMelding.startsWith('✅') ? '#2D7D46' : '#C8102E'}`, borderRadius: 8, fontSize: 13, color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500 }}>

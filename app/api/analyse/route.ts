@@ -15,7 +15,7 @@ async function hentNettside(url: string): Promise<string> {
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 6000)
+      .slice(0, 12000)
   } catch {
     return ''
   }
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1500,
+      max_tokens: 2500,
       messages: [{
         role: 'user',
         content: `Du er ekspert på spansk eiendomsmarked med dyp kunnskap om priser per kvadratmeter i alle områder langs kysten.
@@ -116,14 +116,21 @@ Estimer realistiske markedspriser for tre nivåer:
 - Bra: moderne kjøkken og bad, god kvalitet materialer
 - Luksus: toppkvalitet, premium materialer, arkitekttegnet
 
-Returner dette:
+Returner dette (ingen markdown, kun gyldig JSON):
 {
   "tittel": "eksakt tittel fra annonsen",
   "pris": 0,
   "type": "Villa / Enebolig / Leilighet / Rekkehus",
   "beliggenhet": "by og nabolag i Spania",
   "soverom": 0,
+  "bad": 0,
   "areal": 0,
+  "byggear": 0,
+  "tomt_m2": 0,
+  "avstand_strand_m": 0,
+  "basseng": "privat / felles / ingen",
+  "parkering": "garasje / privat / felles / ingen",
+  "havutsikt": "ja / delvis / nei",
   "vft_mulig": true,
   "markedspris_standard_m2": 0,
   "markedspris_bra_m2": 0,
@@ -132,8 +139,13 @@ Returner dette:
   "oppussing_vurdering": "2-3 setninger om oppussingspotensial for akkurat denne eiendommen",
   "ai_vurdering": "4-5 setninger på norsk om denne eiendommen som investering",
   "anbefalt_strategi": "turistutleie / sesongutleie / langtidsleie",
-  "neste_steg": ["steg 1", "steg 2", "steg 3"]
-}`
+  "neste_steg": ["steg 1", "steg 2", "steg 3"],
+  "annonse_beskrivelse": "selve teksten fra annonsen (renset for navigasjon, knapper og priser) — det selger eiendommen",
+  "kort_oppsummering": "1-2 setninger på norsk som beskriver boligen som en megler ville pitchet den (under 140 tegn)",
+  "fasiliteter": ["liste over fasiliteter funnet i annonsen, f.eks. 'Klimaanlegg', 'Wifi', 'Oppvaskmaskin', 'Privat basseng', 'Terrasse', 'Hage', 'Heis', 'Sikkerhetstjeneste'"]
+}
+
+Sett tall til 0 hvis ikke oppgitt. Sett strenger til "" hvis ikke oppgitt. Sett fasiliteter til [] hvis du ikke finner noen. annonse_beskrivelse skal være selve fortellingen om boligen — ikke meta-info, ikke priser, ikke navigasjon.`
       }]
     })
 
