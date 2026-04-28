@@ -1,6 +1,8 @@
 'use client'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState } from 'react'
+import { FARGER, RADIUS } from '../lib/styles'
 
 export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => void }) {
   const [brukernavnInput, setBrukernavnInput] = useState('')
@@ -26,43 +28,89 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => v
     setSjekker(false)
   }
 
-  const inputKant = (harFeil: boolean) => harFeil ? '2px solid #C8102E' : '1.5px solid #ddd'
+  const inputKant = (harFeil: boolean) =>
+    harFeil ? `1.5px solid ${FARGER.feil}` : `1px solid ${FARGER.kant}`
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8', fontFamily: 'sans-serif' }}>
-      <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 480, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag Eiendom" width={320} height={320} style={{ objectFit: 'contain', display: 'block', margin: '0 auto 8px', maxWidth: '100%', height: 'auto' }} priority />
+    <main style={{
+      minHeight: '100vh',
+      background: `linear-gradient(180deg, ${FARGER.creamLys} 0%, ${FARGER.cream} 100%)`,
+      fontFamily: 'sans-serif', color: FARGER.tekstMork,
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <header style={{
+        padding: '20px 28px', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: `1px solid ${FARGER.gullSvak}`,
+      }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+          <Image src="/logo.png" alt="Leganger & Osvaag" width={40} height={40} style={{ objectFit: 'contain' }} priority />
+          <span style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, letterSpacing: '0.18em' }}>LEGANGER &amp; OSVAAG</span>
+        </Link>
+        <Link href="/" style={{ fontSize: 11, color: FARGER.tekstLys, textDecoration: 'none', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          ← Til portalen
+        </Link>
+      </header>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 28px' }}>
+        <div style={{ width: '100%', maxWidth: 440 }}>
+          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>ADMIN</div>
+            <h1 style={{ fontSize: 30, fontWeight: 300, color: FARGER.mork, margin: 0, letterSpacing: '-0.01em' }}>
+              Logg inn
+            </h1>
+          </div>
+
+          <div style={{
+            background: FARGER.hvit,
+            border: `1px solid ${FARGER.kantLys}`,
+            padding: 36,
+          }}>
+            <div style={{ marginBottom: 18 }}>
+              <label style={lblStil}>Brukernavn</label>
+              <input
+                type="text"
+                value={brukernavnInput}
+                onChange={e => setBrukernavnInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loggInn()}
+                placeholder="Brukernavn"
+                autoComplete="username"
+                style={{ width: '100%', padding: '12px 14px', fontSize: 14, borderRadius: RADIUS.sm, border: inputKant(feil), fontFamily: 'sans-serif', background: FARGER.hvit, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: 22 }}>
+              <label style={lblStil}>Passord</label>
+              <input
+                type="password"
+                value={passordInput}
+                onChange={e => setPassordInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loggInn()}
+                placeholder="Passord"
+                autoComplete="current-password"
+                style={{ width: '100%', padding: '12px 14px', fontSize: 14, borderRadius: RADIUS.sm, border: inputKant(feil), fontFamily: 'sans-serif', background: FARGER.hvit, boxSizing: 'border-box' }}
+              />
+              {feil && <div style={{ color: FARGER.feil, fontSize: 12, marginTop: 8 }}>Feil brukernavn eller passord. Prøv igjen.</div>}
+            </div>
+            <button onClick={loggInn} disabled={sjekker} style={{
+              width: '100%',
+              background: sjekker ? FARGER.tekstLys : FARGER.mork,
+              color: FARGER.creamLys,
+              border: 'none', padding: 14,
+              fontSize: 12, fontWeight: 600,
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              cursor: sjekker ? 'not-allowed' : 'pointer',
+              borderRadius: RADIUS.sm,
+            }}>
+              {sjekker ? 'Sjekker...' : 'Logg inn'}
+            </button>
+          </div>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: '#666', marginBottom: 6, display: 'block' }}>Brukernavn</label>
-          <input
-            type="text"
-            value={brukernavnInput}
-            onChange={e => setBrukernavnInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && loggInn()}
-            placeholder="Skriv inn brukernavn"
-            autoComplete="username"
-            style={{ width: '100%', padding: '12px 14px', fontSize: 15, borderRadius: 8, border: inputKant(feil), fontFamily: 'sans-serif' }}
-          />
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: '#666', marginBottom: 6, display: 'block' }}>Passord</label>
-          <input
-            type="password"
-            value={passordInput}
-            onChange={e => setPassordInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && loggInn()}
-            placeholder="Skriv inn passord"
-            autoComplete="current-password"
-            style={{ width: '100%', padding: '12px 14px', fontSize: 15, borderRadius: 8, border: inputKant(feil), fontFamily: 'sans-serif' }}
-          />
-          {feil && <div style={{ color: '#C8102E', fontSize: 13, marginTop: 6 }}>Feil brukernavn eller passord, prøv igjen.</div>}
-        </div>
-        <button onClick={loggInn} disabled={sjekker} style={{ width: '100%', background: sjekker ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: sjekker ? 'not-allowed' : 'pointer' }}>
-          {sjekker ? '⏳ Sjekker...' : 'Logg inn'}
-        </button>
       </div>
     </main>
   )
+}
+
+const lblStil: React.CSSProperties = {
+  fontSize: 10, color: FARGER.tekstMid, marginBottom: 8, display: 'block',
+  letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
 }
