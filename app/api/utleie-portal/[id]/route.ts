@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
     const { data: p, error } = await admin
       .from('prosjekter')
-      .select('id, navn, publisert_utleie, publisert_salg, utleie_pris_natt, utleie_pris_uke, utleie_min_netter, utleie_maks_gjester, utleie_beskrivelse, utleie_kort_beskrivelse, utleie_fasiliteter, salgspris_eur, salg_kort_beskrivelse, salg_beskrivelse, byggear, tomt_m2, kort_avstand, bolig_data')
+      .select('id, navn, publisert_utleie, publisert_salg, utleie_pris_natt, utleie_pris_uke, utleie_min_netter, utleie_maks_gjester, utleie_beskrivelse, utleie_kort_beskrivelse, utleie_fasiliteter, salgspris_eur, salg_kort_beskrivelse, salg_beskrivelse, byggear, tomt_m2, kort_avstand, bolig_data, navn_oversettelser, utleie_kort_oversettelser, utleie_beskrivelse_oversettelser, salg_kort_oversettelser, salg_beskrivelse_oversettelser, utleie_fasiliteter_oversettelser')
       .eq('id', id)
       .maybeSingle()
 
@@ -59,6 +59,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         // Felles
         bolig_data: p.bolig_data || {},
         bilder: bildeUrler.filter(b => b.url),
+        // Oversettelser (klient velger riktig språk)
+        navn_oversettelser: p.navn_oversettelser || null,
+        utleie_kort_oversettelser: p.utleie_kort_oversettelser || null,
+        utleie_beskrivelse_oversettelser: p.utleie_beskrivelse_oversettelser || null,
+        salg_kort_oversettelser: p.salg_kort_oversettelser || null,
+        salg_beskrivelse_oversettelser: p.salg_beskrivelse_oversettelser || null,
+        utleie_fasiliteter_oversettelser: p.utleie_fasiliteter_oversettelser || null,
       },
     })
   } catch (e) {

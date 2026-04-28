@@ -234,6 +234,30 @@ const SV: Strenger = { ...EN, logg_inn: 'Logga in', registrer_interesse: 'Anmäl
 
 const ALLE: Record<Sprak, Strenger> = { no: NO, en: EN, es: ES, fr: FR, de: DE, nl: NL, da: DA, sv: SV }
 
+// Velger oversatt versjon hvis tilgjengelig, ellers original.
+// Brukes på portal-tekster lagret som { no: "...", en: "..." }-objekter.
+export function plukkOversettelse(
+  oversettelser: Record<string, string> | null | undefined,
+  sprak: Sprak,
+  fallback: string | null | undefined,
+): string {
+  if (oversettelser && oversettelser[sprak] && oversettelser[sprak].trim()) {
+    return oversettelser[sprak]
+  }
+  return fallback || ''
+}
+
+export function plukkOversettelseListe(
+  oversettelser: Record<string, string[]> | null | undefined,
+  sprak: Sprak,
+  fallback: string[] | null | undefined,
+): string[] {
+  if (oversettelser && Array.isArray(oversettelser[sprak]) && oversettelser[sprak].length > 0) {
+    return oversettelser[sprak]
+  }
+  return fallback || []
+}
+
 export function hentStrenger(sprak: Sprak): Strenger {
   return ALLE[sprak] || NO
 }

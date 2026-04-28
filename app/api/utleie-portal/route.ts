@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     let query = admin
       .from('prosjekter')
-      .select('id, navn, utleie_kort_beskrivelse, utleie_pris_natt, utleie_maks_gjester, salg_kort_beskrivelse, salgspris_eur, publisert_utleie, publisert_salg, bolig_data')
+      .select('id, navn, utleie_kort_beskrivelse, utleie_pris_natt, utleie_maks_gjester, salg_kort_beskrivelse, salgspris_eur, publisert_utleie, publisert_salg, bolig_data, navn_oversettelser, utleie_kort_oversettelser, salg_kort_oversettelser')
       .order('opprettet', { ascending: false })
 
     if (type === 'utleie') query = query.eq('publisert_utleie', true)
@@ -50,10 +50,13 @@ export async function GET(req: NextRequest) {
       return {
         id: p.id,
         navn: p.navn,
+        navn_oversettelser: p.navn_oversettelser || null,
         til_leie: !!p.publisert_utleie,
         til_salgs: !!p.publisert_salg,
         utleie_kort: p.utleie_kort_beskrivelse,
+        utleie_kort_oversettelser: p.utleie_kort_oversettelser || null,
         salg_kort: p.salg_kort_beskrivelse,
+        salg_kort_oversettelser: p.salg_kort_oversettelser || null,
         pris_natt: p.utleie_pris_natt,
         salgspris_eur: p.salgspris_eur,
         maks_gjester: p.utleie_maks_gjester,
@@ -61,8 +64,8 @@ export async function GET(req: NextRequest) {
         soverom: p.bolig_data?.soverom || null,
         bad: p.bolig_data?.bad || null,
         areal: p.bolig_data?.areal || null,
-        bilde_url: bilde_urler[0] || null,    // bakoverkompatibel
-        bilde_urler,                           // alle marketing-bilder, sortert
+        bilde_url: bilde_urler[0] || null,
+        bilde_urler,
       }
     }))
 

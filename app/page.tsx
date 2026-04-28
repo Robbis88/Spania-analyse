@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { PortalHeader } from './components/portal/PortalHeader'
 import { InteresseModal } from './components/portal/InteresseModal'
-import { useSprak, useValuta } from './lib/i18n'
+import { plukkOversettelse, useSprak, useValuta } from './lib/i18n'
 
 const MØRK = '#0e1726'
 const CREAM = '#fafaf6'
@@ -13,10 +13,13 @@ const GULL = '#b89a6f'
 type Bolig = {
   id: string
   navn: string
+  navn_oversettelser?: Record<string, string> | null
   til_leie: boolean
   til_salgs: boolean
   utleie_kort: string | null
+  utleie_kort_oversettelser?: Record<string, string> | null
   salg_kort: string | null
+  salg_kort_oversettelser?: Record<string, string> | null
   pris_natt: number | null
   salgspris_eur: number | null
   maks_gjester: number | null
@@ -161,8 +164,11 @@ function FilterTabs({ aktiv, setAktiv }: { aktiv: Filter; setAktiv: (f: Filter) 
 }
 
 function BoligKort({ bolig, kortIndex }: { bolig: Bolig; kortIndex: number }) {
-  const { t } = useSprak()
-  const visKort = bolig.til_salgs ? bolig.salg_kort : bolig.utleie_kort
+  const { sprak, t } = useSprak()
+  const navn = plukkOversettelse(bolig.navn_oversettelser, sprak, bolig.navn)
+  const visKort = bolig.til_salgs
+    ? plukkOversettelse(bolig.salg_kort_oversettelser, sprak, bolig.salg_kort)
+    : plukkOversettelse(bolig.utleie_kort_oversettelser, sprak, bolig.utleie_kort)
 
   return (
     <Link href={`/bolig/${bolig.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -170,7 +176,7 @@ function BoligKort({ bolig, kortIndex }: { bolig: Bolig; kortIndex: number }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-6px)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
       >
-        <BildeSlideshow bilder={bolig.bilde_urler && bolig.bilde_urler.length > 0 ? bolig.bilde_urler : (bolig.bilde_url ? [bolig.bilde_url] : [])} alt={bolig.navn} offsetMs={kortIndex * 800}>
+        <BildeSlideshow bilder={bolig.bilde_urler && bolig.bilde_urler.length > 0 ? bolig.bilde_urler : (bolig.bilde_url ? [bolig.bilde_url] : [])} alt={navn} offsetMs={kortIndex * 800}>
           <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 6, zIndex: 2 }}>
             {bolig.til_salgs && <Badge>{t.til_salgs}</Badge>}
             {bolig.til_leie && <Badge>{t.til_leie}</Badge>}
@@ -181,7 +187,7 @@ function BoligKort({ bolig, kortIndex }: { bolig: Bolig; kortIndex: number }) {
           <div style={{ fontSize: 10, color: GULL, letterSpacing: '0.16em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>
             {bolig.beliggenhet || 'Spania'}
           </div>
-          <h3 style={{ fontSize: 19, fontWeight: 400, color: MØRK, margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.005em' }}>{bolig.navn}</h3>
+          <h3 style={{ fontSize: 19, fontWeight: 400, color: MØRK, margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.005em' }}>{navn}</h3>
           {visKort && <p style={{ fontSize: 13, color: '#5a6171', lineHeight: 1.6, margin: '0 0 16px' }}>{visKort}</p>}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${GULL}33`, paddingTop: 14 }}>

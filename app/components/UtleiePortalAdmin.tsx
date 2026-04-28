@@ -18,6 +18,7 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
   const [lasterBilder, setLasterBilder] = useState(true)
   const [lagrer, setLagrer] = useState(false)
   const [fasilitetInput, setFasilitetInput] = useState('')
+  const [oversetter, setOversetter] = useState(false)
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setRedigert(prosjekt) }, [prosjekt])
@@ -89,6 +90,30 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
     setBilder(b => b.map(x => x.id === bildeId ? { ...x, marketing_rekkefolge: rekkefolge } : x))
     const { error } = await supabase.from('prosjekt_bilder').update({ marketing_rekkefolge: rekkefolge }).eq('id', bildeId)
     if (error) visToast('Rekkefølge feilet: ' + error.message, 'feil')
+  }
+
+  async function genererOversettelser() {
+    if (oversetter) return
+    setOversetter(true)
+    try {
+      // Lagre eventuelle pågående endringer først så Claude oversetter siste versjon
+      await lagre()
+      const res = await fetch('/api/utleie-portal/oversett', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prosjekt_id: prosjekt.id }),
+      })
+      const data = await res.json()
+      if (data.suksess) {
+        visToast('Oversettelser generert (8 språk)', 'suksess', 3500)
+        onOppdatert()
+      } else {
+        visToast('Oversettelse feilet: ' + (data.feil || 'ukjent'), 'feil', 5000)
+      }
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e)
+      visToast('Oversettelse feilet: ' + m, 'feil', 5000)
+    }
+    setOversetter(false)
   }
 
   function leggTilFasilitet() {
@@ -248,11 +273,28 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
         <button onClick={lagre} disabled={lagrer}
           style={{ flex: 1, background: lagrer ? '#999' : '#2D7D46', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: lagrer ? 'not-allowed' : 'pointer' }}>
           {lagrer ? '⏳ Lagrer...' : '💾 Lagre publiseringsinnstillinger'}
         </button>
+      </div>
+
+      <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f44', borderRadius: 6, padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#b89a6f', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🌍 Oversettelser</div>
+            <div style={{ fontSize: 13, color: '#5a6171', lineHeight: 1.5 }}>
+              {redigert.oversettelser_oppdatert
+                ? `Sist oversatt ${new Date(redigert.oversettelser_oppdatert).toLocaleString('nb-NO')}. Generer på nytt hvis du har endret tekst.`
+                : 'Generer oversettelser til alle 8 språk (Claude). Lagrer alt automatisk først.'}
+            </div>
+          </div>
+          <button onClick={genererOversettelser} disabled={oversetter || lagrer}
+            style={{ background: oversetter ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: '12px 20px', fontSize: 12, fontWeight: 600, cursor: oversetter || lagrer ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {oversetter ? 'Oversetter...' : redigert.oversettelser_oppdatert ? 'Generer på nytt' : 'Generer oversettelser'}
+          </button>
+        </div>
       </div>
     </div>
   )

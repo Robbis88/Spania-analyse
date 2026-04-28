@@ -100,6 +100,13 @@ export type Prosjekt = {
   byggear?: number | null
   tomt_m2?: number | null
   kort_avstand?: Record<string, string> | null
+  navn_oversettelser?: Record<string, string> | null
+  utleie_kort_oversettelser?: Record<string, string> | null
+  utleie_beskrivelse_oversettelser?: Record<string, string> | null
+  salg_kort_oversettelser?: Record<string, string> | null
+  salg_beskrivelse_oversettelser?: Record<string, string> | null
+  utleie_fasiliteter_oversettelser?: Record<string, string[]> | null
+  oversettelser_oppdatert?: string | null
 }
 
 export type UtleieForesporsel = {

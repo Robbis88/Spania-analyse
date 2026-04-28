@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { PortalHeader } from '../../components/portal/PortalHeader'
 import { InteresseModal } from '../../components/portal/InteresseModal'
-import { useSprak, useValuta } from '../../lib/i18n'
+import { plukkOversettelse, plukkOversettelseListe, useSprak, useValuta } from '../../lib/i18n'
 
 const MØRK = '#0e1726'
 const CREAM = '#fafaf6'
@@ -34,12 +34,18 @@ type BoligDetalj = {
     parkering?: string; havutsikt?: string;
   }
   bilder: { id: string; url: string | null }[]
+  navn_oversettelser?: Record<string, string> | null
+  utleie_kort_oversettelser?: Record<string, string> | null
+  utleie_beskrivelse_oversettelser?: Record<string, string> | null
+  salg_kort_oversettelser?: Record<string, string> | null
+  salg_beskrivelse_oversettelser?: Record<string, string> | null
+  utleie_fasiliteter_oversettelser?: Record<string, string[]> | null
 }
 
 
 export default function BoligDetaljSide({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { t } = useSprak()
+  const { sprak, t } = useSprak()
   const [bolig, setBolig] = useState<BoligDetalj | null>(null)
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
@@ -88,12 +94,19 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
                 <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>
                   {(bolig.bolig_data.beliggenhet || 'SPANIA').toUpperCase()}
                 </div>
-                <h1 style={{ fontSize: 'clamp(32px, 4.5vw, 52px)', fontWeight: 300, color: MØRK, margin: '0 0 18px', lineHeight: 1.1, letterSpacing: '-0.01em' }}>{bolig.navn}</h1>
-                {(bolig.utleie_kort || bolig.salg_kort) && (
-                  <p style={{ fontSize: 17, color: '#5a6171', lineHeight: 1.65, margin: '0 0 32px', maxWidth: 720, fontWeight: 300 }}>
-                    {bolig.til_salgs ? bolig.salg_kort : bolig.utleie_kort}
-                  </p>
-                )}
+                <h1 style={{ fontSize: 'clamp(32px, 4.5vw, 52px)', fontWeight: 300, color: MØRK, margin: '0 0 18px', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                  {plukkOversettelse(bolig.navn_oversettelser, sprak, bolig.navn)}
+                </h1>
+                {(() => {
+                  const kort = bolig.til_salgs
+                    ? plukkOversettelse(bolig.salg_kort_oversettelser, sprak, bolig.salg_kort)
+                    : plukkOversettelse(bolig.utleie_kort_oversettelser, sprak, bolig.utleie_kort)
+                  return kort ? (
+                    <p style={{ fontSize: 17, color: '#5a6171', lineHeight: 1.65, margin: '0 0 32px', maxWidth: 720, fontWeight: 300 }}>
+                      {kort}
+                    </p>
+                  ) : null
+                })()}
 
                 <PrisStripe bolig={bolig} onForesporsel={() => setModalApen(true)} />
               </div>
@@ -112,29 +125,37 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
             <section style={{ background: CREAM_LYS, padding: '64px 0' }}>
               <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 28px', display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 64 }}>
                 <div>
-                  {(bolig.utleie_beskrivelse || bolig.salg_beskrivelse) && (
-                    <Seksjon eyebrow={t.om_boligen.toUpperCase()} tittel={t.om_boligen}>
-                      <p style={{ fontSize: 15, color: '#444', lineHeight: 1.85, margin: 0, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
-                        {bolig.til_salgs ? bolig.salg_beskrivelse : bolig.utleie_beskrivelse}
-                      </p>
-                    </Seksjon>
-                  )}
+                  {(() => {
+                    const full = bolig.til_salgs
+                      ? plukkOversettelse(bolig.salg_beskrivelse_oversettelser, sprak, bolig.salg_beskrivelse)
+                      : plukkOversettelse(bolig.utleie_beskrivelse_oversettelser, sprak, bolig.utleie_beskrivelse)
+                    return full ? (
+                      <Seksjon eyebrow={t.om_boligen.toUpperCase()} tittel={t.om_boligen}>
+                        <p style={{ fontSize: 15, color: '#444', lineHeight: 1.85, margin: 0, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
+                          {full}
+                        </p>
+                      </Seksjon>
+                    ) : null
+                  })()}
 
                   <Seksjon eyebrow={t.spesifikasjoner.toUpperCase()} tittel={t.spesifikasjoner}>
                     <SpecTabell bolig={bolig} />
                   </Seksjon>
 
-                  {bolig.fasiliteter.length > 0 && (
-                    <Seksjon eyebrow={t.fasiliteter.toUpperCase()} tittel={t.fasiliteter}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px 32px' }}>
-                        {bolig.fasiliteter.map((f, i) => (
-                          <div key={i} style={{ fontSize: 14, color: '#444', padding: '10px 0', borderBottom: `1px solid ${GULL}22`, fontWeight: 300 }}>
-                            <span style={{ color: GULL, marginRight: 12 }}>—</span>{f}
-                          </div>
-                        ))}
-                      </div>
-                    </Seksjon>
-                  )}
+                  {(() => {
+                    const fas = plukkOversettelseListe(bolig.utleie_fasiliteter_oversettelser, sprak, bolig.fasiliteter)
+                    return fas.length > 0 ? (
+                      <Seksjon eyebrow={t.fasiliteter.toUpperCase()} tittel={t.fasiliteter}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px 32px' }}>
+                          {fas.map((f, i) => (
+                            <div key={i} style={{ fontSize: 14, color: '#444', padding: '10px 0', borderBottom: `1px solid ${GULL}22`, fontWeight: 300 }}>
+                              <span style={{ color: GULL, marginRight: 12 }}>—</span>{f}
+                            </div>
+                          ))}
+                        </div>
+                      </Seksjon>
+                    ) : null
+                  })()}
 
                   {Object.keys(bolig.kort_avstand).length > 0 && (
                     <Seksjon eyebrow={t.beliggenhet.toUpperCase()} tittel={t.beliggenhet}>
