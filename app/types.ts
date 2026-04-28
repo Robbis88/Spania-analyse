@@ -93,6 +93,13 @@ export type Prosjekt = {
   utleie_beskrivelse?: string | null
   utleie_kort_beskrivelse?: string | null
   utleie_fasiliteter?: string[] | null
+  publisert_salg?: boolean
+  salgspris_eur?: number | null
+  salg_kort_beskrivelse?: string | null
+  salg_beskrivelse?: string | null
+  byggear?: number | null
+  tomt_m2?: number | null
+  kort_avstand?: Record<string, string> | null
 }
 
 export type UtleieForesporsel = {

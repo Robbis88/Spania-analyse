@@ -1,20 +1,28 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { BUCKET_BILDER } from '../../lib/bilder'
 
 const VARIGHET_SEKUNDER = 60 * 60
 
-// Returnerer alle publiserte utleieboliger med ett representativt
-// marketing-bilde (lavest marketing_rekkefolge). Brukes på offentlig forside.
-export async function GET() {
+// Returnerer publiserte boliger — både utleie og salg.
+// Filter via ?type=utleie eller ?type=salg, default = begge.
+export async function GET(req: NextRequest) {
   try {
+    const url = new URL(req.url)
+    const type = url.searchParams.get('type') // 'utleie' | 'salg' | null
+
     const admin = hentSupabaseAdmin()
-    const { data: prosjekter, error } = await admin
+
+    let query = admin
       .from('prosjekter')
-      .select('id, navn, utleie_kort_beskrivelse, utleie_pris_natt, utleie_maks_gjester, bolig_data')
-      .eq('publisert_utleie', true)
+      .select('id, navn, utleie_kort_beskrivelse, utleie_pris_natt, utleie_maks_gjester, salg_kort_beskrivelse, salgspris_eur, publisert_utleie, publisert_salg, bolig_data')
       .order('opprettet', { ascending: false })
 
+    if (type === 'utleie') query = query.eq('publisert_utleie', true)
+    else if (type === 'salg') query = query.eq('publisert_salg', true)
+    else query = query.or('publisert_utleie.eq.true,publisert_salg.eq.true')
+
+    const { data: prosjekter, error } = await query
     if (error) return NextResponse.json({ feil: error.message }, { status: 500 })
 
     const ids = (prosjekter || []).map(p => p.id)
@@ -44,11 +52,17 @@ export async function GET() {
       return {
         id: p.id,
         navn: p.navn,
-        kort_beskrivelse: p.utleie_kort_beskrivelse,
+        til_leie: !!p.publisert_utleie,
+        til_salgs: !!p.publisert_salg,
+        utleie_kort: p.utleie_kort_beskrivelse,
+        salg_kort: p.salg_kort_beskrivelse,
         pris_natt: p.utleie_pris_natt,
+        salgspris_eur: p.salgspris_eur,
         maks_gjester: p.utleie_maks_gjester,
         beliggenhet: p.bolig_data?.beliggenhet || null,
         soverom: p.bolig_data?.soverom || null,
+        bad: p.bolig_data?.bad || null,
+        areal: p.bolig_data?.areal || null,
         bilde_url,
       }
     }))

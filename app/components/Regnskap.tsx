@@ -238,7 +238,7 @@ export function Regnskap({
                 { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
                 ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
                 ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
-                ...(p.kategori === 'utleie' ? [{ id: 'portal' as const, lbl: '🌐 Utleie-portal' }] : []),
+                { id: 'portal' as const, lbl: '🌐 Portal (leie/salg)' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAktivTab(t.id)}
                   style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#1a1a2e' : '#f0f0f0', color: aktivTab === t.id ? 'white' : '#444' }}>
@@ -255,7 +255,7 @@ export function Regnskap({
               <Utleieanalyse prosjekt={p} />
             )}
 
-            {aktivTab === 'portal' && p.kategori === 'utleie' && (
+            {aktivTab === 'portal' && (
               <UtleiePortalAdmin prosjekt={p} onOppdatert={hent} />
             )}
 

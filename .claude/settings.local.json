@@ -6,7 +6,8 @@
       "Bash(git push *)",
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "WebFetch(domain:oneheights.sale)"
     ]
   }
 }

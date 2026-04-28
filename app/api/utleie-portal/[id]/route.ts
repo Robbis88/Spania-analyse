@@ -5,7 +5,7 @@ import { BUCKET_BILDER } from '../../../lib/bilder'
 const VARIGHET_SEKUNDER = 60 * 60
 
 // Returnerer detaljinfo + alle marketing-bilder for ett prosjekt.
-// Returnerer 404 hvis prosjektet ikke er publisert (skjuler upubliserte
+// 404 hvis hverken utleie eller salg er publisert (skjuler upubliserte
 // boliger fra publikum også når id-en gjettes).
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -14,12 +14,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
     const { data: p, error } = await admin
       .from('prosjekter')
-      .select('id, navn, publisert_utleie, utleie_pris_natt, utleie_pris_uke, utleie_min_netter, utleie_maks_gjester, utleie_beskrivelse, utleie_kort_beskrivelse, utleie_fasiliteter, bolig_data')
+      .select('id, navn, publisert_utleie, publisert_salg, utleie_pris_natt, utleie_pris_uke, utleie_min_netter, utleie_maks_gjester, utleie_beskrivelse, utleie_kort_beskrivelse, utleie_fasiliteter, salgspris_eur, salg_kort_beskrivelse, salg_beskrivelse, byggear, tomt_m2, kort_avstand, bolig_data')
       .eq('id', id)
       .maybeSingle()
 
     if (error) return NextResponse.json({ feil: error.message }, { status: 500 })
-    if (!p || !p.publisert_utleie) return NextResponse.json({ feil: 'Ikke funnet' }, { status: 404 })
+    if (!p || (!p.publisert_utleie && !p.publisert_salg)) {
+      return NextResponse.json({ feil: 'Ikke funnet' }, { status: 404 })
+    }
 
     const { data: bilder } = await admin
       .from('prosjekt_bilder')
@@ -37,13 +39,24 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       bolig: {
         id: p.id,
         navn: p.navn,
+        til_leie: !!p.publisert_utleie,
+        til_salgs: !!p.publisert_salg,
+        // Utleie
         pris_natt: p.utleie_pris_natt,
         pris_uke: p.utleie_pris_uke,
         min_netter: p.utleie_min_netter,
         maks_gjester: p.utleie_maks_gjester,
-        beskrivelse: p.utleie_beskrivelse,
-        kort_beskrivelse: p.utleie_kort_beskrivelse,
+        utleie_beskrivelse: p.utleie_beskrivelse,
+        utleie_kort: p.utleie_kort_beskrivelse,
         fasiliteter: p.utleie_fasiliteter || [],
+        // Salg
+        salgspris_eur: p.salgspris_eur,
+        salg_beskrivelse: p.salg_beskrivelse,
+        salg_kort: p.salg_kort_beskrivelse,
+        byggear: p.byggear,
+        tomt_m2: p.tomt_m2,
+        kort_avstand: p.kort_avstand || {},
+        // Felles
         bolig_data: p.bolig_data || {},
         bilder: bildeUrler.filter(b => b.url),
       },
