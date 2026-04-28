@@ -13,7 +13,7 @@ export function BoligerSeksjon({
   const liste = prosjekter.filter(p => p.kategori === kategori)
 
   const meta = kategori === 'flipp'
-    ? { emoji: '🔨', tittel: 'Boligflipp', farge: '#185FA5', tomTekst: 'Ingen flipp-prosjekter ennå', suffix: 'prosjekt' }
+    ? { emoji: '🔨', tittel: 'Boligflipp', farge: '#0e1726', tomTekst: 'Ingen flipp-prosjekter ennå', suffix: 'prosjekt' }
     : { emoji: '🏖️', tittel: 'Boligutleie', farge: '#2D7D46', tomTekst: 'Ingen utleieboliger ennå', suffix: 'utleiebolig' }
 
   async function slettMedBekreftelse(id: string) {

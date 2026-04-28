@@ -107,7 +107,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
   const malgruppe = data?.malgruppe
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>🤖 AI-salgsanalyse</h3>
@@ -127,13 +127,13 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
       {feil && <div style={{ background: '#fde8ec', color: '#7a0c1e', padding: 10, borderRadius: 8, fontSize: 12, marginBottom: 10 }}>⚠️ {feil}</div>}
 
       {!data && !genererer && (
-        <div style={{ background: '#faf7f0', border: '1.5px dashed #c9a87655', borderRadius: 10, padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
+        <div style={{ background: '#faf7f0', border: '1.5px dashed #c9a87655', borderRadius: 6, padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
           Trykk &quot;Generer salgsanalyse&quot; for å få: salgsannonse, bildeplan, dokumentcheck, prisstrategi, investeringsanalyse, forbedringsforslag og målgruppe
         </div>
       )}
 
       {annonse && (
-        <Seksjon tittel="🏡 Salgsannonse" farge="#185FA5">
+        <Seksjon tittel="🏡 Salgsannonse" farge="#0e1726">
           {annonse.intro && <p style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.6, marginTop: 0 }}>{annonse.intro}</p>}
           {Array.isArray(annonse.bullets) && annonse.bullets.length > 0 && (
             <ul style={{ margin: '8px 0', paddingLeft: 20, fontSize: 13, lineHeight: 1.7 }}>
@@ -146,7 +146,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
               <strong>Om området:</strong><br />{annonse.omraade}
             </div>
           )}
-          {annonse.cta && <div style={{ fontSize: 13, fontWeight: 600, color: '#185FA5' }}>→ {annonse.cta}</div>}
+          {annonse.cta && <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1726' }}>→ {annonse.cta}</div>}
           <button onClick={() => {
             const bullets = Array.isArray(annonse.bullets) ? annonse.bullets.map(b => '• ' + b) : []
             const full = [annonse.intro, '', ...bullets, '', annonse.beskrivelse, '', annonse.omraade, '', annonse.cta].filter(Boolean).join('\n')
@@ -204,7 +204,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
               </div>
             )}
             {pris.strategi_maks && (
-              <div style={{ background: '#f0f7ff', borderRadius: 8, padding: 10 }}>
+              <div style={{ background: '#fdfcf7', borderRadius: 8, padding: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0f3b6b', marginBottom: 4 }}>🎯 MAKS PROFITT</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#0f3b6b' }}>{fmt(pris.strategi_maks.pris_eur || 0)}</div>
                 {pris.strategi_maks.begrunnelse && <div style={{ fontSize: 12, color: '#0f3b6b', marginTop: 4, lineHeight: 1.5 }}>{pris.strategi_maks.begrunnelse}</div>}
@@ -223,7 +223,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
       )}
 
       {inv && (
-        <Seksjon tittel="📊 Investeringsanalyse (utleie)" farge="#185FA5">
+        <Seksjon tittel="📊 Investeringsanalyse (utleie)" farge="#0e1726">
           {inv.vurdering && (() => {
             const v = VURDERING_ETIKETT[inv.vurdering as keyof typeof VURDERING_ETIKETT] || VURDERING_ETIKETT.middels
             return <div style={{ display: 'inline-block', background: v.bg, color: v.farge, fontWeight: 700, fontSize: 13, padding: '6px 14px', borderRadius: 20, marginBottom: 12 }}>{v.tekst}</div>
@@ -241,7 +241,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
             </div>
             <div style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
               <div style={{ fontSize: 11, color: '#888' }}>Brutto yield</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#185FA5' }}>{typeof inv.yield_pst === 'number' ? inv.yield_pst.toFixed(1) + '%' : '—'}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#0e1726' }}>{typeof inv.yield_pst === 'number' ? inv.yield_pst.toFixed(1) + '%' : '—'}</div>
             </div>
           </div>
           {inv.sesong_varierer && <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 8 }}><strong>Sesong:</strong> {inv.sesong_varierer}</div>}
@@ -282,7 +282,7 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
         <Seksjon tittel="🎯 Målgruppe" farge="#C8102E">
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             {malgruppe.primaer && (
-              <span style={{ background: '#f0f7ff', color: '#0f3b6b', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ background: '#fdfcf7', color: '#0f3b6b', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>
                 Primær: {MALGRUPPE_ETIKETT[malgruppe.primaer] || malgruppe.primaer}
               </span>
             )}
@@ -370,7 +370,7 @@ function DokumentcheckListe({ prosjektId, dokumenter, status, onOppdatert }: {
                 title={huket ? 'Marker som ikke gjort' : 'Marker som gjort'}
                 style={{ width: 18, height: 18, cursor: 'pointer', marginTop: 2 }}
               />
-              <span style={{ background: s.bg, color: s.farge, fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 12, whiteSpace: 'nowrap' }}>{s.tekst}</span>
+              <span style={{ background: s.bg, color: s.farge, fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{s.tekst}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, textDecoration: huket ? 'line-through' : 'none' }}>{navn}</div>
                 {d?.kommentar && <div style={{ fontSize: 12, color: '#666', marginTop: 2, lineHeight: 1.5 }}>{d.kommentar}</div>}

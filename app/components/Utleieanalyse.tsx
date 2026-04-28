@@ -118,7 +118,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
   const gyldigData = !!data && Array.isArray(data.maaneder) && data.maaneder.length === 12 && !!data.scenarier
   if (!gyldigData) {
     return (
-      <div style={{ background: '#fff8e1', border: '2px solid #B05E0A44', borderRadius: 12, padding: 24 }}>
+      <div style={{ background: '#fff8e1', border: '2px solid #B05E0A44', borderRadius: 6, padding: 24 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#7a400a', marginBottom: 8 }}>⚠️ Mangler analyse-data</div>
         <p style={{ fontSize: 14, color: '#6b3a0a', margin: 0, lineHeight: 1.6 }}>
           Denne boligen mangler strukturert airbnb-data, eller ble lagret på et gammelt skjema. Gå til <strong>Boliganalyse</strong>, analyser samme eiendom på nytt og lagre som utleieprosjekt – da får du tilgang til tallene utleieanalysen trenger.
@@ -132,7 +132,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
 
   return (
     <div>
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🏖️ Leietype og scenario</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
           {(['korttid', 'langtid'] as Leietype[]).map(t => (
@@ -148,7 +148,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {(['konservativt', 'realistisk', 'sterkt'] as UtleieScenario[]).map(s => (
                 <button key={s} onClick={() => oppdater({ scenario: s })}
-                  style={{ background: analyse.scenario === s ? '#185FA5' : '#f0f0f0', color: analyse.scenario === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ background: analyse.scenario === s ? '#0e1726' : '#f0f0f0', color: analyse.scenario === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
               ))}
@@ -170,7 +170,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         )}
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💰 Kjøp og oppstart</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           <div style={fieldStyle}>
@@ -216,7 +216,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>🏦 Finansiering</div>
           <label style={{ fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -253,7 +253,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         {!brukLan && <div style={{ fontSize: 13, color: '#888' }}>Alle tall vises uten lån. Huk av for å legge inn lånebetingelser – da får du sammenligning med og uten lån.</div>}
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🔨 Oppussingskostnader per år</div>
         <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>Legg inn beløp for de årene du planlegger større oppussing eller oppgraderinger.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
@@ -280,12 +280,12 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
 
       {iAarOversikt && nesteAarOversikt && (
         <>
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📊 Oversikt {iAar} og {iAar + 1}</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               {[iAarOversikt, nesteAarOversikt].map((o, i) => (
-                <div key={o.ar} style={{ background: '#f8f8f8', borderRadius: 10, padding: 16 }}>
+                <div key={o.ar} style={{ background: '#f8f8f8', borderRadius: 6, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{i === 0 ? 'Inneværende år' : 'Neste hele år'} ({o.ar})</div>
                   <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
                     Eid {o.maneder_eid} mnd · Utleie {o.maneder_utleie} mnd · Tom {o.maneder_tom} mnd
@@ -309,7 +309,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
               ))}
             </div>
 
-            <div style={{ background: '#f0faf4', border: '1.5px solid #2D7D4644', borderRadius: 10, padding: 14 }}>
+            <div style={{ background: '#f0faf4', border: '1.5px solid #2D7D4644', borderRadius: 6, padding: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#1a4d2b' }}>Sum {iAar}–{iAar + 1}</div>
               {([
                 { lbl: 'Brutto (2 år)', val: iAarOversikt.brutto_inntekt + nesteAarOversikt.brutto_inntekt, positiv: true },
@@ -327,7 +327,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💸 Kostnadsnedbrytning (hele år, fra analysen)</div>
             {Object.entries(data.kostnader_arlig || {}).filter(([, v]) => (v as number) > 0).map(([k, v], i) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
@@ -341,7 +341,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>📅 Leieinntekt per måned</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

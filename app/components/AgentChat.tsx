@@ -209,8 +209,8 @@ export function AgentChat() {
   return (
     <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}>
       {apen && (
-        <div style={{ position: 'absolute', bottom: 72, right: 0, width: 420, maxWidth: '95vw', background: 'white', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: '#1a2a3e', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ position: 'absolute', bottom: 72, right: 0, width: 420, maxWidth: '95vw', background: 'white', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#0e1726', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ color: 'white', fontWeight: 700, fontSize: 14 }}>🤖 Eiendomsassistent</div>
               <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>Spør, be om hjelp med e-poster</div>
@@ -260,7 +260,7 @@ export function AgentChat() {
                 <div key={i}>
                   {tekst && (
                     <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: erSistePending ? 4 : 0 }}>
-                      <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, background: m.role === 'user' ? '#1a2a3e' : '#f0f0f0', color: m.role === 'user' ? 'white' : '#222', borderBottomRightRadius: m.role === 'user' ? 4 : 12, borderBottomLeftRadius: m.role === 'assistant' ? 4 : 12, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: 6, fontSize: 12, lineHeight: 1.6, background: m.role === 'user' ? '#0e1726' : '#f0f0f0', color: m.role === 'user' ? 'white' : '#222', borderBottomRightRadius: m.role === 'user' ? 4 : 12, borderBottomLeftRadius: m.role === 'assistant' ? 4 : 12, whiteSpace: 'pre-wrap' }}>
                         {tekst}
                       </div>
                     </div>
@@ -282,7 +282,7 @@ export function AgentChat() {
             )}
             {laster && (
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <div style={{ background: '#f0f0f0', borderRadius: 12, borderBottomLeftRadius: 4, padding: '8px 12px', fontSize: 12, color: '#666' }}>⏳ Tenker...</div>
+                <div style={{ background: '#f0f0f0', borderRadius: 6, borderBottomLeftRadius: 4, padding: '8px 12px', fontSize: 12, color: '#666' }}>⏳ Tenker...</div>
               </div>
             )}
             <div ref={bunnRef} />
@@ -298,13 +298,13 @@ export function AgentChat() {
               style={{ flex: 1, padding: '8px 10px', fontSize: 12, borderRadius: 8, border: '1.5px solid #ddd', fontFamily: 'sans-serif', background: pendingToolUse ? '#f5f5f5' : 'white' }}
             />
             <button onClick={send} disabled={laster || !input.trim() || !!pendingToolUse}
-              style={{ background: laster || pendingToolUse ? '#ccc' : '#1a2a3e', color: 'white', border: 'none', borderRadius: 8, padding: '0 14px', fontSize: 16, cursor: laster || pendingToolUse ? 'not-allowed' : 'pointer' }}>
+              style={{ background: laster || pendingToolUse ? '#ccc' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '0 14px', fontSize: 16, cursor: laster || pendingToolUse ? 'not-allowed' : 'pointer' }}>
               →
             </button>
           </div>
         </div>
       )}
-      <button onClick={() => setApen(!apen)} style={{ width: 56, height: 56, borderRadius: '50%', background: '#1a2a3e', border: 'none', cursor: 'pointer', fontSize: 22, color: 'white', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button onClick={() => setApen(!apen)} style={{ width: 56, height: 56, borderRadius: '50%', background: '#0e1726', border: 'none', cursor: 'pointer', fontSize: 22, color: 'white', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {apen ? '✕' : '🤖'}
       </button>
     </div>

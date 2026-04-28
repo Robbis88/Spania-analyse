@@ -20,7 +20,7 @@ type EpostRad = {
 }
 
 const FORMAAL_FARGE: Record<Formaal, string> = {
-  bank_finansieringssamtale: '#185FA5',
+  bank_finansieringssamtale: '#0e1726',
   megler_boligsporsmal: '#D4814E',
   megler_befaring: '#D4814E',
   megler_bud: '#C8102E',
@@ -57,9 +57,9 @@ export function SendteEposter({ prosjektId }: { prosjektId: string }) {
   const antall = rader.length
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 16, marginBottom: 16 }}>
       <button onClick={() => setApen(!apen)}
-        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0, fontSize: 14, fontWeight: 700, color: '#1a2a3e' }}>
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0, fontSize: 14, fontWeight: 700, color: '#0e1726' }}>
         <span>✉️ Sendte e-poster {antall > 0 && <span style={{ color: '#888', fontWeight: 500 }}>({antall})</span>}</span>
         <span style={{ color: '#888', fontSize: 12 }}>{apen ? '▲' : '▼'}</span>
       </button>
@@ -78,11 +78,11 @@ export function SendteEposter({ prosjektId }: { prosjektId: string }) {
               <div key={r.id} style={{ borderTop: '1px solid #f0f0f0', padding: '10px 0' }}>
                 <div onClick={() => setUtvidetRad(erUtvidet ? null : r.id)}
                   style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ background: farge, color: 'white', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  <span style={{ background: farge, color: 'white', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
                     {FORMAAL_ETIKETT[r.formaal]}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a2a3e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.emne}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0e1726', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.emne}</div>
                     <div style={{ fontSize: 11, color: '#888' }}>
                       {r.mottaker_navn ? r.mottaker_navn + ' · ' : ''}{r.til}
                       {' · '}{r.sendt_av}

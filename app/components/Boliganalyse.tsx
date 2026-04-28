@@ -208,8 +208,8 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser en ny eiendom og vurder potensial</p>
         </div>
       </div>
-      <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lim inn bolig-info</div>
+      <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lim inn bolig-info</div>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -217,7 +217,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           style={{ width: '100%', height: 120, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
         />
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button onClick={analyser} disabled={loading || airbnbLoading || !input} style={{ flex: 1, background: (loading || airbnbLoading) ? '#999' : '#C8102E', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer' }}>
+          <button onClick={analyser} disabled={loading || airbnbLoading || !input} style={{ flex: 1, background: (loading || airbnbLoading) ? '#888' : '#0e1726', color: 'white', border: 'none', padding: 14, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
             {steg === 'analyserer' && '⏳ Analyserer bolig...'}
             {steg === 'utleie' && '⏳ Kjører utleieanalyse (20–30 s)...'}
             {(steg === 'idle' || steg === 'ferdig') && '🚀 Kjør full analyse'}
@@ -227,7 +227,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
       </div>
       {result && (
         <div>
-          <div style={{ background: '#1a1a2e', color: 'white', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+          <div style={{ background: '#0e1726', color: 'white', borderRadius: 6, padding: 24, marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{result.type} · {result.beliggenhet}</div>
             <h2 style={{ fontSize: 20, margin: '0 0 16px' }}>{result.tittel}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
@@ -239,12 +239,12 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
               ))}
             </div>
           </div>
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>🤖 AI-vurdering</div>
             <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', margin: 0 }}>{result.ai_vurdering}</p>
           </div>
           {result.vft_score !== undefined && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#888' }}>🏛️ VFT-turistlisens</div>
                 <div style={{ background: result.vft_score >= 60 ? '#e8f5ed' : result.vft_score >= 35 ? '#fff8e1' : '#fde8ec', color: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#B05E0A' : '#C8102E', padding: '3px 10px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{result.vft_score}/100</div>
@@ -255,8 +255,8 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
             </div>
           )}
           {visSkjema && (
-            <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sjekk og korriger detaljer (valgfritt)</div>
+            <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sjekk og korriger detaljer (valgfritt)</div>
               <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Hvis du korrigerer noe under, klikk &quot;Oppdater analyse&quot; nederst for å kjøre utleieanalysen på nytt med de nye verdiene.</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
@@ -300,29 +300,29 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
                 ))}
               </div>
               <button onClick={() => kjørAirbnbAnalyse(bolig)} disabled={airbnbLoading}
-                style={{ width: '100%', background: airbnbLoading ? '#999' : '#185FA5', color: 'white', border: 'none', padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer', marginTop: 4 }}>
+                style={{ width: '100%', background: airbnbLoading ? '#888' : '#0e1726', color: 'white', border: 'none', padding: 12, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer', marginTop: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {airbnbLoading ? '⏳ Oppdaterer...' : '🔄 Oppdater analyse med korrigerte verdier'}
               </button>
             </div>
           )}
           {airbnbScore && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#C8102E', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score og trafikklys</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score og trafikklys</div>
               <ScoreKort s={airbnbScore} />
             </div>
           )}
           {airbnbAnalyse && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 24, marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig analyse</div>
               <div style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: '#222' }}>{airbnbAnalyse}</div>
             </div>
           )}
-          <div style={{ background: '#f0f7ff', border: '2px solid #185FA544', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legg til som bolig til vurdering</div>
+          <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f33', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legg til som bolig til vurdering</div>
             <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten — boligen blir liggende der til du sletter den eller endrer status.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} style={{ background: lagretId ? '#9bbf9d' : '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer' }}>🏖️ Til vurdering – utleie</button>
-              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{ background: lagretId ? '#9bb1cf' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer' }}>🔨 Til vurdering – flipp</button>
+              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — utleie</button>
+              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : 'transparent', color: lagretId ? 'white' : '#0e1726', border: '1px solid #b89a6f55', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — flipp</button>
             </div>
             {lagreMelding && (
               <div style={{ marginTop: 12, padding: 12, background: lagreMelding.startsWith('✅') ? '#e8f5ed' : '#fde8ec', border: `1.5px solid ${lagreMelding.startsWith('✅') ? '#2D7D46' : '#C8102E'}`, borderRadius: 8, fontSize: 13, color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500 }}>
@@ -330,11 +330,11 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
               </div>
             )}
             {lagretId && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #185FA522' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send analysen videre</div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #b89a6f33' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send analysen videre</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                   <button onClick={() => lastNedPdf(lagretId)} disabled={pdfLaster}
-                    style={{ background: pdfLaster ? '#999' : '#1a2a3e', color: 'white', border: 'none', borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 600, cursor: pdfLaster ? 'not-allowed' : 'pointer' }}>
+                    style={{ background: pdfLaster ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: 12, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {pdfLaster ? '⏳ Bygger PDF...' : '📄 Last ned PDF igjen'}
                   </button>
                   <button onClick={() => apneChatMedProsjekt(lagretId)}

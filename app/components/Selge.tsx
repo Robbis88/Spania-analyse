@@ -69,7 +69,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
 
         <SalgsanalyseVisning prosjekt={p} onOppdatert={hent} />
 
-        <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 1 – Sett salgspris</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
             <div style={fieldStyle}>
@@ -77,7 +77,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
               <input style={inputStyle} type="number" value={salgInput.salgspris || ''} onChange={e => setSalgInput(s => ({ ...s, salgspris: Number(e.target.value) }))} placeholder={p.forventet_salgsverdi.toString()} />
             </div>
             <div style={{ ...fieldStyle, justifyContent: 'flex-end' }}>
-              <button onClick={() => hentMarkedspris(p)} disabled={markedsprisLoading} style={{ background: markedsprisLoading ? '#999' : '#1a1a2e', color: 'white', border: 'none', borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: markedsprisLoading ? 'not-allowed' : 'pointer' }}>
+              <button onClick={() => hentMarkedspris(p)} disabled={markedsprisLoading} style={{ background: markedsprisLoading ? '#999' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 600, cursor: markedsprisLoading ? 'not-allowed' : 'pointer' }}>
                 {markedsprisLoading ? '⏳ Henter...' : '📊 Hent markedspris'}
               </button>
             </div>
@@ -93,7 +93,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
           {markedsprisData?.error && <div style={{ color: '#C8102E', fontSize: 13 }}>{markedsprisData.error}</div>}
         </div>
 
-        <div style={{ background: '#f8f8f8', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 2 – Salgskostnader og skatt</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             <div style={fieldStyle}>
@@ -121,7 +121,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
           </div>
         </div>
 
-        <div style={{ background: s.nettoFortjeneste >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${s.nettoFortjeneste >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: s.nettoFortjeneste >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${s.nettoFortjeneste >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 6, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: s.nettoFortjeneste >= 0 ? '#1a4d2b' : '#7a0c1e', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Steg 3 – Resultat</div>
 
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -130,7 +130,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
             <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>ROI: <strong style={{ color: s.roiPst >= 0 ? '#2D7D46' : '#C8102E' }}>{s.roiPst.toFixed(1)}%</strong></div>
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 6, padding: 14, marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>💵 Inntekter fra salg</div>
             {[
               { lbl: 'Salgspris', val: fmt(s.salgspris) },
@@ -146,7 +146,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
             </div>
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 6, padding: 14, marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>🏛️ Spansk skatt</div>
             {([
               { lbl: 'Total kjøp + oppussing (fradrag)', val: fmt(s.totalKjop) },
@@ -163,7 +163,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
             </div>
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 6, padding: 14, marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>💳 3% tilbakeholdelse (kjøper holder tilbake)</div>
             <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>
               Kjøper holder tilbake <strong>{fmt(s.retention3pst)}</strong> (3% av salgspris) som forskudd på CGT. Dette sendes til spanske skattemyndigheter via Modelo 211.
@@ -178,7 +178,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
             </div>
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 10, padding: 14 }}>
+          <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 6, padding: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 Oppsummering</div>
             {([
               { lbl: 'Salgspris', val: fmt(s.salgspris) },
@@ -195,7 +195,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
           </div>
         </div>
 
-        <div style={{ background: '#fff8e1', border: '2px solid #EF9F27', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: '#fff8e1', border: '2px solid #EF9F27', borderRadius: 6, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#B05E0A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎯 Break-even</div>
           <div style={{ fontSize: 14, color: '#444', lineHeight: 1.6 }}>
             Minste salgspris for å gå i null (dekke alle kostnader, ingen gevinst):
@@ -205,8 +205,8 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
         </div>
 
         {p.status === 'Utleie' && (
-          <div style={{ background: '#f0f7ff', border: '2px solid #185FA5', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⏰ Vente eller selge nå?</div>
+          <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f55', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⏰ Vente eller selge nå?</div>
             <div style={{ fontSize: 14, color: '#444', marginBottom: 12 }}>
               Din månedlige cashflow: <strong style={{ color: cf >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(cf)}</strong>
             </div>
@@ -215,7 +215,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
               <input style={inputStyle} type="number" value={salgInput.ventetid_ar || ''} onChange={e => setSalgInput(s => ({ ...s, ventetid_ar: Number(e.target.value) }))} placeholder="0" />
             </div>
             {salgInput.ventetid_ar > 0 && (
-              <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14, marginTop: 12, fontSize: 13, lineHeight: 1.7 }}>
+              <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: 14, marginTop: 12, fontSize: 13, lineHeight: 1.7 }}>
                 <div>Cashflow i {salgInput.ventetid_ar} år: <strong style={{ color: ventetidCashflow >= 0 ? '#2D7D46' : '#C8102E' }}>{fmt(ventetidCashflow)}</strong></div>
                 <div>Total fortjeneste hvis du selger nå: <strong>{fmt(s.nettoFortjeneste)}</strong></div>
                 <div>Total fortjeneste hvis du venter {salgInput.ventetid_ar} år (samme salgspris): <strong>{fmt(s.nettoFortjeneste + ventetidCashflow)}</strong></div>
@@ -229,7 +229,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
           <button onClick={() => markerSomSolgt(p, salgInput.salgspris)} disabled={!salgInput.salgspris} style={{ background: salgInput.salgspris ? '#2D7D46' : '#ccc', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: salgInput.salgspris ? 'pointer' : 'not-allowed' }}>✅ Marker som solgt</button>
-          <button onClick={() => oppdater({ ...p, forventet_salgsverdi: salgInput.salgspris })} disabled={!salgInput.salgspris} style={{ background: salgInput.salgspris ? '#185FA5' : '#ccc', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: salgInput.salgspris ? 'pointer' : 'not-allowed' }}>💾 Lagre som forventet salgsverdi</button>
+          <button onClick={() => oppdater({ ...p, forventet_salgsverdi: salgInput.salgspris })} disabled={!salgInput.salgspris} style={{ background: salgInput.salgspris ? '#0e1726' : '#ccc', color: 'white', border: 'none', borderRadius: 8, padding: 14, fontSize: 14, fontWeight: 600, cursor: salgInput.salgspris ? 'pointer' : 'not-allowed' }}>💾 Lagre som forventet salgsverdi</button>
         </div>
 
         <div style={{ fontSize: 11, color: '#999', fontStyle: 'italic', marginBottom: 32, lineHeight: 1.6 }}>
@@ -252,7 +252,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
       {laster ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>
       ) : eideBoliger.length === 0 ? (
-        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 6, padding: 40, textAlign: 'center', color: '#888' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Du har ingen boliger å selge ennå</div>
           <div style={{ fontSize: 13 }}>Boliger med status &quot;Kjøpt&quot;, &quot;Under oppussing&quot; eller &quot;Utleie&quot; vises her</div>
@@ -266,7 +266,7 @@ export function Selge({ onTilbake }: { onTilbake: () => void }) {
                 setSelgBolig(p.id)
                 setSalgInput({ salgspris: p.forventet_salgsverdi || 0, megler_pst: 5, advokat_pst: 1, plusvalia: 0, skatteresidens: 'eu', ventetid_ar: 0 })
                 setMarkedsprisData(null)
-              }} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 12, cursor: 'pointer' }}>
+              }} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 12, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>

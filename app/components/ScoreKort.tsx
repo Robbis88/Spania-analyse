@@ -28,7 +28,7 @@ export function ScoreKort({ s }: { s: Score }) {
   const lysText = s.lys === '🟢' ? '#1a4d2b' : s.lys === '🟡' ? '#6b3a0a' : '#7a0c1e'
 
   return (
-    <div style={{ background: lysBg, border: `2px solid ${lysBorder}`, borderRadius: 16, padding: 24, marginBottom: 16 }}>
+    <div style={{ background: lysBg, border: `2px solid ${lysBorder}`, borderRadius: 8, padding: 24, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 56 }}>{s.lys}</div>
         <div style={{ flex: 1 }}>
@@ -65,7 +65,7 @@ export function ScoreKort({ s }: { s: Score }) {
         ))}
       </div>
       {(s.maks_oppussing_5pst > 0 || s.maks_oppussing_6pst > 0 || s.maks_oppussing_7pst > 0) && (
-        <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>🔨 Maks oppussingsbudsjett</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             {[{ lbl: 'Ved 5% yield', val: s.maks_oppussing_5pst }, { lbl: 'Ved 6% yield', val: s.maks_oppussing_6pst }, { lbl: 'Ved 7% yield', val: s.maks_oppussing_7pst }].map((item, i) => (
@@ -78,7 +78,7 @@ export function ScoreKort({ s }: { s: Score }) {
         </div>
       )}
       {s.tips && s.tips.length > 0 && (
-        <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 10, padding: 14 }}>
+        <div style={{ background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>💡 Hva må til for grønn?</div>
           {s.tips.map((t, i) => (
             <div key={i} style={{ fontSize: 13, padding: '4px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}>→ {t}</div>

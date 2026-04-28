@@ -95,7 +95,7 @@ export function Regnskap({
             <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Alle eiendomsprosjekter</p>
           </div>
         </div>
-        {!visProsjektId && <button onClick={() => setVisNyttSkjema(!visNyttSkjema)} style={{ background: '#7B2D8B', color: 'white', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Nytt prosjekt</button>}
+        {!visProsjektId && <button onClick={() => setVisNyttSkjema(!visNyttSkjema)} style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>+ Nytt prosjekt</button>}
       </div>
 
       {laster && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>}
@@ -108,20 +108,20 @@ export function Regnskap({
             { lbl: '📈 Cashflow/mnd', val: fmt(prosjekter.reduce((s, p) => s + månedligCashflow(p), 0)) },
             { lbl: '✅ Aktive utleier', val: prosjekter.filter(p => p.status === 'Utleie').length.toString() },
           ].map((item, i) => (
-            <div key={i} style={{ background: '#f9f0ff', borderRadius: 10, padding: 14 }}>
+            <div key={i} style={{ background: '#fdfcf7', borderRadius: 6, padding: 14 }}>
               <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{item.lbl}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#7B2D8B' }}>{item.val}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#0e1726' }}>{item.val}</div>
             </div>
           ))}
         </div>
       )}
 
       {visNyttSkjema && !visProsjektId && (
-        <div style={{ background: '#f9f0ff', border: '2px solid #7B2D8B22', borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#7B2D8B' }}>Nytt prosjekt</h3>
+        <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f33', borderRadius: 6, padding: 24, marginBottom: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#0e1726' }}>Nytt prosjekt</h3>
           <ProsjektFelter data={nyttProsjekt} onChange={setNyttProsjekt} />
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={leggTilProsjekt} style={{ flex: 1, background: '#7B2D8B', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>✅ Lagre prosjekt</button>
+            <button onClick={leggTilProsjekt} style={{ flex: 1, background: '#0e1726', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>✅ Lagre prosjekt</button>
             <button onClick={() => setVisNyttSkjema(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Avbryt</button>
           </div>
         </div>
@@ -131,7 +131,7 @@ export function Regnskap({
         const sf = statusFarge(p.status)
         const cf = månedligCashflow(p)
         return (
-          <div key={p.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 12 }}>
+          <div key={p.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>
@@ -140,7 +140,7 @@ export function Regnskap({
                 {p.dato_kjopt && <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>Kjøpt: {p.dato_kjopt}</span>}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => onSettVisProsjekt(p.id)} style={{ background: '#7B2D8B', color: 'white', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Åpne</button>
+                <button onClick={() => onSettVisProsjekt(p.id)} style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Åpne</button>
                 <button onClick={() => slettProsjekt(p.id)} style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Slett</button>
               </div>
             </div>
@@ -153,7 +153,7 @@ export function Regnskap({
               ].map((item, i) => (
                 <div key={i} style={{ background: '#f8f8f8', borderRadius: 8, padding: 10 }}>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>{item.lbl}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: ('farge' in item) ? item.farge : '#1a1a2e' }}>{item.val}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: ('farge' in item) ? item.farge : '#0e1726' }}>{item.val}</div>
                 </div>
               ))}
             </div>
@@ -162,7 +162,7 @@ export function Regnskap({
       })}
 
       {!visProsjektId && prosjekter.length === 0 && !visNyttSkjema && !laster && (
-        <div style={{ background: '#f9f0ff', border: '2px dashed #d4b8f4', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+        <div style={{ background: '#fdfcf7', border: '2px dashed #d4b8f4', borderRadius: 6, padding: 40, textAlign: 'center', color: '#888' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Ingen prosjekter ennå</div>
           <div style={{ fontSize: 14 }}>Trykk &quot;Nytt prosjekt&quot; for å komme i gang!</div>
@@ -197,10 +197,10 @@ export function Regnskap({
                   onClick={() => lastNedProsjektPdf(p.id, p.navn)}
                   disabled={!!pdfFremdrift}
                   title="Lag komplett analyse-PDF med før/etter-bilder, oppussingsbudsjett og ROI — klar til banken"
-                  style={{ background: pdfFremdrift ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: pdfFremdrift ? 'wait' : 'pointer' }}>
+                  style={{ background: pdfFremdrift ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: pdfFremdrift ? 'wait' : 'pointer' }}>
                   {pdfFremdrift ? `⏳ ${pdfFremdrift}` : '📄 Last ned PDF-analyse'}
                 </button>
-                <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })} style={{ background: redigerer ? '#f0f0f0' : '#1a1a2e', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })} style={{ background: redigerer ? '#f0ede5' : '#0e1726', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {redigerer ? 'Avbryt' : '✏️ Rediger'}
                 </button>
                 {redigerer && <button onClick={lagreRedigering} style={{ background: '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>💾 Lagre</button>}
@@ -208,8 +208,8 @@ export function Regnskap({
             </div>
 
             {redigerer && redigerProsjekt && (
-              <div style={{ background: '#f9f0ff', border: '2px solid #7B2D8B22', borderRadius: 12, padding: 24, marginBottom: 24 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: '#7B2D8B' }}>✏️ Rediger prosjekt</h3>
+              <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f33', borderRadius: 6, padding: 24, marginBottom: 24 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: '#0e1726' }}>✏️ Rediger prosjekt</h3>
                 <ProsjektFelter data={redigerProsjekt} onChange={setRedigerProsjekt} />
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={lagreRedigering} style={{ flex: 1, background: '#2D7D46', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>💾 Lagre endringer</button>
@@ -220,12 +220,12 @@ export function Regnskap({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
               {[
-                { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
+                { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: '#0e1726' },
                 { lbl: '📈 Cashflow/mnd', val: fmt(cf), farge: cf >= 0 ? '#2D7D46' : '#C8102E' },
-                { lbl: '📊 Yield', val: yield_pst(p).toFixed(1) + '%', farge: '#185FA5' },
+                { lbl: '📊 Yield', val: yield_pst(p).toFixed(1) + '%', farge: '#b89a6f' },
                 { lbl: '🏷️ ROI ved salg', val: roi(p).toFixed(1) + '%', farge: '#B05E0A' },
               ].map((item, i) => (
-                <div key={i} style={{ background: '#f9f0ff', borderRadius: 10, padding: 14 }}>
+                <div key={i} style={{ background: '#fdfcf7', borderRadius: 6, padding: 14 }}>
                   <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{item.lbl}</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: item.farge }}>{item.val}</div>
                 </div>
@@ -241,7 +241,7 @@ export function Regnskap({
                 { id: 'portal' as const, lbl: '🌐 Portal (leie/salg)' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAktivTab(t.id)}
-                  style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#1a1a2e' : '#f0f0f0', color: aktivTab === t.id ? 'white' : '#444' }}>
+                  style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: aktivTab === t.id ? '#0e1726' : '#f0ede5', color: aktivTab === t.id ? 'white' : '#5a6171' }}>
                   {t.lbl}
                 </button>
               ))}
@@ -261,7 +261,7 @@ export function Regnskap({
 
             {aktivTab === 'oversikt' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
+                <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>💸 Investeringer</div>
                   {[
                     { lbl: 'Kjøpesum', val: fmt(p.kjøpesum) },
@@ -276,7 +276,7 @@ export function Regnskap({
                     </div>
                   ))}
                 </div>
-                <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16 }}>
+                <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>📅 Månedlig</div>
                   {[
                     { lbl: 'Leieinntekt', val: fmt(p.leieinntekt_mnd), farge: '#2D7D46' },
@@ -302,7 +302,7 @@ export function Regnskap({
             {aktivTab === 'oversikt' && <SendteEposter prosjektId={p.id} />}
 
             {aktivTab === 'arsrapport' && (
-              <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>📋 Årsrapport</h3>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -311,13 +311,13 @@ export function Regnskap({
                       {[2024, 2025, 2026, 2027].map(ar => <option key={ar} value={ar}>{ar}</option>)}
                     </select>
                     <button onClick={() => lastNedPDF(p, valgtAr)}
-                      style={{ background: '#C8102E', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                       📥 Last ned PDF
                     </button>
                   </div>
                 </div>
 
-                <div style={{ background: '#f0faf4', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                <div style={{ background: '#f0faf4', borderRadius: 6, padding: 16, marginBottom: 12 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1a4d2b' }}>💰 Inntekter {valgtAr}</div>
                   {p.måneder.filter(m => m.måned.startsWith(valgtAr.toString())).length === 0 && (
                     <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>Ingen inntekter registrert for {valgtAr} – legg til i månedlig logg under</div>
@@ -334,7 +334,7 @@ export function Regnskap({
                   </div>
                 </div>
 
-                <div style={{ background: '#fde8ec', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                <div style={{ background: '#fde8ec', borderRadius: 6, padding: 16, marginBottom: 12 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#7a0c1e' }}>📉 Kostnader {valgtAr}</div>
                   {[
                     { lbl: 'Lånebetaling (12 mnd)', val: p.lån_mnd * 12 },
@@ -355,14 +355,14 @@ export function Regnskap({
                   </div>
                 </div>
 
-                <div style={{ background: nettoresultat >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${nettoresultat >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 10, padding: 16 }}>
+                <div style={{ background: nettoresultat >= 0 ? '#e8f5ed' : '#fde8ec', border: `2px solid ${nettoresultat >= 0 ? '#2D7D46' : '#C8102E'}`, borderRadius: 6, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 Resultat {valgtAr}</div>
                   {([
                     { lbl: 'Sum inntekter', val: fmt(arsinntekt), farge: '#2D7D46' },
                     { lbl: 'Sum kostnader', val: fmt(totalKostAr), farge: '#C8102E' },
                     { lbl: 'Netto resultat', val: fmt(nettoresultat), farge: nettoresultat >= 0 ? '#2D7D46' : '#C8102E', bold: true },
-                    { lbl: 'Yield (faktisk)', val: totalInvestering(p) > 0 ? ((arsinntekt / totalInvestering(p)) * 100).toFixed(1) + '%' : '–', farge: '#185FA5' },
-                    { lbl: 'Total investering', val: fmt(totalInvestering(p)), farge: '#7B2D8B' },
+                    { lbl: 'Yield (faktisk)', val: totalInvestering(p) > 0 ? ((arsinntekt / totalInvestering(p)) * 100).toFixed(1) + '%' : '–', farge: '#b89a6f' },
+                    { lbl: 'Total investering', val: fmt(totalInvestering(p)), farge: '#0e1726' },
                   ] as const).map((r, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: i > 0 ? '1px solid rgba(0,0,0,0.08)' : 'none', fontSize: 13 }}>
                       <span style={{ color: '#444', fontWeight: ('bold' in r && r.bold) ? 700 : 400 }}>{r.lbl}</span>
@@ -374,7 +374,7 @@ export function Regnskap({
             )}
 
             {p.notater && (
-              <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+              <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6, padding: 14, marginBottom: 20 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📝 Notater</div>
                 <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.notater}</div>
               </div>

@@ -88,7 +88,7 @@ export function Aktivitetslogg({ onTilbake }: { onTilbake: () => void }) {
       {laster && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>}
 
       {!laster && synlige.length === 0 && (
-        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 6, padding: 40, textAlign: 'center', color: '#888' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
           <div style={{ fontSize: 15, fontWeight: 600 }}>Ingen aktivitet registrert</div>
         </div>
@@ -97,11 +97,11 @@ export function Aktivitetslogg({ onTilbake }: { onTilbake: () => void }) {
       {synlige.map(r => {
         const bf = brukerFarge(r.bruker)
         return (
-          <div key={r.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 10, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div key={r.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ background: bf.bg, color: bf.tekst, fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
               {r.bruker.charAt(0).toUpperCase() + r.bruker.slice(1)}
             </span>
-            <div style={{ flex: 1, fontSize: 14, color: '#1a1a2e' }}>
+            <div style={{ flex: 1, fontSize: 14, color: '#0e1726' }}>
               <strong>{r.handling}</strong>
               {' '}<span style={{ color: '#666' }}>{detaljTekst(r.detaljer)}</span>
             </div>

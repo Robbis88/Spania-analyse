@@ -246,9 +246,9 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const kategoriRekkefolge = KATEGORIER.filter(k => grupper[k])
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 16, marginBottom: 16 }}>
       <button onClick={() => setApen(!apen)}
-        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0, fontSize: 14, fontWeight: 700, color: '#1a2a3e' }}>
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0, fontSize: 14, fontWeight: 700, color: '#0e1726' }}>
         <span>📷 Prosjektbilder {bilder.length > 0 && <span style={{ color: '#888', fontWeight: 500 }}>({bilder.length})</span>}</span>
         <span style={{ color: '#888', fontSize: 12 }}>{apen ? '▲' : '▼'}</span>
       </button>
@@ -279,7 +279,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             style={{
               border: `2px dashed ${dragOver ? '#c9a876' : '#ddd'}`,
               background: dragOver ? '#faf7f0' : '#f8f8f8',
-              borderRadius: 10, padding: 20, textAlign: 'center',
+              borderRadius: 6, padding: 20, textAlign: 'center',
               cursor: 'pointer', marginBottom: 14,
             }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>📥</div>
@@ -292,7 +292,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
           {pending.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               {pending.map((p, i) => (
-                <div key={i} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, marginBottom: 4, background: p.status === 'feilet' ? '#fde8ec' : '#f0f7ff', color: p.status === 'feilet' ? '#7a0c1e' : '#185FA5' }}>
+                <div key={i} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, marginBottom: 4, background: p.status === 'feilet' ? '#fde8ec' : '#fdfcf7', color: p.status === 'feilet' ? '#7a0c1e' : '#0e1726' }}>
                   {p.status === 'laster' ? '⏳ ' : '❌ '}{p.filnavn}
                   {p.status === 'feilet' && p.feilmelding && <span style={{ marginLeft: 6 }}>– {p.feilmelding}</span>}
                 </div>
@@ -314,7 +314,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                 <button onClick={analyserBilder} disabled={analyserer}
-                  style={{ background: analyserer ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: analyserer ? 'not-allowed' : 'pointer' }}>
+                  style={{ background: analyserer ? '#999' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: analyserer ? 'not-allowed' : 'pointer' }}>
                   {analyserer
                     ? (analyseFremdrift.total > 0
                       ? `⏳ Analyserer ${analyseFremdrift.ferdig + 1}/${analyseFremdrift.total}...`

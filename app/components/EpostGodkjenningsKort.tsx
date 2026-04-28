@@ -17,7 +17,7 @@ export type EpostUtkast = {
 }
 
 const FORMAAL_FARGE: Record<Formaal, string> = {
-  bank_finansieringssamtale: '#185FA5',
+  bank_finansieringssamtale: '#0e1726',
   megler_boligsporsmal: '#D4814E',
   megler_befaring: '#D4814E',
   megler_bud: '#C8102E',
@@ -84,10 +84,10 @@ export function EpostGodkjenningsKort({
     `---\n${bruker.charAt(0).toUpperCase() + bruker.slice(1)}\nLeganger & Osvaag Eiendom\npost@loeiendom.com\nloeiendom.com`
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #ddd', borderRadius: 12, padding: 14, marginTop: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.06)' }}>
+    <div style={{ background: '#fff', border: '1.5px solid #ddd', borderRadius: 6, padding: 14, marginTop: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.06)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ background: farge, color: 'white', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>{etikett}</span>
-        <span style={{ background: '#f0f0f0', color: '#444', padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700 }}>{SPRAK_LABEL[utkast.sprak] || utkast.sprak.toUpperCase()}</span>
+        <span style={{ background: farge, color: 'white', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{etikett}</span>
+        <span style={{ background: '#f0f0f0', color: '#444', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700 }}>{SPRAK_LABEL[utkast.sprak] || utkast.sprak.toUpperCase()}</span>
         {prosjektNavn && <span style={{ fontSize: 11, color: '#666' }}>📁 {prosjektNavn}</span>}
       </div>
 
@@ -170,7 +170,7 @@ export function EpostGodkjenningsKort({
             style={{ width: '100%', padding: 8, fontSize: 12, borderRadius: 6, border: '1px solid #ddd', fontFamily: 'sans-serif', marginBottom: 6 }} />
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => { onBeAIEndre(endreInstruks.trim() || 'Endre utkastet'); setEndreFelt(false); setEndreInstruks('') }}
-              style={{ flex: 1, background: '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ flex: 1, background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               Send til AI
             </button>
             <button onClick={() => { setEndreFelt(false); setEndreInstruks('') }}

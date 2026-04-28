@@ -249,14 +249,14 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
   return (
     <div>
       {(forslagOppussing.length > 0 || forslagTillegg.length > 0) && (
-        <div style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #dfeaff 100%)', border: '1.5px solid #185FA544', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: 'linear-gradient(135deg, #fdfcf7 0%, #f0ede5 100%)', border: '1.5px solid #0e172644', borderRadius: 6, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: '#0f3b6b' }}>
             ✨ AI-forslag fra bildeanalyse
           </div>
 
           {forslagOppussing.length > 0 && (
             <div style={{ marginBottom: forslagTillegg.length > 0 ? 18 : 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', marginBottom: 8, letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1726', marginBottom: 8, letterSpacing: '0.05em' }}>
                 OPPUSSING ({forslagOppussing.length})
               </div>
               {forslagOppussing.map(f => (
@@ -269,7 +269,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
 
           {forslagTillegg.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', marginBottom: 8, letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0e1726', marginBottom: 8, letterSpacing: '0.05em' }}>
                 POTENSIAL-TILLEGG ({forslagTillegg.length})
               </div>
               {forslagTillegg.map(f => (
@@ -282,7 +282,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         </div>
       )}
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>🧱 Oppussingsposter</div>
 
         {poster.length === 0 && (
@@ -308,28 +308,28 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         <div style={{ marginTop: 16, fontSize: 12, color: '#666', marginBottom: 6 }}>Legg til forhåndsdefinert post:</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {POSTE_FORSLAG.filter(n => !brukteForslagssett.has(n)).map(n => (
-            <button key={n} onClick={() => leggTilPost(n)} style={{ background: '#f0f7ff', color: '#185FA5', border: '1px solid #185FA544', borderRadius: 16, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ {n}</button>
+            <button key={n} onClick={() => leggTilPost(n)} style={{ background: '#fdfcf7', color: '#0e1726', border: '1px solid #0e172644', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ {n}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input style={{ ...inputStyle, flex: 1 }} value={egenPost} onChange={e => setEgenPost(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} placeholder="Egen post (f.eks. Terrassegulv)" />
-          <button onClick={() => { if (egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} style={{ background: '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Legg til</button>
+          <button onClick={() => { if (egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Legg til</button>
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>⭐ Standard på oppussingen</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {(['standard', 'bra', 'luksus'] as OppussingStandard[]).map(s => (
             <button key={s} onClick={() => oppdaterBudsjett({ standard: s })}
-              style={{ background: budsjett.standard === s ? '#185FA5' : '#f0f0f0', color: budsjett.standard === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: budsjett.standard === s ? '#0e1726' : '#f0f0f0', color: budsjett.standard === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
               {STANDARD_LABEL[s]}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📅 Prosjektvarighet</div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <input style={{ ...inputStyle, width: 120 }} type="number" value={budsjett.antall_maneder || ''} onChange={e => setBudsjett({ ...budsjett, antall_maneder: Number(e.target.value) || 0 })} onBlur={e => oppdaterBudsjett({ antall_maneder: Number(e.target.value) || 0 })} />
@@ -337,7 +337,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💸 Løpende kostnader i perioden</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 10 }}>
           {LOPENDE_FELTER.map(f => (
@@ -355,15 +355,15 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         </div>
       </div>
 
-      <div style={{ background: '#f0f7ff', border: '2px solid #185FA544', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#185FA5' }}>🤖 Estimert salgspris fra AI</div>
+      <div style={{ background: '#fdfcf7', border: '2px solid #0e172644', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#0e1726' }}>🤖 Estimert salgspris fra AI</div>
 
         {budsjett.estimert_salgspris ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#185FA5' }}>{fmt(budsjett.estimert_salgspris)}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#0e1726' }}>{fmt(budsjett.estimert_salgspris)}</div>
               {budsjett.estimat_usikkerhet && (
-                <span style={{ background: '#fff', border: '1px solid #185FA544', borderRadius: 16, padding: '3px 10px', fontSize: 12, color: '#185FA5', fontWeight: 600 }}>
+                <span style={{ background: '#fff', border: '1px solid #0e172644', borderRadius: 8, padding: '3px 10px', fontSize: 12, color: '#0e1726', fontWeight: 600 }}>
                   Usikkerhet: {budsjett.estimat_usikkerhet}
                 </span>
               )}
@@ -384,7 +384,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
           <p style={{ fontSize: 13, color: '#555', margin: '0 0 12px' }}>Fyll inn poster og standard først, så estimerer AI-agenten salgspris basert på boligen og området.</p>
         )}
 
-        <button onClick={estimerSalgspris} disabled={estimerer || poster.length === 0} style={{ background: estimerer || poster.length === 0 ? '#999' : '#185FA5', color: 'white', border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 14, fontWeight: 600, cursor: estimerer || poster.length === 0 ? 'not-allowed' : 'pointer' }}>
+        <button onClick={estimerSalgspris} disabled={estimerer || poster.length === 0} style={{ background: estimerer || poster.length === 0 ? '#999' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 14, fontWeight: 600, cursor: estimerer || poster.length === 0 ? 'not-allowed' : 'pointer' }}>
           {estimerer ? '⏳ Estimerer...' : budsjett.estimert_salgspris ? '🔄 Kjør estimat på nytt' : '🤖 Estimer salgspris med AI'}
         </button>
 
@@ -395,7 +395,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         )}
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📊 Beregning</div>
         {[
           { lbl: 'Kjøpesum', val: fmt(prosjekt.kjøpesum) },
@@ -438,7 +438,7 @@ function ForslagOppussingKort({ forslag, onGodta, onAvvis }: {
   const [jobber, setJobber] = useState(false)
 
   return (
-    <div style={{ background: 'white', border: '1px solid #c5d9f4', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+    <div style={{ background: 'white', border: '1px solid #c5d9f4', borderRadius: 6, padding: 12, marginBottom: 8 }}>
       <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
         AI foreslår <strong>€{d.kostnad_estimat_lav.toLocaleString('nb-NO')} – €{d.kostnad_estimat_hoy.toLocaleString('nb-NO')}</strong>
       </div>
@@ -479,14 +479,14 @@ function ForslagTilleggKort({ forslag, onGodta, onAvvis }: {
   const regF = REGULERING_FARGE[reg] || { bg: '#f0f0f0', border: '#aaa', tekst: '#555' }
 
   return (
-    <div style={{ background: 'white', border: '1px solid #c5d9f4', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+    <div style={{ background: 'white', border: '1px solid #c5d9f4', borderRadius: 6, padding: 12, marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#1a2a3e' }}>{standardNavn}</span>
-        <span style={{ background: regF.bg, color: regF.tekst, border: `1px solid ${regF.border}44`, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#0e1726' }}>{standardNavn}</span>
+        <span style={{ background: regF.bg, color: regF.tekst, border: `1px solid ${regF.border}44`, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 }}>
           {REGULERING_ETIKETT[reg] || reg}
         </span>
         {d.verdiokning_estimat && (
-          <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>
+          <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, padding: '2px 8px', borderRadius: 6 }}>
             Verdiøkning: {d.verdiokning_estimat}
           </span>
         )}

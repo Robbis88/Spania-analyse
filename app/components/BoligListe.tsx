@@ -14,7 +14,7 @@ export function BoligListe({
 }) {
   if (liste.length === 0) {
     return (
-      <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+      <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 6, padding: 40, textAlign: 'center', color: '#888' }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{tomTekst}</div>
         <div style={{ fontSize: 13 }}>Gå til Boliganalyse for å legge til en bolig</div>
@@ -26,7 +26,7 @@ export function BoligListe({
       {liste.map(p => {
         const sf = statusFarge(p.status)
         return (
-          <div key={p.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 12 }}>
+          <div key={p.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{p.navn}</div>

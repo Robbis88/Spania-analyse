@@ -116,7 +116,7 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
           onToggle={v => setRedigert({ ...redigert, publisert_salg: v })} portalUrl={portalUrl} />
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#2D7D46', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>🏖️ Utleie — pris og kapasitet</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
           <div><label style={lblStil}>Pris per natt (€)</label>
@@ -160,14 +160,14 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); leggTilFasilitet() } }}
               placeholder="F.eks. Klimaanlegg, Wifi, Oppvaskmaskin" />
             <button onClick={leggTilFasilitet}
-              style={{ background: '#185FA5', color: 'white', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               + Legg til
             </button>
           </div>
           {(redigert.utleie_fasiliteter || []).length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {(redigert.utleie_fasiliteter || []).map((f, i) => (
-                <span key={i} style={{ background: '#f0f0f0', borderRadius: 16, padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span key={i} style={{ background: '#f0f0f0', borderRadius: 8, padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   {f}
                   <button onClick={() => fjernFasilitet(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0, fontSize: 14, lineHeight: 1 }}>×</button>
                 </span>
@@ -177,8 +177,8 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#185FA5', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>💎 Salg — pris og info</div>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1726', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>💎 Salg — pris og info</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
           <div><label style={lblStil}>Salgspris (€)</label>
             <input type="number" min={0} style={inputStil} value={redigert.salgspris_eur ?? ''}
@@ -207,7 +207,7 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Marketing-bilder ({markedsBilder.length} valgt)</div>
           <div style={{ fontSize: 11, color: '#888' }}>Lavere rekkefølge vises først</div>
@@ -260,7 +260,7 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
 
 function PubliserBoks({ etikett, aktiv, onToggle, portalUrl }: { etikett: string; aktiv: boolean; onToggle: (v: boolean) => void; portalUrl: string }) {
   return (
-    <div style={{ background: aktiv ? '#e8f5ed' : '#f8f8f4', border: `2px solid ${aktiv ? '#2D7D46' : '#ddd'}`, borderRadius: 12, padding: 16 }}>
+    <div style={{ background: aktiv ? '#e8f5ed' : '#f8f8f4', border: `2px solid ${aktiv ? '#2D7D46' : '#ddd'}`, borderRadius: 6, padding: 16 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 6 }}>
         <input type="checkbox" checked={aktiv} onChange={e => onToggle(e.target.checked)}
           style={{ width: 20, height: 20, cursor: 'pointer' }} />
@@ -270,7 +270,7 @@ function PubliserBoks({ etikett, aktiv, onToggle, portalUrl }: { etikett: string
       </label>
       <div style={{ fontSize: 11, color: '#777', marginLeft: 30 }}>
         {aktiv
-          ? <>Synlig på <a href={portalUrl} target="_blank" rel="noreferrer" style={{ color: '#185FA5' }}>portalen</a></>
+          ? <>Synlig på <a href={portalUrl} target="_blank" rel="noreferrer" style={{ color: '#0e1726' }}>portalen</a></>
           : 'Ikke synlig på portalen'}
       </div>
     </div>
