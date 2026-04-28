@@ -14,14 +14,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Legos Eiendom",
-  description: "Din partner for eiendomsinvestering i Spania",
+  title: "Loeiendom — Leganger & Osvaag",
+  description: "Eksklusive eiendommer ved Middelhavskysten. Til salgs og utleie i Spanias mest ettertraktede områder.",
+  icons: {
+    icon: [
+      { url: "/logo.png" },
+    ],
+    apple: [
+      { url: "/logo.png", sizes: "180x180" },
+    ],
+    shortcut: ["/logo.png"],
+  },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    title: "Loeiendom",
+    capable: true,
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  themeColor: "#0e1726",
 };
 
 export default function RootLayout({

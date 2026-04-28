@@ -1,0 +1,23 @@
+{
+  "name": "Loeiendom — Leganger & Osvaag",
+  "short_name": "Loeiendom",
+  "description": "Eksklusive eiendommer ved Middelhavskysten",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf6",
+  "theme_color": "#0e1726",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
