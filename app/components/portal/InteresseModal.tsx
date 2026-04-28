@@ -75,7 +75,7 @@ export function InteresseModal({ apen, onLukk, prosjektId, prosjektNavn }: {
         style={{
           background: CREAM_LYS, maxWidth: 520, width: '100%',
           maxHeight: '90vh', overflowY: 'auto',
-          padding: '40px 36px', borderRadius: 0,
+          padding: 'clamp(24px, 5vw, 40px) clamp(20px, 5vw, 36px)', borderRadius: 0,
           boxShadow: '0 30px 80px rgba(0,0,0,0.25)',
         }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>

@@ -89,17 +89,17 @@ export default function Forside() {
         background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`,
         borderBottom: `1px solid ${GULL}22`,
       }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '120px 28px 100px', textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 28 }}>{t.hero_eyebrow}</div>
-          <h1 style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', lineHeight: 1.08, fontWeight: 300, color: MØRK, margin: '0 0 24px', letterSpacing: '-0.01em' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(60px, 10vw, 120px) clamp(20px, 4vw, 28px) clamp(50px, 9vw, 100px)', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 'clamp(16px, 3vw, 28px)' }}>{t.hero_eyebrow}</div>
+          <h1 style={{ fontSize: 'clamp(30px, 5.5vw, 64px)', lineHeight: 1.08, fontWeight: 300, color: MØRK, margin: '0 0 20px', letterSpacing: '-0.01em' }}>
             {t.hero_tittel}
           </h1>
-          <p style={{ fontSize: 17, lineHeight: 1.65, color: '#5a6171', margin: '0 auto 44px', maxWidth: 580, fontWeight: 300 }}>
+          <p style={{ fontSize: 'clamp(15px, 2vw, 17px)', lineHeight: 1.65, color: '#5a6171', margin: '0 auto clamp(28px, 5vw, 44px)', maxWidth: 580, fontWeight: 300 }}>
             {t.hero_undertittel}
           </p>
           <a href="#boliger" style={{
             background: MØRK, color: CREAM_LYS, textDecoration: 'none',
-            padding: '16px 32px', fontSize: 12, fontWeight: 600,
+            padding: '14px 26px', fontSize: 12, fontWeight: 600,
             letterSpacing: '0.16em', textTransform: 'uppercase',
             display: 'inline-block',
           }}>
@@ -109,10 +109,10 @@ export default function Forside() {
       </section>
 
       {/* LISTE */}
-      <section id="boliger" style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 28px 96px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <section id="boliger" style={{ maxWidth: 1280, margin: '0 auto', padding: 'clamp(48px, 8vw, 88px) clamp(16px, 4vw, 28px) clamp(60px, 10vw, 96px)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(28px, 5vw, 48px)' }}>
           <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>{t.vare_boliger}</div>
-          <h2 style={{ fontSize: 36, fontWeight: 300, color: MØRK, margin: '0 0 28px', letterSpacing: '-0.01em' }}>{t.tilgjengelige_naa}</h2>
+          <h2 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 300, color: MØRK, margin: '0 0 24px', letterSpacing: '-0.01em' }}>{t.tilgjengelige_naa}</h2>
 
           <FilterTabs aktiv={filter} setAktiv={setFilter} />
         </div>
@@ -126,7 +126,7 @@ export default function Forside() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 'clamp(16px, 3vw, 32px)' }}>
           {filtrert.map((b, i) => <BoligKort key={b.id} bolig={b} kortIndex={i} />)}
         </div>
       </section>
@@ -146,15 +146,16 @@ function FilterTabs({ aktiv, setAktiv }: { aktiv: Filter; setAktiv: (f: Filter) 
     ['salgs', t.til_salgs],
   ]
   return (
-    <div style={{ display: 'inline-flex', gap: 0, border: `1px solid ${GULL}44`, padding: 0 }}>
+    <div style={{ display: 'inline-flex', gap: 0, border: `1px solid ${GULL}44`, padding: 0, maxWidth: '100%', flexWrap: 'wrap' }}>
       {tabs.map(([id, lbl]) => (
         <button key={id} onClick={() => setAktiv(id)}
           style={{
             background: aktiv === id ? MØRK : 'transparent',
             color: aktiv === id ? CREAM_LYS : MØRK,
-            border: 'none', padding: '12px 28px', fontSize: 11,
-            fontWeight: 600, letterSpacing: '0.16em',
+            border: 'none', padding: '11px 18px', fontSize: 11,
+            fontWeight: 600, letterSpacing: '0.14em',
             textTransform: 'uppercase', cursor: 'pointer',
+            whiteSpace: 'nowrap',
           }}>
           {lbl}
         </button>

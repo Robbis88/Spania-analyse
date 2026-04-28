@@ -51,6 +51,14 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
   const [feil, setFeil] = useState<string | null>(null)
   const [aktivBilde, setAktivBilde] = useState(0)
   const [modalApen, setModalApen] = useState(false)
+  const [erMobil, setErMobil] = useState(false)
+
+  useEffect(() => {
+    function sjekk() { setErMobil(window.innerWidth < 900) }
+    sjekk()
+    window.addEventListener('resize', sjekk)
+    return () => window.removeEventListener('resize', sjekk)
+  }, [])
 
   useEffect(() => {
     let avbrutt = false
@@ -87,8 +95,8 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
           <>
             {/* HERO */}
             <section style={{ background: CREAM_LYS, borderBottom: `1px solid ${GULL}22` }}>
-              <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 28px 56px' }}>
-                <Link href="/" style={{ fontSize: 11, color: '#888', textDecoration: 'none', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 28, display: 'inline-block' }}>
+              <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(24px, 5vw, 40px) clamp(18px, 4vw, 28px) clamp(36px, 7vw, 56px)' }}>
+                <Link href="/" style={{ fontSize: 11, color: '#888', textDecoration: 'none', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 22, display: 'inline-block' }}>
                   {t.tilbake_til_boliger}
                 </Link>
                 <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>
@@ -114,16 +122,16 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
 
             {/* GALLERI */}
             {bolig.bilder.length > 0 && (
-              <section style={{ background: CREAM, padding: '40px 0' }}>
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 28px' }}>
+              <section style={{ background: CREAM, padding: 'clamp(24px, 5vw, 40px) 0' }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)' }}>
                   <BildeGalleri bilder={bolig.bilder} aktiv={aktivBilde} onVelg={setAktivBilde} />
                 </div>
               </section>
             )}
 
             {/* INNHOLD */}
-            <section style={{ background: CREAM_LYS, padding: '64px 0' }}>
-              <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 28px', display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 64 }}>
+            <section style={{ background: CREAM_LYS, padding: 'clamp(40px, 7vw, 64px) 0' }}>
+              <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)', display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: erMobil ? 32 : 64 }}>
                 <div>
                   {(() => {
                     const full = bolig.til_salgs
@@ -171,7 +179,7 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
                   )}
                 </div>
 
-                <SidePanel bolig={bolig} onForesporsel={() => setModalApen(true)} />
+                <SidePanel bolig={bolig} onForesporsel={() => setModalApen(true)} erMobil={erMobil} />
               </div>
             </section>
           </>
@@ -299,11 +307,17 @@ function BildeGalleri({ bilder, aktiv, onVelg }: { bilder: { id: string; url: st
   )
 }
 
-function SidePanel({ bolig, onForesporsel }: { bolig: BoligDetalj; onForesporsel: () => void }) {
+function SidePanel({ bolig, onForesporsel, erMobil }: { bolig: BoligDetalj; onForesporsel: () => void; erMobil: boolean }) {
   const { t } = useSprak()
   const { formater } = useValuta()
   return (
-    <aside style={{ position: 'sticky', top: 96, alignSelf: 'start', background: 'white', border: `1px solid ${GULL}33`, padding: 32 }}>
+    <aside style={{
+      position: erMobil ? 'static' : 'sticky',
+      top: erMobil ? 'auto' : 96,
+      alignSelf: 'start',
+      background: 'white', border: `1px solid ${GULL}33`,
+      padding: erMobil ? 24 : 32,
+    }}>
       <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${GULL}22` }}>
         {bolig.til_salgs && bolig.salgspris_eur && (
           <div style={{ marginBottom: 10 }}>
