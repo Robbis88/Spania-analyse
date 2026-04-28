@@ -73,13 +73,36 @@ Return ONLY valid JSON in this exact shape (no markdown, no explanation):
   "fasiliteter": { "no": [], "en": [], "es": [], "fr": [], "de": [], "nl": [], "da": [], "sv": [] }
 }`
 
-    const respons = await klient.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const tekst = respons.content[0].type === 'text' ? respons.content[0].text : ''
-    const ren = tekst.replace(/```json|```/g, '').trim()
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ feil: 'ANTHROPIC_API_KEY mangler i miljøet' }, { status: 500 })
+    }
+
+    let respons
+    try {
+      respons = await klient.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e)
+      console.error('Claude-kall feilet:', m)
+      return NextResponse.json({ feil: 'Claude-kall feilet: ' + m }, { status: 502 })
+    }
+
+    const tekst = respons.content[0]?.type === 'text' ? respons.content[0].text : ''
+    if (!tekst) {
+      console.error('Claude returnerte tomt svar:', JSON.stringify(respons))
+      return NextResponse.json({ feil: 'Claude returnerte tomt svar' }, { status: 502 })
+    }
+
+    // Strip markdown og finn første { til siste } så vi tåler litt søl rundt JSON
+    let ren = tekst.replace(/```json|```/g, '').trim()
+    const forsteBrace = ren.indexOf('{')
+    const sisteBrace = ren.lastIndexOf('}')
+    if (forsteBrace >= 0 && sisteBrace > forsteBrace) {
+      ren = ren.slice(forsteBrace, sisteBrace + 1)
+    }
 
     let oversatt: {
       navn: Record<string, string>
@@ -91,8 +114,14 @@ Return ONLY valid JSON in this exact shape (no markdown, no explanation):
     }
     try {
       oversatt = JSON.parse(ren)
-    } catch {
-      return NextResponse.json({ feil: 'Klarte ikke å parse oversettelses-JSON' }, { status: 502 })
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e)
+      console.error('JSON-parse feilet:', m)
+      console.error('Råtekst (første 500 tegn):', tekst.slice(0, 500))
+      return NextResponse.json({
+        feil: 'Klarte ikke å parse oversettelses-JSON: ' + m,
+        debug: tekst.slice(0, 200),
+      }, { status: 502 })
     }
 
     const oppdatering = {
@@ -106,7 +135,14 @@ Return ONLY valid JSON in this exact shape (no markdown, no explanation):
     }
 
     const { error: oppErr } = await admin.from('prosjekter').update(oppdatering).eq('id', prosjekt_id)
-    if (oppErr) return NextResponse.json({ feil: oppErr.message }, { status: 500 })
+    if (oppErr) {
+      console.error('Supabase update feilet:', oppErr.message)
+      // Mest sannsynlig: SQL-migrasjonen er ikke kjørt
+      const trolig = oppErr.message.toLowerCase().includes('column') || oppErr.message.toLowerCase().includes('does not exist')
+        ? ' — tips: kjør 20260428c_oversettelser.sql i Supabase'
+        : ''
+      return NextResponse.json({ feil: 'Lagring feilet: ' + oppErr.message + trolig }, { status: 500 })
+    }
 
     return NextResponse.json({ suksess: true, oversettelser_oppdatert: oppdatering.oversettelser_oppdatert })
   } catch (e) {

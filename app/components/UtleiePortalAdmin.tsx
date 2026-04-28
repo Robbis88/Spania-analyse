@@ -107,11 +107,14 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         visToast('Oversettelser generert (8 språk)', 'suksess', 3500)
         onOppdatert()
       } else {
-        visToast('Oversettelse feilet: ' + (data.feil || 'ukjent'), 'feil', 5000)
+        const detalj = data.feil || `HTTP ${res.status}`
+        console.error('Oversettelse feilet:', data)
+        visToast('Oversettelse feilet: ' + detalj, 'feil', 9000)
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
-      visToast('Oversettelse feilet: ' + m, 'feil', 5000)
+      console.error('Oversettelse-kall feilet:', e)
+      visToast('Oversettelse feilet: ' + m, 'feil', 9000)
     }
     setOversetter(false)
   }
