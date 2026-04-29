@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
@@ -106,7 +106,19 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     skattefri: false, skattesats_pst: 22,
   })
 
+  const [oppussingsposter, setOppussingsposter] = useState<Array<{ navn: string; kostnad: number; notat: string }>>([])
+  const [nyPostNavn, setNyPostNavn] = useState('')
+
   function fyllFraAnalyse(a: Analyse) {
+    // Pre-utfyll oppussingsposter fra AI-forslag
+    const foreslatte = (a.foreslatte_oppussingsposter || []).map(p => ({
+      navn: p.navn || '',
+      kostnad: p.kostnad_nok || 0,
+      notat: p.begrunnelse || '',
+    })).filter(p => p.navn)
+    setOppussingsposter(foreslatte)
+    const sumPoster = foreslatte.reduce((s, p) => s + p.kostnad, 0)
+
     setKalk(k => ({
       ...k,
       kjopesum: a.pris_antydning_nok || k.kjopesum,
@@ -114,11 +126,30 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       // Selveier har dokumentavgift, andel/aksje har det ikke
       dokumentavgift_pst: (a.eierform === 'Andel' || a.eierform === 'Aksje') ? 0 : 2.5,
       fellesutg_mnd: a.fellesutgifter_mnd_nok || 0,
+      oppussing_kost: sumPoster || k.oppussing_kost,
       // Foreslå salgspris basert på bra-standard m²-pris om det finnes
       salgspris: a.markedspris_bra_m2_nok && a.areal_bra
         ? Math.round(a.markedspris_bra_m2_nok * a.areal_bra / 1000) * 1000
         : k.salgspris,
     }))
+  }
+
+  // Når oppussingsposter endres, sync sum til kalkulator
+  useEffect(() => {
+    const sum = oppussingsposter.reduce((s, p) => s + (p.kostnad || 0), 0)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setKalk(k => k.oppussing_kost === sum ? k : { ...k, oppussing_kost: sum })
+  }, [oppussingsposter])
+
+  function leggTilPost(navn = '', kostnad = 0) {
+    setOppussingsposter(p => [...p, { navn: navn || nyPostNavn || 'Ny post', kostnad, notat: '' }])
+    setNyPostNavn('')
+  }
+  function fjernPost(i: number) {
+    setOppussingsposter(p => p.filter((_, idx) => idx !== i))
+  }
+  function oppdaterPost(i: number, felt: 'navn' | 'kostnad' | 'notat', verdi: string | number) {
+    setOppussingsposter(p => p.map((post, idx) => idx === i ? { ...post, [felt]: verdi } : post))
   }
 
   async function analyser() {
@@ -292,7 +323,15 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           <AnalyseSammendrag a={analyse} />
           {analyse.score && <FlippeScore s={analyse.score} />}
           {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
-          <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} />
+          <OppussingsPoster
+            poster={oppussingsposter}
+            onLeggTil={leggTilPost}
+            onFjern={fjernPost}
+            onOppdater={oppdaterPost}
+            nyPostNavn={nyPostNavn}
+            setNyPostNavn={setNyPostNavn}
+          />
+          <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} />
           <Sensitivitet kalk={kalk} basis={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
@@ -378,7 +417,7 @@ type Beregning = {
   skattegrunnlag: number; skatt: number; nettoFortjeneste: number; egenkapital: number; roi: number
 }
 
-function Kalkulator({ kalk, setKalk, beregning }: { kalk: Kalk; setKalk: (k: Kalk) => void; beregning: Beregning }) {
+function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster }: { kalk: Kalk; setKalk: (k: Kalk) => void; beregning: Beregning; oppussingFraPoster: boolean }) {
   const oppdater = (felt: keyof Kalk, verdi: number | boolean) => setKalk({ ...kalk, [felt]: verdi })
 
   return (
@@ -395,7 +434,14 @@ function Kalkulator({ kalk, setKalk, beregning }: { kalk: Kalk; setKalk: (k: Kal
       </Seksjon>
 
       <Seksjon tittel="Oppussing">
-        <KalkFelt lbl="Oppussing" val={kalk.oppussing_kost} onChange={v => oppdater('oppussing_kost', v)} />
+        {oppussingFraPoster ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: FARGER.tekstMid, fontStyle: 'italic' }}>
+            <span>Oppussing (sum fra poster ovenfor)</span>
+            <span style={{ color: FARGER.mork, fontWeight: 600, fontStyle: 'normal' }}>{fmtNok(kalk.oppussing_kost)}</span>
+          </div>
+        ) : (
+          <KalkFelt lbl="Oppussing" val={kalk.oppussing_kost} onChange={v => oppdater('oppussing_kost', v)} />
+        )}
         <KalkFelt lbl="Møblering / styling" val={kalk.mobler_styling} onChange={v => oppdater('mobler_styling', v)} />
       </Seksjon>
 
@@ -584,6 +630,76 @@ function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: 
     textTransform: header ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
   }
+}
+
+const TYPISKE_POSTER = ['Bad', 'Kjøkken', 'Maling og overflater', 'Gulv', 'Vinduer', 'Elektro', 'Rør', 'Yttervegger', 'Tak', 'Hage', 'Fasade', 'Garderobe']
+
+function OppussingsPoster({ poster, onLeggTil, onFjern, onOppdater, nyPostNavn, setNyPostNavn }: {
+  poster: Array<{ navn: string; kostnad: number; notat: string }>
+  onLeggTil: (navn?: string, kostnad?: number) => void
+  onFjern: (i: number) => void
+  onOppdater: (i: number, felt: 'navn' | 'kostnad' | 'notat', verdi: string | number) => void
+  nyPostNavn: string
+  setNyPostNavn: (v: string) => void
+}) {
+  const sum = poster.reduce((s, p) => s + (p.kostnad || 0), 0)
+  const ubrukteForslagene = TYPISKE_POSTER.filter(t => !poster.some(p => p.navn === t))
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, textTransform: 'uppercase' }}>🔨 Oppussingsbudsjett</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: FARGER.mork }}>Sum: {fmtNok(sum)}</div>
+      </div>
+
+      {poster.length === 0 && (
+        <div style={{ background: FARGER.creamLys, padding: 16, borderRadius: RADIUS.sm, fontSize: 13, color: FARGER.tekstMid, marginBottom: 14, fontStyle: 'italic', textAlign: 'center' }}>
+          Ingen poster ennå. Bruk forslag eller legg til selv nedenfor.
+        </div>
+      )}
+
+      {poster.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          {poster.map((p, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 130px auto', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: i < poster.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
+              <input value={p.navn} onChange={e => onOppdater(i, 'navn', e.target.value)}
+                style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+              <input type="number" min={0} step={1000} value={p.kostnad || ''}
+                onChange={e => onOppdater(i, 'kostnad', Number(e.target.value) || 0)}
+                style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+              <button onClick={() => onFjern(i)} title="Fjern post"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ubrukteForslagene.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Hurtig-forslag</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ubrukteForslagene.map(navn => (
+              <button key={navn} onClick={() => onLeggTil(navn)}
+                style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: '5px 12px', fontSize: 12, color: FARGER.mork, cursor: 'pointer' }}>
+                + {navn}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${FARGER.kantLys}` }}>
+        <input value={nyPostNavn} onChange={e => setNyPostNavn(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onLeggTil()}
+          placeholder="Egendefinert post..."
+          style={{ flex: 1, padding: '8px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+        <button onClick={() => onLeggTil()} disabled={!nyPostNavn.trim()}
+          style={{ background: nyPostNavn.trim() ? FARGER.mork : '#888', color: 'white', border: 'none', borderRadius: RADIUS.sm, padding: '8px 18px', fontSize: 12, fontWeight: 600, cursor: nyPostNavn.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          + Legg til
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function FlippeScore({ s }: { s: NonNullable<Analyse['score']> }) {
