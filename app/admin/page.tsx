@@ -10,11 +10,12 @@ import { BoligerSeksjon } from '../components/BoligerSeksjon'
 import { Selge } from '../components/Selge'
 import { Regnskap } from '../components/Regnskap'
 import { Aktivitetslogg } from '../components/Aktivitetslogg'
+import { NorskeBoliger } from '../components/NorskeBoliger'
 import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from '../lib/aktivBruker'
 import { supabase } from '../lib/supabase'
 import { BREAKPOINT, FARGER } from '../lib/styles'
 
-type Seksjon = 'analyse' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
+type Seksjon = 'analyse' | 'norge' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -29,15 +30,17 @@ type Snarvei = {
 }
 
 const SEKSJONER: Snarvei[] = [
-  { id: 'analyse', ikon: '01', tittel: 'Boliganalyse', beskrivelse: 'Vurder ny eiendom — score, yield og strategi' },
-  { id: 'flipp', ikon: '02', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste' },
-  { id: 'utleie', ikon: '03', tittel: 'Boligutleie', beskrivelse: 'Aktive utleieboliger og prognoser' },
-  { id: 'selge', ikon: '04', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle' },
-  { id: 'regnskap', ikon: '05', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport' },
+  { id: 'analyse', ikon: '01', tittel: 'Boliganalyse', beskrivelse: 'Vurder ny eiendom — score, yield og strategi (Spania)' },
+  { id: 'norge', ikon: '02', tittel: 'Norske boliger', beskrivelse: 'Flippe-kalkulator for norske Finn-annonser' },
+  { id: 'flipp', ikon: '03', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste' },
+  { id: 'utleie', ikon: '04', tittel: 'Boligutleie', beskrivelse: 'Aktive utleieboliger og prognoser' },
+  { id: 'selge', ikon: '05', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle' },
+  { id: 'regnskap', ikon: '06', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport' },
 ]
 
 const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   analyse: 'Boliganalyse',
+  norge: 'Norske boliger',
   flipp: 'Flipp',
   utleie: 'Utleie',
   selge: 'Selge',
@@ -74,6 +77,7 @@ function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbak
 type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
 const NAV_LINKS: NavLink[] = [
   { id: 'analyse', lbl: 'Analyse' },
+  { id: 'norge', lbl: 'Norge' },
   { id: 'flipp', lbl: 'Flipp' },
   { id: 'utleie', lbl: 'Utleie' },
   { id: 'selge', lbl: 'Selge' },
@@ -294,6 +298,7 @@ export default function Home() {
           <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
 
           {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
+          {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
           {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}

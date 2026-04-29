@@ -107,6 +107,14 @@ export type Prosjekt = {
   salg_beskrivelse_oversettelser?: Record<string, string> | null
   utleie_fasiliteter_oversettelser?: Record<string, string[]> | null
   oversettelser_oppdatert?: string | null
+  // Norske boliger
+  marked?: 'spania' | 'norge'
+  eierform?: string | null
+  fellesgjeld_nok?: number | null
+  fellesutgifter_mnd_nok?: number | null
+  kommunale_avgifter_aar_nok?: number | null
+  energimerke?: string | null
+  adresse?: string | null
 }
 
 export type UtleieForesporsel = {
