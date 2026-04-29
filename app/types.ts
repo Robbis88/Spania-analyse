@@ -115,6 +115,9 @@ export type Prosjekt = {
   kommunale_avgifter_aar_nok?: number | null
   energimerke?: string | null
   adresse?: string | null
+  // Komplett kalkulator-state for norske prosjekter — lagres som JSONB
+  // slik at hele flyten kan lastes inn igjen senere uten datatap.
+  norsk_kalkulator_data?: Record<string, unknown> | null
 }
 
 export type UtleieForesporsel = {

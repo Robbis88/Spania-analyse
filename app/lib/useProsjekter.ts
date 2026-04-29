@@ -10,9 +10,13 @@ export function useProsjekter() {
   const [laster, setLaster] = useState(true)
 
   const hent = useCallback(async () => {
+    // Hent kun Spania-prosjekter — norske har egen fane med egen visning
+    // (NOK-format, egen kalkulator). marked = null tolkes som Spania for
+    // bakoverkompatibilitet med rader fra før marked-feltet ble innført.
     const { data } = await supabase
       .from('prosjekter')
       .select('*')
+      .or('marked.is.null,marked.eq.spania')
       .order('opprettet', { ascending: false })
     if (data) setProsjekter(data as Prosjekt[])
     setLaster(false)

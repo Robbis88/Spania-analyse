@@ -54,7 +54,7 @@ export function AgentChat() {
 
   useEffect(() => {
     let avbrutt = false
-    supabase.from('prosjekter').select('id, navn, status').order('opprettet', { ascending: false }).then(({ data }) => {
+    supabase.from('prosjekter').select('id, navn, status').or('marked.is.null,marked.eq.spania').order('opprettet', { ascending: false }).then(({ data }) => {
       if (!avbrutt && data) setProsjekter(data as ProsjektValg[])
     })
     return () => { avbrutt = true }
@@ -68,7 +68,7 @@ export function AgentChat() {
       const id = detail?.prosjektId
       if (id) {
         // Refresh prosjektliste i tilfelle den nye boligen ikke er lastet inn enda
-        supabase.from('prosjekter').select('id, navn, status').order('opprettet', { ascending: false }).then(({ data }) => {
+        supabase.from('prosjekter').select('id, navn, status').or('marked.is.null,marked.eq.spania').order('opprettet', { ascending: false }).then(({ data }) => {
           if (data) setProsjekter(data as ProsjektValg[])
         })
         setProsjektId(id)

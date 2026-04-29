@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
@@ -209,6 +209,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [nyPostNavn, setNyPostNavn] = useState('')
   const [pdfLaster, setPdfLaster] = useState(false)
   const [fraCache, setFraCache] = useState<number | null>(null)
+  const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null }>>([])
 
   function fyllFraAnalyse(a: Analyse) {
     // Pre-utfyll oppussingsposter fra AI-forslag
@@ -309,6 +310,50 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   function regenerer() {
     fjernCache(input)
     void analyser({ tvingNy: true })
+  }
+
+  // Hent alle lagrede norske prosjekter — vises som liste øverst
+  const hentLagrede = useCallback(async () => {
+    const { data } = await supabase
+      .from('prosjekter')
+      .select('id, navn, opprettet, bolig_data, norsk_kalkulator_data')
+      .eq('marked', 'norge')
+      .order('opprettet', { ascending: false })
+    if (data) setLagrede(data)
+  }, [])
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void hentLagrede() }, [hentLagrede])
+
+  function lastInn(p: { id: string; norsk_kalkulator_data?: Record<string, unknown> | null }) {
+    const d = p.norsk_kalkulator_data
+    if (!d) {
+      visToast('Mangler kalkulator-data — lagret før denne funksjonen ble lagt til', 'feil', 5000)
+      return
+    }
+    setAnalyse(d.analyse as Analyse)
+    setKalk(d.kalk as Kalk)
+    setModus((d.modus as Modus) || 'ren')
+    setEksisterende((d.eksisterende as EksisterendeBolig) || eksisterende)
+    setBoPlan((d.boPlan as BoPlan) || boPlan)
+    setUtleieDel((d.utleieDel as UtleieDel) || utleieDel)
+    setOppussingsposter((d.oppussingsposter as Array<{ navn: string; kostnad: number; notat: string }>) || [])
+    setLagretId(p.id)
+    setFeil(''); setFraCache(null)
+    visToast('Prosjekt lastet inn', 'suksess')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function slettLagret(id: string, navn: string) {
+    if (!confirm(`Slette «${navn}»? Dette kan ikke angres.`)) return
+    const { error } = await supabase.from('prosjekter').delete().eq('id', id)
+    if (error) {
+      visToast('Sletting feilet: ' + error.message, 'feil', 5000)
+    } else {
+      if (lagretId === id) setLagretId(null)
+      await hentLagrede()
+      visToast('Slettet')
+    }
   }
 
   // === BO-PLAN: projisert salgspris med prisvekst over bo-tiden ===
@@ -475,6 +520,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         kommunale_avgifter_aar_nok: analyse.kommunale_avg_aar_nok || null,
         energimerke: analyse.energimerke || null,
         adresse: analyse.adresse || null,
+        // Komplett state slik at vi kan laste inn igjen
+        norsk_kalkulator_data: {
+          analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter,
+          lagret_tidspunkt: new Date().toISOString(),
+        },
       }
 
       const { error } = await supabase.from('prosjekter').insert([{ ...nytt, ...norskeFelter, bruker }])
@@ -483,7 +533,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       } else {
         await loggAktivitet({ handling: 'lagret norsk flippe-prosjekt', tabell: 'prosjekter', rad_id: id, detaljer: { navn } })
         setLagretId(id)
-        visToast('Lagret! Finn det under Regnskap', 'suksess', 4000)
+        await hentLagrede()
+        visToast('Lagret! Du kan komme tilbake og fortsette senere.', 'suksess', 4000)
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
@@ -602,6 +653,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           </button>
         </div>
       </div>
+
+      {lagrede.length > 0 && (
+        <LagredeProsjekter prosjekter={lagrede} onLastInn={lastInn} onSlett={slettLagret} aktivId={lagretId} />
+      )}
 
       {modus === 'bo' && (
         <SalgEgenBolig eks={eksisterende} setEks={setEksisterende} netto={eksisterendeBeregning} />
@@ -1021,6 +1076,52 @@ function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: 
     textTransform: header ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
   }
+}
+
+function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
+  prosjekter: Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null }>
+  onLastInn: (p: { id: string; norsk_kalkulator_data?: Record<string, unknown> | null }) => void
+  onSlett: (id: string, navn: string) => void
+  aktivId: string | null
+}) {
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 20, marginBottom: 24 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📂 Dine norske prosjekter</div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {prosjekter.map(p => {
+          const erAktiv = aktivId === p.id
+          const beliggenhet = p.bolig_data?.beliggenhet || ''
+          const dato = new Date(p.opprettet).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short' })
+          return (
+            <div key={p.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              padding: '10px 12px', borderRadius: RADIUS.sm,
+              background: erAktiv ? FARGER.creamLys : 'transparent',
+              border: erAktiv ? `1px solid ${FARGER.gull}` : `1px solid transparent`,
+            }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: FARGER.mork }}>
+                  {erAktiv && '★ '}{p.navn}
+                </div>
+                <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 2 }}>
+                  {beliggenhet ? beliggenhet + ' · ' : ''}Lagret {dato}
+                </div>
+              </div>
+              <button onClick={() => onLastInn(p)} disabled={erAktiv}
+                style={{ background: erAktiv ? FARGER.flateLys : FARGER.mork, color: erAktiv ? FARGER.tekstMid : 'white', border: 'none', borderRadius: RADIUS.sm, padding: '6px 14px', fontSize: 11, fontWeight: 600, cursor: erAktiv ? 'default' : 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                {erAktiv ? 'Aktiv' : 'Åpne'}
+              </button>
+              <button onClick={() => onSlett(p.id, p.navn)}
+                title="Slett prosjekt"
+                style={{ background: 'transparent', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}>
+                🗑
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function SalgEgenBolig({ eks, setEks, netto }: {
