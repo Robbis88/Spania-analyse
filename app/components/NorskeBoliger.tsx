@@ -61,6 +61,8 @@ type Analyse = {
     begrunnelse?: string
   }
   foreslatte_oppussingsposter?: Array<{ navn: string; kostnad_nok: number; begrunnelse?: string }>
+  arlig_prisvekst_pst?: number
+  prisvekst_begrunnelse?: string
 }
 
 type Kalk = {
@@ -99,6 +101,11 @@ type EksisterendeBolig = {
   skattefri: boolean
 }
 
+type BoPlan = {
+  bo_tid_mnd: number
+  arlig_prisvekst_pst: number
+}
+
 export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [modus, setModus] = useState<Modus>('ren')
   const [input, setInput] = useState('')
@@ -112,6 +119,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     salgssum: 0, restgjeld: 0,
     meglerhonorar_pst: 2.0, marknadsforing: 25000,
     skattefri: true,
+  })
+
+  const [boPlan, setBoPlan] = useState<BoPlan>({
+    bo_tid_mnd: 24,           // 24 mnd = 2 år, godt over 12-mnd-grensen for skattefri
+    arlig_prisvekst_pst: 4,   // moderat default, AI overstyrer
   })
 
   const [kalk, setKalk] = useState<Kalk>({
@@ -137,6 +149,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     })).filter(p => p.navn)
     setOppussingsposter(foreslatte)
     const sumPoster = foreslatte.reduce((s, p) => s + p.kostnad, 0)
+
+    // Hent prisvekst-estimat fra AI hvis det ble returnert
+    if (a.arlig_prisvekst_pst && a.arlig_prisvekst_pst > 0) {
+      setBoPlan(b => ({ ...b, arlig_prisvekst_pst: a.arlig_prisvekst_pst as number }))
+    }
 
     setKalk(k => ({
       ...k,
@@ -192,6 +209,27 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setLaster(false)
   }
 
+  // === BO-PLAN: projisert salgspris med prisvekst over bo-tiden ===
+  // Brukerens kalk.salgspris er "i dag, etter oppussing".
+  // I bo-modus brukes prisvekst i området til å projisere fremtidig pris.
+  const projisertSalgspris = useMemo(() => {
+    if (modus !== 'bo' || !kalk.salgspris) return kalk.salgspris
+    const aar = boPlan.bo_tid_mnd / 12
+    const faktor = Math.pow(1 + boPlan.arlig_prisvekst_pst / 100, aar)
+    return kalk.salgspris * faktor
+  }, [modus, kalk.salgspris, boPlan.bo_tid_mnd, boPlan.arlig_prisvekst_pst])
+
+  // I bo-modus syncer vi bo-tid → holdetid og bruker projisert pris i kalkulator.
+  // Vi gjør ikke direkte mutasjon — i stedet bruker vi en "effektiv" kalk i beregningen.
+  const effektivKalk = useMemo<Kalk>(() => {
+    if (modus !== 'bo') return kalk
+    return {
+      ...kalk,
+      holdetid_mnd: boPlan.bo_tid_mnd,
+      salgspris: Math.round(projisertSalgspris),
+    }
+  }, [modus, kalk, boPlan.bo_tid_mnd, projisertSalgspris])
+
   // === SALG AV EKSISTERENDE BOLIG (kun bo-modus) ===
   const eksisterendeBeregning = useMemo(() => {
     if (modus !== 'bo' || eksisterende.salgssum === 0) {
@@ -207,32 +245,36 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   }, [modus, eksisterende])
 
   // === KALKULATOR ===
+  // Bruker effektivKalk så bo-modus får projisert salgspris og bo-tid automatisk
   const beregning = useMemo(() => {
-    const totalKjopspris = kalk.kjopesum + kalk.fellesgjeld
-    const dokavg = (kalk.kjopesum * kalk.dokumentavgift_pst) / 100
-    const kjopskostnader = dokavg + kalk.tinglysing
-    const totalKjop = kalk.kjopesum + kjopskostnader
+    const k = effektivKalk
+    const totalKjopspris = k.kjopesum + k.fellesgjeld
+    const dokavg = (k.kjopesum * k.dokumentavgift_pst) / 100
+    const kjopskostnader = dokavg + k.tinglysing
+    const totalKjop = k.kjopesum + kjopskostnader
 
-    const oppussingTotal = kalk.oppussing_kost + kalk.mobler_styling
+    const oppussingTotal = k.oppussing_kost + k.mobler_styling
 
     // Lånekostnad i holdetiden
-    const lanebelop = totalKjop * (1 - kalk.egenkapital_pst / 100)
-    const renterPerMnd = (lanebelop * kalk.rente_pst / 100) / 12
-    const renterTotal = renterPerMnd * kalk.holdetid_mnd
-    const fellesutgTotal = kalk.fellesutg_mnd * kalk.holdetid_mnd
+    const lanebelop = totalKjop * (1 - k.egenkapital_pst / 100)
+    const renterPerMnd = (lanebelop * k.rente_pst / 100) / 12
+    const renterTotal = renterPerMnd * k.holdetid_mnd
+    const fellesutgTotal = k.fellesutg_mnd * k.holdetid_mnd
     const holdekostnad = renterTotal + fellesutgTotal
 
     const totalInvestering = totalKjop + oppussingTotal + holdekostnad
 
     // Salg
-    const meglerhonorar = (kalk.salgspris * kalk.meglerhonorar_pst) / 100
-    const salgskostnader = meglerhonorar + kalk.marknadsforing
-    const nettoSalg = kalk.salgspris - salgskostnader
+    const meglerhonorar = (k.salgspris * k.meglerhonorar_pst) / 100
+    const salgskostnader = meglerhonorar + k.marknadsforing
+    const nettoSalg = k.salgspris - salgskostnader
 
     // Brutto fortjeneste før skatt
     // For norsk skatt: gevinst regnes mot kjøpesum + dokavg + faktiske oppussingskostnader (ikke holdekostnader/renter)
-    const skattegrunnlag = nettoSalg - (kalk.kjopesum + kjopskostnader + kalk.oppussing_kost + kalk.mobler_styling)
-    const skatt = kalk.skattefri || skattegrunnlag <= 0 ? 0 : (skattegrunnlag * kalk.skattesats_pst) / 100
+    const skattegrunnlag = nettoSalg - (k.kjopesum + kjopskostnader + k.oppussing_kost + k.mobler_styling)
+    // I bo-modus blir salget skattefritt etter 12 mnd botid — automatisk hvis bo-tid >= 12
+    const erSkattefri = k.skattefri || (modus === 'bo' && boPlan.bo_tid_mnd >= 12)
+    const skatt = erSkattefri || skattegrunnlag <= 0 ? 0 : (skattegrunnlag * k.skattesats_pst) / 100
 
     const nettoFortjeneste = nettoSalg - totalInvestering - skatt
     const egenkapital = totalInvestering - lanebelop
@@ -244,7 +286,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       totalInvestering, meglerhonorar, salgskostnader, nettoSalg,
       skattegrunnlag, skatt, nettoFortjeneste, egenkapital, roi,
     }
-  }, [kalk])
+  }, [effektivKalk, modus, boPlan.bo_tid_mnd])
 
   // === FINANSIERING (kun bo-modus) ===
   // Bruker netto fra salg av eksisterende som faktisk egenkapital,
@@ -333,7 +375,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     try {
       const pdf = await byggNorskFlippePdf({
         analyse,
-        kalk,
+        kalk: effektivKalk,
         beregning,
         oppussingsposter,
         boFlipp: modus === 'bo' && finansiering ? {
@@ -457,11 +499,19 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
             nyPostNavn={nyPostNavn}
             setNyPostNavn={setNyPostNavn}
           />
-          <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} />
-          {modus === 'bo' && finansiering && (
-            <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={kalk.salgspris} />
+          {modus === 'bo' && (
+            <BoPlanPanel
+              boPlan={boPlan} setBoPlan={setBoPlan}
+              salgsprisIDag={kalk.salgspris}
+              projisert={projisertSalgspris}
+              aiBegrunnelse={analyse.prisvekst_begrunnelse}
+            />
           )}
-          <Sensitivitet kalk={kalk} basis={beregning} />
+          <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} boModus={modus === 'bo'} effektivSalgspris={effektivKalk.salgspris} effektivHoldetid={effektivKalk.holdetid_mnd} />
+          {modus === 'bo' && finansiering && (
+            <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} />
+          )}
+          <Sensitivitet kalk={effektivKalk} basis={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
@@ -552,8 +602,14 @@ type Beregning = {
   skattegrunnlag: number; skatt: number; nettoFortjeneste: number; egenkapital: number; roi: number
 }
 
-function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster }: { kalk: Kalk; setKalk: (k: Kalk) => void; beregning: Beregning; oppussingFraPoster: boolean }) {
+function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster, boModus, effektivSalgspris, effektivHoldetid }: {
+  kalk: Kalk; setKalk: (k: Kalk) => void; beregning: Beregning
+  oppussingFraPoster: boolean; boModus: boolean
+  effektivSalgspris?: number; effektivHoldetid?: number
+}) {
   const oppdater = (felt: keyof Kalk, verdi: number | boolean) => setKalk({ ...kalk, [felt]: verdi })
+  const visningHoldetid = boModus && effektivHoldetid !== undefined ? effektivHoldetid : kalk.holdetid_mnd
+  const visningSalgspris = boModus && effektivSalgspris !== undefined ? effektivSalgspris : kalk.salgspris
 
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
@@ -580,17 +636,31 @@ function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster }: { kalk: Ka
         <KalkFelt lbl="Møblering / styling" val={kalk.mobler_styling} onChange={v => oppdater('mobler_styling', v)} />
       </Seksjon>
 
-      <Seksjon tittel="Holde-kostnader">
-        <KalkFelt lbl="Holdetid (mnd)" val={kalk.holdetid_mnd} onChange={v => oppdater('holdetid_mnd', v)} step={1} />
+      <Seksjon tittel={boModus ? 'Bo- og lånekostnader' : 'Holde-kostnader'}>
+        {boModus ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: FARGER.tekstMid, fontStyle: 'italic' }}>
+            <span>Bo-tid (settes i steg 2 ovenfor)</span>
+            <span style={{ color: FARGER.mork, fontWeight: 600, fontStyle: 'normal' }}>{visningHoldetid} mnd</span>
+          </div>
+        ) : (
+          <KalkFelt lbl="Holdetid (mnd)" val={kalk.holdetid_mnd} onChange={v => oppdater('holdetid_mnd', v)} step={1} />
+        )}
         <KalkFelt lbl="Rente %" val={kalk.rente_pst} onChange={v => oppdater('rente_pst', v)} step={0.1} />
         <KalkFelt lbl="Egenkapital %" val={kalk.egenkapital_pst} onChange={v => oppdater('egenkapital_pst', v)} step={1} />
         <KalkFelt lbl="Fellesutgifter / mnd" val={kalk.fellesutg_mnd} onChange={v => oppdater('fellesutg_mnd', v)} />
-        <Resultatlinje lbl={`Renter ${kalk.holdetid_mnd} mnd`} val={beregning.renterTotal} />
-        <Resultatlinje lbl={`Fellesutg. ${kalk.holdetid_mnd} mnd`} val={beregning.fellesutgTotal} />
+        <Resultatlinje lbl={`Renter ${visningHoldetid} mnd`} val={beregning.renterTotal} />
+        <Resultatlinje lbl={`Fellesutg. ${visningHoldetid} mnd`} val={beregning.fellesutgTotal} />
       </Seksjon>
 
       <Seksjon tittel="Salg">
-        <KalkFelt lbl="Forventet salgssum" val={kalk.salgspris} onChange={v => oppdater('salgspris', v)} />
+        {boModus ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: FARGER.tekstMid, fontStyle: 'italic' }}>
+            <span>Salgspris (projisert fra steg 2 — bo-tid + prisvekst)</span>
+            <span style={{ color: FARGER.mork, fontWeight: 600, fontStyle: 'normal' }}>{fmtNok(visningSalgspris)}</span>
+          </div>
+        ) : (
+          <KalkFelt lbl="Forventet salgssum" val={kalk.salgspris} onChange={v => oppdater('salgspris', v)} />
+        )}
         <KalkFelt lbl="Meglerhonorar %" val={kalk.meglerhonorar_pst} onChange={v => oppdater('meglerhonorar_pst', v)} step={0.1} />
         <KalkFelt lbl="Markedsføring / takst" val={kalk.marknadsforing} onChange={v => oppdater('marknadsforing', v)} />
         <Resultatlinje lbl="Meglerhonorar" val={beregning.meglerhonorar} />
@@ -598,11 +668,19 @@ function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster }: { kalk: Ka
       </Seksjon>
 
       <Seksjon tittel="Skatt">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: FARGER.tekstMork, cursor: 'pointer', padding: '6px 0' }}>
-          <input type="checkbox" checked={kalk.skattefri} onChange={e => oppdater('skattefri', e.target.checked)} style={{ width: 18, height: 18 }} />
-          <span>Skattefri (bodd 12 av siste 24 mnd)</span>
-        </label>
-        {!kalk.skattefri && <KalkFelt lbl="Skattesats %" val={kalk.skattesats_pst} onChange={v => oppdater('skattesats_pst', v)} step={1} />}
+        {boModus ? (
+          <div style={{ padding: '8px 0', fontSize: 13, color: FARGER.tekstMid, fontStyle: 'italic' }}>
+            Skattestatus styres av bo-tid (skattefritt ved ≥ 12 mnd).
+          </div>
+        ) : (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: FARGER.tekstMork, cursor: 'pointer', padding: '6px 0' }}>
+              <input type="checkbox" checked={kalk.skattefri} onChange={e => oppdater('skattefri', e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span>Skattefri (bodd 12 av siste 24 mnd)</span>
+            </label>
+            {!kalk.skattefri && <KalkFelt lbl="Skattesats %" val={kalk.skattesats_pst} onChange={v => oppdater('skattesats_pst', v)} step={1} />}
+          </>
+        )}
         <Resultatlinje lbl="Skattegrunnlag (gevinst)" val={beregning.skattegrunnlag} />
         <Resultatlinje lbl="Skatt" val={beregning.skatt} />
       </Seksjon>
@@ -813,6 +891,61 @@ function SalgEgenBolig({ eks, setEks, netto }: {
           <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
             {fmtNok(netto.nettoTilDisposisjon)}
           </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BoPlanPanel({ boPlan, setBoPlan, salgsprisIDag, projisert, aiBegrunnelse }: {
+  boPlan: BoPlan
+  setBoPlan: (b: BoPlan) => void
+  salgsprisIDag: number
+  projisert: number
+  aiBegrunnelse?: string
+}) {
+  const aar = (boPlan.bo_tid_mnd / 12).toFixed(1)
+  const oppjustering = projisert - salgsprisIDag
+  const skattefri = boPlan.bo_tid_mnd >= 12
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>📈 Steg 2 — Bo-tid og prisvekst</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', fontWeight: 300 }}>
+        Hvor lenge bor du der før du selger? Markedsveksten i området jobber for deg.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 14 }}>
+        <KalkInput lbl="Bo-tid før salg (mnd)" val={boPlan.bo_tid_mnd}
+          onChange={v => setBoPlan({ ...boPlan, bo_tid_mnd: v })} step={1} />
+        <KalkInput lbl="Årlig prisvekst i området %" val={boPlan.arlig_prisvekst_pst}
+          onChange={v => setBoPlan({ ...boPlan, arlig_prisvekst_pst: v })} step={0.1} />
+      </div>
+
+      {aiBegrunnelse && (
+        <div style={{ background: FARGER.creamLys, padding: 12, borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid, marginBottom: 14, fontStyle: 'italic', lineHeight: 1.6 }}>
+          🤖 {aiBegrunnelse}
+        </div>
+      )}
+
+      <div style={{ background: FARGER.creamLys, padding: 16, borderRadius: RADIUS.sm }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Projisert salgspris</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13 }}>
+          <span style={{ color: FARGER.tekstMid }}>Salgspris i dag (etter oppussing)</span>
+          <span style={{ textAlign: 'right' }}>{fmtNok(salgsprisIDag)}</span>
+          <span style={{ color: FARGER.tekstMid }}>+ Markedsvekst over {aar} år ({boPlan.arlig_prisvekst_pst} % årlig)</span>
+          <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(oppjustering)}</span>
+          <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+            = Forventet salgspris om {aar} år
+          </span>
+          <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4, fontSize: 16 }}>
+            {fmtNok(projisert)}
+          </span>
+        </div>
+        <div style={{ marginTop: 12, padding: 10, borderRadius: RADIUS.sm, background: skattefri ? '#e8f5ed' : '#fff8e1', fontSize: 12, color: skattefri ? '#1a4d2b' : '#6b3a0a' }}>
+          {skattefri
+            ? '✓ Bo-tid ≥ 12 mnd — salget blir normalt skattefritt (12 av 24 mnd-regelen).'
+            : '⚠ Bo-tid < 12 mnd — gevinsten beskattes med 22 % (slik kalkulatoren regner). Bo minst 12 mnd for skattefri.'}
         </div>
       </div>
     </div>

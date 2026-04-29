@@ -114,7 +114,9 @@ Returner dette (norsk språk i tekst-feltene, alle beløp i NOK):
     {"navn": "Kjøkken", "kostnad_nok": 0, "begrunnelse": "kort"},
     {"navn": "Maling og overflater", "kostnad_nok": 0, "begrunnelse": "kort"},
     {"navn": "Gulv", "kostnad_nok": 0, "begrunnelse": "kort"}
-  ]
+  ],
+  "arlig_prisvekst_pst": 0,
+  "prisvekst_begrunnelse": "1-2 setninger om realistisk årlig prisvekst i denne bydelen basert på siste 5-10 år, kommunale planer, befolkningsvekst og generell etterspørsel. Eksempler: Bergen sentrum/Bergenhus 4-6 %, Sandviken 3-5 %, perifere bydeler 2-4 %, fallende områder 0-2 %"
 }
 
 Score-veiledning (1-10 skala der 10 = perfekt for flipp):
