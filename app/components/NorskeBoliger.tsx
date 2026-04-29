@@ -6,6 +6,7 @@ import { loggAktivitet } from '../lib/logg'
 import { tomtProsjekt, type Prosjekt } from '../types'
 import { FARGER, RADIUS } from '../lib/styles'
 import { visToast } from '../lib/toast'
+import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 
 type Analyse = {
   tittel?: string
@@ -108,6 +109,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
   const [oppussingsposter, setOppussingsposter] = useState<Array<{ navn: string; kostnad: number; notat: string }>>([])
   const [nyPostNavn, setNyPostNavn] = useState('')
+  const [pdfLaster, setPdfLaster] = useState(false)
 
   function fyllFraAnalyse(a: Analyse) {
     // Pre-utfyll oppussingsposter fra AI-forslag
@@ -274,6 +276,36 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setLagrer(false)
   }
 
+  async function lastNedPdf() {
+    if (!analyse || pdfLaster) return
+    setPdfLaster(true)
+    try {
+      const pdf = await byggNorskFlippePdf({
+        analyse,
+        kalk,
+        beregning,
+        oppussingsposter,
+      })
+      const bin = atob(pdf.base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = pdf.filnavn
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      visToast('PDF lastet ned: ' + pdf.filnavn, 'suksess', 3500)
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e)
+      visToast('PDF-bygging feilet: ' + m, 'feil', 5000)
+    }
+    setPdfLaster(false)
+  }
+
   function nullstill() {
     setInput(''); setAnalyse(null); setFeil(''); setLagretId(null)
     setKalk({
@@ -335,11 +367,17 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           <Sensitivitet kalk={kalk} basis={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
-            <button onClick={lagreSomProsjekt} disabled={lagrer || !!lagretId}
-              style={{ width: '100%', background: lagretId ? FARGER.suksess : (lagrer ? '#888' : FARGER.mork), color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: lagrer || lagretId ? 'default' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              {lagretId ? '✓ Lagret som prosjekt' : (lagrer ? 'Lagrer...' : 'Lagre som prosjekt')}
-            </button>
-            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '8px 0 0' }}>Lagres med marked = norge under Regnskap.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              <button onClick={lagreSomProsjekt} disabled={lagrer || !!lagretId}
+                style={{ background: lagretId ? FARGER.suksess : (lagrer ? '#888' : FARGER.mork), color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: lagrer || lagretId ? 'default' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                {lagretId ? '✓ Lagret som prosjekt' : (lagrer ? 'Lagrer...' : '💾 Lagre som prosjekt')}
+              </button>
+              <button onClick={lastNedPdf} disabled={pdfLaster}
+                style={{ background: pdfLaster ? '#888' : 'transparent', color: pdfLaster ? 'white' : FARGER.mork, border: `1px solid ${FARGER.gull}`, padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'wait' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                {pdfLaster ? 'Bygger PDF...' : '📄 Last ned PDF-prospekt'}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>PDF-en inneholder boligfakta, score, kalkulator-resultater, oppussingsposter og bud-strategi — klar til bankmøte.</p>
           </div>
         </>
       )}
