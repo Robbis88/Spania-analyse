@@ -293,6 +293,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           {analyse.score && <FlippeScore s={analyse.score} />}
           {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
           <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} />
+          <Sensitivitet kalk={kalk} basis={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
             <button onClick={lagreSomProsjekt} disabled={lagrer || !!lagretId}
@@ -446,6 +447,143 @@ function Kalkulator({ kalk, setKalk, beregning }: { kalk: Kalk; setKalk: (k: Kal
       </div>
     </div>
   )
+}
+
+// Pure-funksjon som kan kjøres med vilkårlige Kalk-verdier — gjenbrukes
+// i sensitivitetsanalysen for å regne ut "hva-hvis"-scenarier.
+function regnUt(k: Kalk): Beregning {
+  const totalKjopspris = k.kjopesum + k.fellesgjeld
+  const dokavg = (k.kjopesum * k.dokumentavgift_pst) / 100
+  const kjopskostnader = dokavg + k.tinglysing
+  const totalKjop = k.kjopesum + kjopskostnader
+
+  const oppussingTotal = k.oppussing_kost + k.mobler_styling
+
+  const lanebelop = totalKjop * (1 - k.egenkapital_pst / 100)
+  const renterPerMnd = (lanebelop * k.rente_pst / 100) / 12
+  const renterTotal = renterPerMnd * k.holdetid_mnd
+  const fellesutgTotal = k.fellesutg_mnd * k.holdetid_mnd
+  const holdekostnad = renterTotal + fellesutgTotal
+
+  const totalInvestering = totalKjop + oppussingTotal + holdekostnad
+
+  const meglerhonorar = (k.salgspris * k.meglerhonorar_pst) / 100
+  const salgskostnader = meglerhonorar + k.marknadsforing
+  const nettoSalg = k.salgspris - salgskostnader
+
+  const skattegrunnlag = nettoSalg - (k.kjopesum + kjopskostnader + k.oppussing_kost + k.mobler_styling)
+  const skatt = k.skattefri || skattegrunnlag <= 0 ? 0 : (skattegrunnlag * k.skattesats_pst) / 100
+
+  const nettoFortjeneste = nettoSalg - totalInvestering - skatt
+  const egenkapital = totalInvestering - lanebelop
+  const roi = egenkapital > 0 ? (nettoFortjeneste / egenkapital) * 100 : 0
+
+  return {
+    totalKjopspris, dokavg, kjopskostnader, totalKjop,
+    oppussingTotal, lanebelop, renterTotal, fellesutgTotal, holdekostnad,
+    totalInvestering, meglerhonorar, salgskostnader, nettoSalg,
+    skattegrunnlag, skatt, nettoFortjeneste, egenkapital, roi,
+  }
+}
+
+function Sensitivitet({ kalk, basis }: { kalk: Kalk; basis: Beregning }) {
+  // Scenarier — hver justerer ett felt
+  const scenarier: Array<{ navn: string; emoji: string; resultat: Beregning }> = [
+    { navn: 'Salgspris −5 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.95 }) },
+    { navn: 'Salgspris −10 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.9 }) },
+    { navn: 'Oppussing +20 %', emoji: '🔨', resultat: regnUt({ ...kalk, oppussing_kost: kalk.oppussing_kost * 1.2 }) },
+    { navn: 'Holdetid +3 mnd', emoji: '⏱️', resultat: regnUt({ ...kalk, holdetid_mnd: kalk.holdetid_mnd + 3 }) },
+    { navn: 'Rente +1 %', emoji: '💸', resultat: regnUt({ ...kalk, rente_pst: kalk.rente_pst + 1 }) },
+  ]
+
+  // Break-even: hvor lavt kan salgsprisen gå før netto = 0?
+  // Vi prøver lineær søk fra dagens salgspris og ned
+  let breakEven = 0
+  if (kalk.salgspris > 0) {
+    let lavt = kalk.kjopesum, hoyt = kalk.salgspris
+    for (let i = 0; i < 40; i++) {
+      const midt = (lavt + hoyt) / 2
+      const r = regnUt({ ...kalk, salgspris: midt })
+      if (r.nettoFortjeneste >= 0) hoyt = midt
+      else lavt = midt
+    }
+    breakEven = Math.round((lavt + hoyt) / 2)
+  }
+
+  const breakEvenDelta = breakEven > 0 ? ((kalk.salgspris - breakEven) / kalk.salgspris) * 100 : 0
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>📊 Sensitivitet</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 18px', fontWeight: 300 }}>
+        Hvor robust er kalkulasjonen? Tabellen viser hva som skjer hvis ting går mot deg.
+      </p>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: `2px solid ${FARGER.kantLys}` }}>
+              <th style={tdStil(true, 'left')}>Scenario</th>
+              <th style={tdStil(true, 'right')}>Netto fortjeneste</th>
+              <th style={tdStil(true, 'right')}>ROI på EK</th>
+              <th style={tdStil(true, 'right')}>Endring</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ borderBottom: `1px solid ${FARGER.kantLys}`, background: FARGER.creamLys }}>
+              <td style={tdStil(false, 'left', true)}>📍 Som kalkulert (basis)</td>
+              <td style={tdStil(false, 'right', true, basis.nettoFortjeneste >= 0 ? '#1a4d2b' : '#7a0c1e')}>{fmtNok(basis.nettoFortjeneste)}</td>
+              <td style={tdStil(false, 'right', true)}>{fmtPct(basis.roi)}</td>
+              <td style={tdStil(false, 'right')}>—</td>
+            </tr>
+            {scenarier.map((s, i) => {
+              const delta = s.resultat.nettoFortjeneste - basis.nettoFortjeneste
+              return (
+                <tr key={i} style={{ borderBottom: `1px solid ${FARGER.kantLys}` }}>
+                  <td style={tdStil(false, 'left')}>{s.emoji} {s.navn}</td>
+                  <td style={tdStil(false, 'right', false, s.resultat.nettoFortjeneste >= 0 ? '#1a4d2b' : '#7a0c1e')}>{fmtNok(s.resultat.nettoFortjeneste)}</td>
+                  <td style={tdStil(false, 'right')}>{fmtPct(s.resultat.roi)}</td>
+                  <td style={tdStil(false, 'right', false, delta < 0 ? '#7a0c1e' : '#1a4d2b')}>{delta >= 0 ? '+' : ''}{fmtNok(delta)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {breakEven > 0 && (
+        <div style={{
+          background: breakEvenDelta > 10 ? '#e8f5ed' : breakEvenDelta > 5 ? '#fff8e1' : '#fde8ec',
+          border: `1px solid ${breakEvenDelta > 10 ? '#2D7D46' : breakEvenDelta > 5 ? '#B05E0A' : '#C8102E'}`,
+          padding: 14, borderRadius: RADIUS.sm, marginTop: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
+        }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, color: breakEvenDelta > 10 ? '#1a4d2b' : breakEvenDelta > 5 ? '#6b3a0a' : '#7a0c1e' }}>
+              ⚖️ Break-even salgspris
+            </div>
+            <div style={{ fontSize: 14, color: FARGER.tekstMid, lineHeight: 1.5 }}>
+              Salgsprisen kan synke til <strong>{fmtNok(breakEven)}</strong> før du går i null.<br />
+              Det er <strong>{breakEvenDelta.toFixed(1)} %</strong> margin under nåværende estimat.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: string): React.CSSProperties {
+  return {
+    padding: header ? '10px 8px' : '12px 8px',
+    textAlign: align,
+    fontSize: header ? 11 : 13,
+    fontWeight: bold || header ? 600 : 400,
+    color: color || (header ? FARGER.tekstMid : FARGER.tekstMork),
+    letterSpacing: header ? '0.06em' : 'normal',
+    textTransform: header ? 'uppercase' : 'none',
+    whiteSpace: 'nowrap',
+  }
 }
 
 function FlippeScore({ s }: { s: NonNullable<Analyse['score']> }) {
