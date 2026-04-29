@@ -54,6 +54,18 @@ type AnalyseLite = {
 
 type OppussingsPost = { navn: string; kostnad: number; notat: string }
 
+type BoFlipp = {
+  eksisterende: {
+    salgssum: number; restgjeld: number
+    meglerhonorar_pst: number; marknadsforing: number; skattefri: boolean
+  }
+  netto: { meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number }
+  finansiering: {
+    totalUtlegg: number; tilgjengeligEK: number; lanebehov: number
+    overskudd: number; belaningsgrad: number; mndBetaling: number
+  }
+}
+
 const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 const PCT = (n: number) => n.toFixed(1) + ' %'
 
@@ -62,6 +74,7 @@ export async function byggNorskFlippePdf(args: {
   kalk: Kalk
   beregning: Beregning
   oppussingsposter: OppussingsPost[]
+  boFlipp?: BoFlipp | null
 }): Promise<{ base64: string; filnavn: string }> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF()
@@ -76,7 +89,8 @@ export async function byggNorskFlippePdf(args: {
   doc.setFontSize(18); doc.setFont('helvetica', 'bold')
   doc.text('Leganger & Osvaag Eiendom', 20, 15)
   doc.setFontSize(11); doc.setFont('helvetica', 'normal')
-  doc.text('Norsk flippe-prospekt — ' + (a.tittel || a.adresse || 'Bolig'), 20, 24)
+  const overskrift = args.boFlipp ? 'Bo-og-flipp-prospekt' : 'Norsk flippe-prospekt'
+  doc.text(overskrift + ' — ' + (a.tittel || a.adresse || 'Bolig'), 20, 24)
   doc.setFontSize(9)
   doc.text('Generert ' + new Date().toLocaleDateString('nb-NO') + (a.eierform ? '  |  ' + a.eierform : '') + (a.type ? '  |  ' + a.type : ''), 20, 31)
 
@@ -192,6 +206,34 @@ export async function byggNorskFlippePdf(args: {
     seksjon('OPPUSSINGSBUDSJETT')
     args.oppussingsposter.forEach((p, i) => rad(p.navn || ('Post ' + (i + 1)), NOK(p.kostnad || 0), i))
     rad('Sum oppussing', NOK(args.oppussingsposter.reduce((s, p) => s + (p.kostnad || 0), 0)), args.oppussingsposter.length, true)
+    y += 4
+  }
+
+  // === BO-FLIPP: SALG AV EGEN BOLIG + FINANSIERING ===
+  if (args.boFlipp) {
+    const bf = args.boFlipp
+    seksjon('SALG AV EKSISTERENDE BOLIG')
+    rad('Forventet salgssum', NOK(bf.eksisterende.salgssum), 0)
+    rad(`Meglerhonorar (${bf.eksisterende.meglerhonorar_pst} %)`, '− ' + NOK(bf.netto.meglerhonorar), 1)
+    rad('Markedsføring/takst', '− ' + NOK(bf.eksisterende.marknadsforing), 2)
+    rad('Restgjeld på lån', '− ' + NOK(bf.eksisterende.restgjeld), 3)
+    if (!bf.eksisterende.skattefri && bf.netto.skatt > 0) {
+      rad('Skatt (22 %)', '− ' + NOK(bf.netto.skatt), 4)
+    } else {
+      rad('Skatt', 'Skattefri (botid)', 4)
+    }
+    rad('Netto til disposisjon', NOK(bf.netto.nettoTilDisposisjon), 5, true)
+    y += 4
+
+    seksjon('FINANSIERING & LÅNEBEHOV')
+    rad('Totalt utlegg (kjøp + oppussing + møblering)', NOK(bf.finansiering.totalUtlegg), 0)
+    rad('Tilgjengelig EK fra salg av eget hjem', '− ' + NOK(bf.finansiering.tilgjengeligEK), 1)
+    rad('Lånebehov', NOK(bf.finansiering.lanebehov), 2, true)
+    if (bf.finansiering.overskudd > 0) {
+      rad('Overskudd egenkapital (fri kapital)', NOK(bf.finansiering.overskudd), 3)
+    }
+    rad('Belåningsgrad', PCT(bf.finansiering.belaningsgrad), 4, true)
+    rad(`Mnd-betaling (annuitet 25 år, ${k.rente_pst} %)`, NOK(bf.finansiering.mndBetaling), 5, true)
     y += 4
   }
 

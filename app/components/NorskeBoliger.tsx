@@ -89,13 +89,30 @@ type Kalk = {
 const fmtNok = (n: number) => Math.round(n).toLocaleString('nb-NO') + ' kr'
 const fmtPct = (n: number) => n.toFixed(1) + ' %'
 
+type Modus = 'ren' | 'bo'
+
+type EksisterendeBolig = {
+  salgssum: number
+  restgjeld: number
+  meglerhonorar_pst: number
+  marknadsforing: number
+  skattefri: boolean
+}
+
 export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
+  const [modus, setModus] = useState<Modus>('ren')
   const [input, setInput] = useState('')
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [laster, setLaster] = useState(false)
   const [feil, setFeil] = useState('')
   const [lagrer, setLagrer] = useState(false)
   const [lagretId, setLagretId] = useState<string | null>(null)
+
+  const [eksisterende, setEksisterende] = useState<EksisterendeBolig>({
+    salgssum: 0, restgjeld: 0,
+    meglerhonorar_pst: 2.0, marknadsforing: 25000,
+    skattefri: true,
+  })
 
   const [kalk, setKalk] = useState<Kalk>({
     kjopesum: 0, fellesgjeld: 0,
@@ -175,6 +192,20 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setLaster(false)
   }
 
+  // === SALG AV EKSISTERENDE BOLIG (kun bo-modus) ===
+  const eksisterendeBeregning = useMemo(() => {
+    if (modus !== 'bo' || eksisterende.salgssum === 0) {
+      return { meglerhonorar: 0, salgskostnader: 0, skatt: 0, nettoTilDisposisjon: 0 }
+    }
+    const meglerhonorar = (eksisterende.salgssum * eksisterende.meglerhonorar_pst) / 100
+    const salgskostnader = meglerhonorar + eksisterende.marknadsforing
+    // Egenboligsalg er normalt skattefritt hvis bodd 12 av siste 24 mnd
+    const skattegrunnlag = eksisterende.salgssum - salgskostnader - eksisterende.restgjeld
+    const skatt = eksisterende.skattefri || skattegrunnlag <= 0 ? 0 : skattegrunnlag * 0.22
+    const nettoTilDisposisjon = eksisterende.salgssum - salgskostnader - eksisterende.restgjeld - skatt
+    return { meglerhonorar, salgskostnader, skatt, nettoTilDisposisjon }
+  }, [modus, eksisterende])
+
   // === KALKULATOR ===
   const beregning = useMemo(() => {
     const totalKjopspris = kalk.kjopesum + kalk.fellesgjeld
@@ -214,6 +245,26 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       skattegrunnlag, skatt, nettoFortjeneste, egenkapital, roi,
     }
   }, [kalk])
+
+  // === FINANSIERING (kun bo-modus) ===
+  // Bruker netto fra salg av eksisterende som faktisk egenkapital,
+  // og regner ut hva som faktisk må lånes basert på det.
+  const finansiering = useMemo(() => {
+    if (modus !== 'bo') return null
+    const totalUtlegg = beregning.totalKjop + beregning.oppussingTotal
+    const tilgjengeligEK = eksisterendeBeregning.nettoTilDisposisjon
+    const lanebehov = Math.max(0, totalUtlegg - tilgjengeligEK)
+    const overskudd = Math.max(0, tilgjengeligEK - totalUtlegg)
+    const belaningsgrad = kalk.kjopesum > 0 ? (lanebehov / kalk.kjopesum) * 100 : 0
+    // Annuitetslån — vanlig norsk standard 25 år
+    const nedbetalingstid_aar = 25
+    const renteMnd = kalk.rente_pst / 100 / 12
+    const antMnd = nedbetalingstid_aar * 12
+    const mndBetaling = lanebehov > 0 && renteMnd > 0
+      ? (lanebehov * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd))
+      : 0
+    return { totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling }
+  }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.rente_pst])
 
   async function lagreSomProsjekt() {
     if (!analyse || lagrer) return
@@ -285,6 +336,17 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         kalk,
         beregning,
         oppussingsposter,
+        boFlipp: modus === 'bo' && finansiering ? {
+          eksisterende: {
+            salgssum: eksisterende.salgssum,
+            restgjeld: eksisterende.restgjeld,
+            meglerhonorar_pst: eksisterende.meglerhonorar_pst,
+            marknadsforing: eksisterende.marknadsforing,
+            skattefri: eksisterende.skattefri,
+          },
+          netto: eksisterendeBeregning,
+          finansiering,
+        } : null,
       })
       const bin = atob(pdf.base64)
       const bytes = new Uint8Array(bin.length)
@@ -326,11 +388,43 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         ← Tilbake
       </button>
 
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 10 }}>NORGE — FLIPP</div>
         <h2 style={{ fontSize: 28, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>Norske boliger</h2>
         <p style={{ color: FARGER.tekstMid, margin: '6px 0 0', fontSize: 14, fontWeight: 300 }}>Analyser en Finn-annonse og kjør flippe-kalkulator</p>
       </div>
+
+      <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 14, marginBottom: 20 }}>
+        <div style={{ fontSize: 10, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Modus</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+          <button onClick={() => setModus('ren')}
+            style={{
+              background: modus === 'ren' ? FARGER.mork : 'transparent',
+              color: modus === 'ren' ? 'white' : FARGER.mork,
+              border: `1px solid ${modus === 'ren' ? FARGER.mork : FARGER.gullSvak}`,
+              padding: '12px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '0.06em', textAlign: 'left',
+            }}>
+            <div>🏘️ REN FLIPP</div>
+            <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.75, marginTop: 4, letterSpacing: 'normal' }}>Kjøp, puss opp, selg</div>
+          </button>
+          <button onClick={() => setModus('bo')}
+            style={{
+              background: modus === 'bo' ? FARGER.mork : 'transparent',
+              color: modus === 'bo' ? 'white' : FARGER.mork,
+              border: `1px solid ${modus === 'bo' ? FARGER.mork : FARGER.gullSvak}`,
+              padding: '12px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '0.06em', textAlign: 'left',
+            }}>
+            <div>🏡 BO OG FLIPP</div>
+            <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.75, marginTop: 4, letterSpacing: 'normal' }}>Selg eget hjem → kjøp ny → bo og puss → selg</div>
+          </button>
+        </div>
+      </div>
+
+      {modus === 'bo' && (
+        <SalgEgenBolig eks={eksisterende} setEks={setEksisterende} netto={eksisterendeBeregning} />
+      )}
 
       <div style={{ background: FARGER.creamLys, borderRadius: RADIUS.sm, padding: 20, marginBottom: 24, border: `1px solid ${FARGER.gullSvak}` }}>
         <label style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Lim inn Finn-lenke eller annonsetekst</label>
@@ -364,6 +458,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
             setNyPostNavn={setNyPostNavn}
           />
           <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} />
+          {modus === 'bo' && finansiering && (
+            <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={kalk.salgspris} />
+          )}
           <Sensitivitet kalk={kalk} basis={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
@@ -668,6 +765,129 @@ function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: 
     textTransform: header ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
   }
+}
+
+function SalgEgenBolig({ eks, setEks, netto }: {
+  eks: EksisterendeBolig
+  setEks: (e: EksisterendeBolig) => void
+  netto: { meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number }
+}) {
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>🏠 Steg 1 — Salg av eksisterende bolig</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', fontWeight: 300 }}>
+        Hva netto frigjøres fra salget av nåværende bolig — pengene du har til kjøp av flippen.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 16 }}>
+        <KalkInput lbl="Forventet salgssum" val={eks.salgssum} onChange={v => setEks({ ...eks, salgssum: v })} />
+        <KalkInput lbl="Restgjeld på lån" val={eks.restgjeld} onChange={v => setEks({ ...eks, restgjeld: v })} />
+        <KalkInput lbl="Meglerhonorar %" val={eks.meglerhonorar_pst} onChange={v => setEks({ ...eks, meglerhonorar_pst: v })} step={0.1} />
+        <KalkInput lbl="Markedsføring/takst" val={eks.marknadsforing} onChange={v => setEks({ ...eks, marknadsforing: v })} />
+      </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: FARGER.tekstMork, cursor: 'pointer', padding: '6px 0', marginBottom: 10 }}>
+        <input type="checkbox" checked={eks.skattefri} onChange={e => setEks({ ...eks, skattefri: e.target.checked })} style={{ width: 18, height: 18 }} />
+        <span>Skattefritt salg (har bodd 12 av siste 24 mnd — vanlig for primærbolig)</span>
+      </label>
+
+      <div style={{ background: FARGER.creamLys, padding: 16, borderRadius: RADIUS.sm }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13 }}>
+          <span style={{ color: FARGER.tekstMid }}>Forventet salgssum</span>
+          <span style={{ textAlign: 'right' }}>{fmtNok(eks.salgssum)}</span>
+          <span style={{ color: FARGER.tekstMid }}>− Meglerhonorar ({eks.meglerhonorar_pst} %)</span>
+          <span style={{ textAlign: 'right' }}>− {fmtNok(netto.meglerhonorar)}</span>
+          <span style={{ color: FARGER.tekstMid }}>− Markedsføring/takst</span>
+          <span style={{ textAlign: 'right' }}>− {fmtNok(eks.marknadsforing)}</span>
+          <span style={{ color: FARGER.tekstMid }}>− Restgjeld</span>
+          <span style={{ textAlign: 'right' }}>− {fmtNok(eks.restgjeld)}</span>
+          {!eks.skattefri && netto.skatt > 0 && (
+            <>
+              <span style={{ color: FARGER.tekstMid }}>− Skatt (22 %)</span>
+              <span style={{ textAlign: 'right' }}>− {fmtNok(netto.skatt)}</span>
+            </>
+          )}
+          <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+            = Netto til disposisjon (egenkapital)
+          </span>
+          <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+            {fmtNok(netto.nettoTilDisposisjon)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Finansiering({ f, salgssum }: {
+  f: { totalUtlegg: number; tilgjengeligEK: number; lanebehov: number; overskudd: number; belaningsgrad: number; mndBetaling: number }
+  eks: { nettoTilDisposisjon: number }
+  salgssum: number
+}) {
+  const sunnBelaning = f.belaningsgrad <= 75
+  const farge = sunnBelaning ? '#1a4d2b' : f.belaningsgrad <= 85 ? '#6b3a0a' : '#7a0c1e'
+  const bgFarge = sunnBelaning ? '#e8f5ed' : f.belaningsgrad <= 85 ? '#fff8e1' : '#fde8ec'
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>💰 Finansiering & lånebehov</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', fontWeight: 300 }}>
+        Hvor mye må du faktisk låne — og hva blir mnd-betalingen mens du bor i flippen.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13, marginBottom: 14 }}>
+        <span style={{ color: FARGER.tekstMid }}>Totalt utlegg (kjøp + dokavg + tinglysing + oppussing + møblering)</span>
+        <span style={{ textAlign: 'right' }}>{fmtNok(f.totalUtlegg)}</span>
+        <span style={{ color: FARGER.tekstMid }}>− Tilgjengelig EK fra salg av eget hjem</span>
+        <span style={{ textAlign: 'right' }}>− {fmtNok(f.tilgjengeligEK)}</span>
+        <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+          = Lånebehov
+        </span>
+        <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+          {fmtNok(f.lanebehov)}
+        </span>
+        {f.overskudd > 0 && (
+          <>
+            <span style={{ color: FARGER.suksess, fontWeight: 600 }}>+ Overskudd EK (gjenstår fri kapital)</span>
+            <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>{fmtNok(f.overskudd)}</span>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+        <div style={{ background: bgFarge, padding: 14, borderRadius: RADIUS.sm }}>
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Belåningsgrad</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: farge }}>{fmtPct(f.belaningsgrad)}</div>
+          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+            {sunnBelaning ? 'Sunn belåning (under 75 %)' : f.belaningsgrad <= 85 ? 'Høy — banken kan stille krav' : 'For høy — vil normalt ikke godkjennes'}
+          </div>
+        </div>
+        <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Mnd-betaling (annuitet 25 år)</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling)}</div>
+          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag</div>
+        </div>
+        {salgssum > 0 && (
+          <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Frigjøring ved salg</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(salgssum - f.lanebehov)}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Salgssum − lånebehov</div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function KalkInput({ lbl, val, onChange, step = 1000 }: { lbl: string; val: number; onChange: (v: number) => void; step?: number }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 600 }}>{lbl}</label>
+      <input type="number" min={0} step={step} value={val || ''}
+        onChange={e => onChange(Number(e.target.value) || 0)}
+        style={{ width: '100%', padding: '8px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white', boxSizing: 'border-box' }} />
+    </div>
+  )
 }
 
 const TYPISKE_POSTER = ['Bad', 'Kjøkken', 'Maling og overflater', 'Gulv', 'Vinduer', 'Elektro', 'Rør', 'Yttervegger', 'Tak', 'Hage', 'Fasade', 'Garderobe']
