@@ -7,6 +7,7 @@ import { tomtProsjekt, type Prosjekt } from '../types'
 import { FARGER, RADIUS } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
+import { ProsjektBilder } from './ProsjektBilder'
 
 type Analyse = {
   tittel?: string
@@ -435,6 +436,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         kalk: effektivKalk,
         beregning,
         oppussingsposter,
+        prosjektId: lagretId || undefined,
+        supabaseKlient: lagretId ? supabase : undefined,
         boFlipp: modus === 'bo' && finansiering ? {
           eksisterende: {
             salgssum: eksisterende.salgssum,
@@ -592,19 +595,36 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           )}
           <Sensitivitet kalk={effektivKalk} basis={beregning} utleieBidrag={utleieBeregning.netto_total - utleieBeregning.etableringskost} />
 
-          <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-              <button onClick={lagreSomProsjekt} disabled={lagrer || !!lagretId}
-                style={{ background: lagretId ? FARGER.suksess : (lagrer ? '#888' : FARGER.mork), color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: lagrer || lagretId ? 'default' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                {lagretId ? '✓ Lagret som prosjekt' : (lagrer ? 'Lagrer...' : '💾 Lagre som prosjekt')}
+          {!lagretId && (
+            <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
+              <button onClick={lagreSomProsjekt} disabled={lagrer}
+                style={{ width: '100%', background: lagrer ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: lagrer ? 'wait' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                {lagrer ? 'Lagrer...' : '💾 Lagre som prosjekt'}
               </button>
-              <button onClick={lastNedPdf} disabled={pdfLaster}
-                style={{ background: pdfLaster ? '#888' : 'transparent', color: pdfLaster ? 'white' : FARGER.mork, border: `1px solid ${FARGER.gull}`, padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'wait' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                {pdfLaster ? 'Bygger PDF...' : '📄 Last ned PDF-prospekt'}
-              </button>
+              <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Lagre prosjektet for å laste opp bilder og generere før/etter-visualiseringer.</p>
             </div>
-            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>PDF-en inneholder boligfakta, score, kalkulator-resultater, oppussingsposter og bud-strategi — klar til bankmøte.</p>
-          </div>
+          )}
+
+          {lagretId && (
+            <>
+              <div style={{ background: '#e8f5ed', border: `1px solid #2D7D4644`, borderRadius: RADIUS.sm, padding: 14, marginBottom: 16, fontSize: 13, color: '#1a4d2b' }}>
+                ✓ Prosjektet er lagret. Last opp bilder nedenfor — AI analyserer dem og kan generere før/etter-visualiseringer som blir med i PDF-prospektet.
+              </div>
+
+              <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📸 Bilder + AI-visualisering</div>
+                <ProsjektBilder prosjektId={lagretId} />
+              </div>
+
+              <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
+                <button onClick={lastNedPdf} disabled={pdfLaster}
+                  style={{ width: '100%', background: pdfLaster ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'wait' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  {pdfLaster ? 'Bygger PDF...' : '📄 Last ned komplett PDF-prospekt'}
+                </button>
+                <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Inkluderer score, kalkulator, oppussingsposter, sensitivitet, bud-strategi{modus === 'bo' ? ', salg/finansiering, utleie-del' : ''} og før/etter-bilder.</p>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

@@ -1,6 +1,33 @@
 // PDF-bygger for norsk flippe-prospekt. Lagder en pen rapport med
-// boligfakta, score, kalkulator-resultater, oppussingsposter, sensitivitet
-// og bud-strategi — klar til bankmøte eller co-investor.
+// boligfakta, score, kalkulator-resultater, oppussingsposter, sensitivitet,
+// bud-strategi og før/etter-bilder — klar til bankmøte eller co-investor.
+
+import type { Prosjektbilde } from '../types'
+import type { supabase as supabaseType } from './supabase'
+
+type SupabaseKlient = typeof supabaseType
+
+type BildePar = {
+  original: Prosjektbilde
+  originalBase64: string | null
+  generertBase64: string | null
+  generertStil: string | null
+  kostnadsforslag: number
+}
+
+async function urlTilBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch { return null }
+}
 
 type Beregning = {
   totalKjopspris: number; dokavg: number; kjopskostnader: number; totalKjop: number
@@ -83,6 +110,8 @@ export async function byggNorskFlippePdf(args: {
   beregning: Beregning
   oppussingsposter: OppussingsPost[]
   boFlipp?: BoFlipp | null
+  prosjektId?: string                  // hvis satt: hent bilder fra Supabase
+  supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
 }): Promise<{ base64: string; filnavn: string }> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF()
@@ -332,6 +361,48 @@ export async function byggNorskFlippePdf(args: {
     y += 2
   }
 
+  // === BILDER (hvis prosjektId + supabase tilgjengelig) ===
+  if (args.prosjektId && args.supabaseKlient) {
+    const bildePar = await hentBildePar(args.prosjektId, args.supabaseKlient)
+    if (bildePar.length > 0) {
+      doc.addPage()
+      y = 20
+      seksjon('FØR / ETTER VISUALISERINGER')
+
+      const bildebredde = 85
+      const bildehoyde = 60
+      for (const bp of bildePar) {
+        if (y > 200) { doc.addPage(); y = 20 }
+
+        // Tittel: kategori
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(14, 23, 38)
+        const tittel = bp.original.kategori || 'Bilde'
+        doc.text(tittel, 20, y); y += 6
+
+        // Før (venstre)
+        if (bp.originalBase64) {
+          try { doc.addImage(bp.originalBase64, 'JPEG', 20, y, bildebredde, bildehoyde) } catch { /* ignore */ }
+        } else {
+          doc.setFillColor(245, 245, 245); doc.rect(20, y, bildebredde, bildehoyde, 'F')
+        }
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(80, 80, 80)
+        doc.text('FØR', 22, y + bildehoyde - 2)
+
+        // Etter (høyre)
+        if (bp.generertBase64) {
+          try { doc.addImage(bp.generertBase64, 'JPEG', 110, y, bildebredde, bildehoyde) } catch { /* ignore */ }
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(106, 76, 147)
+          doc.text('ETTER' + (bp.generertStil ? ' — ' + bp.generertStil : ''), 112, y + bildehoyde - 2)
+        } else {
+          doc.setFillColor(252, 250, 245); doc.rect(110, y, bildebredde, bildehoyde, 'F')
+          doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(150, 150, 150)
+          doc.text('Ingen visualisering', 116, y + bildehoyde / 2)
+        }
+        y += bildehoyde + 8
+      }
+    }
+  }
+
   // === FOOTER ===
   const sider = doc.getNumberOfPages()
   for (let i = 1; i <= sider; i++) {
@@ -349,3 +420,41 @@ export async function byggNorskFlippePdf(args: {
 
   return { base64, filnavn }
 }
+
+// Henter alle originaler + nyeste genererte versjon per original.
+// Returnerer base64-versjoner ferdig til å embedes i PDF-en.
+async function hentBildePar(prosjektId: string, supabase: SupabaseKlient): Promise<BildePar[]> {
+  const { data: rader } = await supabase.from('prosjekt_bilder').select('*').eq('prosjekt_id', prosjektId).order('opprettet', { ascending: true })
+  const alle = (rader || []) as Prosjektbilde[]
+  const originaler = alle.filter(b => b.type === 'original')
+
+  if (originaler.length === 0) return []
+
+  // Hent signerte URL-er via API
+  const alleIds = alle.map(b => b.id)
+  const sres = await fetch('/api/bilder/signert-url', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bilde_ids: alleIds }),
+  })
+  const sdata = await sres.json()
+  const urler: Record<string, string> = sdata?.urler || {}
+
+  const par: BildePar[] = []
+  for (const orig of originaler) {
+    const genererte = alle.filter(b => b.type === 'generert' && b.original_bilde_id === orig.id)
+    const sisteGenerert = genererte.slice(-1)[0]
+
+    const originalBase64 = urler[orig.id] ? await urlTilBase64(urler[orig.id]) : null
+    const generertBase64 = sisteGenerert && urler[sisteGenerert.id] ? await urlTilBase64(urler[sisteGenerert.id]) : null
+
+    par.push({
+      original: orig,
+      originalBase64,
+      generertBase64,
+      generertStil: sisteGenerert?.stil || null,
+      kostnadsforslag: 0,
+    })
+  }
+  return par
+}
+
