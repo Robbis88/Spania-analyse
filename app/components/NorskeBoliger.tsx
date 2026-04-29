@@ -9,6 +9,49 @@ import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
 
+// Cache analyser per Finn-URL/tekst i localStorage så samme bolig
+// alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
+// Bruker enkel hash av input som nøkkel.
+const CACHE_PREFIX = 'norsk-analyse-cache-'
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30  // 30 dager
+
+function lagCacheNoekkel(input: string): string {
+  // Enkel hash — vi trenger ikke kryptografisk styrke, bare å skille forskjellige inputs
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0
+  }
+  return CACHE_PREFIX + Math.abs(hash).toString(36)
+}
+
+function lesCache(input: string): { analyse: unknown; tidspunkt: number } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const noekkel = lagCacheNoekkel(input.trim())
+    const lagret = window.localStorage.getItem(noekkel)
+    if (!lagret) return null
+    const data = JSON.parse(lagret)
+    if (Date.now() - data.tidspunkt > CACHE_TTL_MS) {
+      window.localStorage.removeItem(noekkel)
+      return null
+    }
+    return data
+  } catch { return null }
+}
+
+function lagreCache(input: string, analyse: unknown) {
+  if (typeof window === 'undefined') return
+  try {
+    const noekkel = lagCacheNoekkel(input.trim())
+    window.localStorage.setItem(noekkel, JSON.stringify({ analyse, tidspunkt: Date.now() }))
+  } catch { /* localStorage kan være full / blokkert */ }
+}
+
+function fjernCache(input: string) {
+  if (typeof window === 'undefined') return
+  try { window.localStorage.removeItem(lagCacheNoekkel(input.trim())) } catch { /* ignore */ }
+}
+
 type Analyse = {
   tittel?: string
   pris_antydning_nok?: number
@@ -165,6 +208,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [oppussingsposter, setOppussingsposter] = useState<Array<{ navn: string; kostnad: number; notat: string }>>([])
   const [nyPostNavn, setNyPostNavn] = useState('')
   const [pdfLaster, setPdfLaster] = useState(false)
+  const [fraCache, setFraCache] = useState<number | null>(null)
 
   function fyllFraAnalyse(a: Analyse) {
     // Pre-utfyll oppussingsposter fra AI-forslag
@@ -225,9 +269,23 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setOppussingsposter(p => p.map((post, idx) => idx === i ? { ...post, [felt]: verdi } : post))
   }
 
-  async function analyser() {
+  async function analyser(opts: { tvingNy?: boolean } = {}) {
     if (!input.trim() || laster) return
-    setLaster(true); setFeil(''); setAnalyse(null); setLagretId(null)
+    setLaster(true); setFeil(''); setAnalyse(null); setLagretId(null); setFraCache(null)
+
+    // Sjekk cache først (med mindre brukeren tvinger ny analyse)
+    if (!opts.tvingNy) {
+      const cached = lesCache(input)
+      if (cached) {
+        const a = cached.analyse as Analyse
+        setAnalyse(a)
+        fyllFraAnalyse(a)
+        setFraCache(cached.tidspunkt)
+        setLaster(false)
+        return
+      }
+    }
+
     try {
       const res = await fetch('/api/analyse-norge', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -239,11 +297,18 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       } else {
         setAnalyse(data)
         fyllFraAnalyse(data)
+        lagreCache(input, data)
+        setFraCache(null)
       }
     } catch (e) {
       setFeil(e instanceof Error ? e.message : 'Ukjent feil')
     }
     setLaster(false)
+  }
+
+  function regenerer() {
+    fjernCache(input)
+    void analyser({ tvingNy: true })
   }
 
   // === BO-PLAN: projisert salgspris med prisvekst over bo-tiden ===
@@ -485,7 +550,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   }
 
   function nullstill() {
-    setInput(''); setAnalyse(null); setFeil(''); setLagretId(null)
+    setInput(''); setAnalyse(null); setFeil(''); setLagretId(null); setFraCache(null)
     setKalk({
       kjopesum: 0, fellesgjeld: 0,
       dokumentavgift_pst: 2.5, tinglysing: 1140,
@@ -547,16 +612,28 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         <textarea value={input} onChange={e => setInput(e.target.value)}
           placeholder="https://www.finn.no/realestate/homes/ad.html?finnkode=..."
           style={{ width: '100%', height: 90, padding: 12, fontSize: 14, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, resize: 'vertical', fontFamily: 'sans-serif', boxSizing: 'border-box', background: 'white' }} />
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button onClick={analyser} disabled={laster || !input}
-            style={{ flex: 1, background: laster ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: laster ? 'not-allowed' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => analyser()} disabled={laster || !input}
+            style={{ flex: 1, minWidth: 200, background: laster ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: laster ? 'not-allowed' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             {laster ? 'Analyserer...' : 'Kjør analyse'}
           </button>
+          {analyse && !laster && (
+            <button onClick={regenerer}
+              title="Sletter cache og kjører analysen på nytt mot AI"
+              style={{ background: 'transparent', color: FARGER.mork, border: `1px solid ${FARGER.gull}`, padding: '14px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              🔄 Regenerer
+            </button>
+          )}
           {(input || analyse) && <button onClick={nullstill}
             style={{ background: FARGER.flateLys, color: FARGER.tekstMid, border: 'none', padding: '14px 20px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Nullstill
           </button>}
         </div>
+        {fraCache && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: '#fdfcf7', border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid }}>
+            ✓ Hentet fra cache (analysert {new Date(fraCache).toLocaleString('nb-NO')}) — samme analyse hver gang. Klikk «🔄 Regenerer» hvis du vil ha en ny vurdering fra AI.
+          </div>
+        )}
         {feil && <div style={{ marginTop: 10, padding: 10, background: FARGER.feilBg, color: FARGER.feil, borderRadius: RADIUS.sm, fontSize: 13 }}>{feil}</div>}
       </div>
 
