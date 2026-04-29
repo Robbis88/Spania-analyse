@@ -100,6 +100,7 @@ async function analyserEttBilde(
   const response = await client.messages.create({
     model: AI_MODELL_VERSJON,
     max_tokens: 2000,
+    temperature: 0,
     system: SYSTEM,
     tools: [analyserBildeTool],
     tool_choice: { type: 'tool', name: 'analyser_bilde' },

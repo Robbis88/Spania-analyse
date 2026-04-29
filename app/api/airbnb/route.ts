@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     const analyseRes = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 4000,
+      temperature: 0,
       messages: [{
         role: 'user',
         content: `Du er en senior analytiker innen korttidsutleie og Airbnb-optimalisering på Costa del Sol i Spania.
@@ -82,6 +83,7 @@ Beregn for 5%, 6% og 7% yield.
     const scoreRes = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 800,
+      temperature: 0,
       messages: [{
         role: 'user',
         content: `Du er ekspert på eiendomsinvestering i Spania. Gi en investorscore for denne boligen.
@@ -152,6 +154,7 @@ Scoring-regler:
     const dataRes = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 3000,
+      temperature: 0,
       tools: [{
         name: 'lagre_analyse',
         description: 'Lagrer strukturert analyse av boligen som utleieobjekt. Alle tall skal være realistiske og tallfestede. Belegg oppgis som desimal (f.eks. 0.50 for 50%).',

@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 2500,
+      temperature: 0,           // deterministisk — samme bolig skal gi konsistente tall
       messages: [{
         role: 'user',
         content: `Du er ekspert på spansk eiendomsmarked med dyp kunnskap om priser per kvadratmeter i alle områder langs kysten.

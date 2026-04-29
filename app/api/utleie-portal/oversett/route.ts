@@ -39,6 +39,7 @@ Return ONLY JSON in this exact shape (no markdown):
   const respons = await klient.messages.create({
     model: 'claude-sonnet-4-5',
     max_tokens: 4000,
+    temperature: 0,
     messages: [{ role: 'user', content: prompt }],
   })
   const tekstSvar = respons.content[0]?.type === 'text' ? respons.content[0].text : ''
@@ -66,6 +67,7 @@ Return ONLY JSON in this exact shape (no markdown):
   const respons = await klient.messages.create({
     model: 'claude-sonnet-4-5',
     max_tokens: 4000,
+    temperature: 0,
     messages: [{ role: 'user', content: prompt }],
   })
   const tekstSvar = respons.content[0]?.type === 'text' ? respons.content[0].text : ''

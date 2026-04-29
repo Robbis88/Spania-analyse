@@ -184,6 +184,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: MODELL,
       max_tokens: 6000,
+      temperature: 0,
       system: SYSTEM,
       tools: [salgsanalyseTool],
       tool_choice: { type: 'tool', name: 'generer_salgsanalyse' },
