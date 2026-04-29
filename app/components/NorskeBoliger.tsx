@@ -36,6 +36,30 @@ type Analyse = {
   annonse_beskrivelse?: string
   kort_oppsummering?: string
   neste_steg?: string[]
+  score?: {
+    lokasjon?: number
+    lokasjon_begrunnelse?: string
+    eiendomsstand?: number
+    eiendomsstand_begrunnelse?: string
+    pris_vs_marked?: number
+    pris_vs_marked_begrunnelse?: string
+    oppussingspotensial?: number
+    oppussingspotensial_begrunnelse?: string
+    risiko?: number
+    risiko_begrunnelse?: string
+    total?: number
+    lys?: string
+    lys_tekst?: string
+    tips?: string[]
+  }
+  bud_strategi?: {
+    anbefalt_startbud_nok?: number
+    startbud_pst_under_prisantydning?: number
+    anbefalt_maks_bud_nok?: number
+    maks_bud_pst_av_prisantydning?: number
+    begrunnelse?: string
+  }
+  foreslatte_oppussingsposter?: Array<{ navn: string; kostnad_nok: number; begrunnelse?: string }>
 }
 
 type Kalk = {
@@ -266,6 +290,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       {analyse && (
         <>
           <AnalyseSammendrag a={analyse} />
+          {analyse.score && <FlippeScore s={analyse.score} />}
+          {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
           <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
@@ -418,6 +444,95 @@ function Kalkulator({ kalk, setKalk, beregning }: { kalk: Kalk; setKalk: (k: Kal
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function FlippeScore({ s }: { s: NonNullable<Analyse['score']> }) {
+  const lys = s.lys || '🟡'
+  const lysBg = lys.includes('🟢') ? '#e8f5ed' : lys.includes('🔴') ? '#fde8ec' : '#fff8e1'
+  const lysBorder = lys.includes('🟢') ? '#2D7D46' : lys.includes('🔴') ? '#C8102E' : '#B05E0A'
+  const lysText = lys.includes('🟢') ? '#1a4d2b' : lys.includes('🔴') ? '#7a0c1e' : '#6b3a0a'
+
+  const delkar: Array<[string, number | undefined, string | undefined]> = [
+    ['Lokasjon', s.lokasjon, s.lokasjon_begrunnelse],
+    ['Eiendomsstand', s.eiendomsstand, s.eiendomsstand_begrunnelse],
+    ['Pris vs marked', s.pris_vs_marked, s.pris_vs_marked_begrunnelse],
+    ['Oppussings-potensial', s.oppussingspotensial, s.oppussingspotensial_begrunnelse],
+    ['Risiko', s.risiko, s.risiko_begrunnelse],
+  ]
+
+  return (
+    <div style={{ background: lysBg, border: `2px solid ${lysBorder}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 48 }}>{lys}</div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.16em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Flippe-vurdering</div>
+          <div style={{ fontSize: 20, fontWeight: 500, color: lysText }}>{s.lys_tekst || ''}</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 36, fontWeight: 700, color: lysText, lineHeight: 1 }}>{(s.total ?? 0).toFixed(1)}</div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>/ 10</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+        {delkar.map(([lbl, val, beg]) => (
+          <div key={lbl} title={beg || ''} style={{ background: 'rgba(255,255,255,0.7)', padding: 12, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 4 }}>{lbl}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: (val ?? 0) >= 7 ? '#2D7D46' : (val ?? 0) >= 5 ? '#B05E0A' : '#C8102E' }}>{val ?? '–'}</div>
+            <div style={{ background: '#e0e0e0', borderRadius: 3, height: 4, marginTop: 6, overflow: 'hidden' }}>
+              <div style={{ width: `${(val ?? 0) * 10}%`, height: 4, background: (val ?? 0) >= 7 ? '#2D7D46' : (val ?? 0) >= 5 ? '#EF9F27' : '#C8102E' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {s.tips && s.tips.length > 0 && (
+        <div style={{ background: 'rgba(255,255,255,0.85)', borderRadius: RADIUS.sm, padding: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: FARGER.tekstMork }}>💡 Hva må til for bedre score?</div>
+          {s.tips.map((tip, i) => (
+            <div key={i} style={{ fontSize: 13, padding: '5px 0', color: FARGER.tekstMid, borderTop: i > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', lineHeight: 1.5 }}>
+              → {tip}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BudStrategi({ b, prisantydning }: { b: NonNullable<Analyse['bud_strategi']>; prisantydning: number }) {
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14, textTransform: 'uppercase' }}>🎯 Bud-strategi</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
+        {prisantydning > 0 && (
+          <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Prisantydning</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: FARGER.tekstMid }}>{fmtNok(prisantydning)}</div>
+          </div>
+        )}
+        <div style={{ background: '#fdfcf7', padding: 14, borderRadius: RADIUS.sm, border: `1px solid #b89a6f44` }}>
+          <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Anbefalt startbud</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: FARGER.mork }}>{fmtNok(b.anbefalt_startbud_nok || 0)}</div>
+          {b.startbud_pst_under_prisantydning ? (
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, marginTop: 4 }}>{b.startbud_pst_under_prisantydning}% under prisantydning</div>
+          ) : null}
+        </div>
+        <div style={{ background: '#e8f5ed', padding: 14, borderRadius: RADIUS.sm, border: `1px solid #2D7D4644` }}>
+          <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Maks-bud</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1a4d2b' }}>{fmtNok(b.anbefalt_maks_bud_nok || 0)}</div>
+          {b.maks_bud_pst_av_prisantydning ? (
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, marginTop: 4 }}>{b.maks_bud_pst_av_prisantydning}% av prisantydning</div>
+          ) : null}
+        </div>
+      </div>
+
+      {b.begrunnelse && (
+        <p style={{ fontSize: 13, color: FARGER.tekstMork, lineHeight: 1.7, margin: 0, fontWeight: 300 }}>{b.begrunnelse}</p>
+      )}
     </div>
   )
 }

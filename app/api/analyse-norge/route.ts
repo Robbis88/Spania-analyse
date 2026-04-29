@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2500,
+      max_tokens: 4000,
       messages: [{
         role: 'user',
         content: `Du er ekspert på norsk eiendomsmarked med dyp kunnskap om priser per kvadratmeter, områder og bydeler i alle norske byer.
@@ -85,8 +85,51 @@ Returner dette (norsk språk i tekst-feltene, alle beløp i NOK):
   "anbefalt_strategi": "raskt-flipp / standard-flipp / luksus-flipp / la den ligge",
   "annonse_beskrivelse": "selve teksten fra annonsen (renset for navigasjon)",
   "kort_oppsummering": "1 setning på norsk som beskriver boligen",
-  "neste_steg": ["steg 1", "steg 2", "steg 3"]
+  "neste_steg": ["steg 1", "steg 2", "steg 3"],
+  "score": {
+    "lokasjon": 0,
+    "lokasjon_begrunnelse": "kort begrunnelse",
+    "eiendomsstand": 0,
+    "eiendomsstand_begrunnelse": "kort begrunnelse",
+    "pris_vs_marked": 0,
+    "pris_vs_marked_begrunnelse": "kort begrunnelse",
+    "oppussingspotensial": 0,
+    "oppussingspotensial_begrunnelse": "kort begrunnelse",
+    "risiko": 0,
+    "risiko_begrunnelse": "kort begrunnelse",
+    "total": 0,
+    "lys": "🟢 / 🟡 / 🔴",
+    "lys_tekst": "Sterkt flippe-prosjekt / Greit men ikke åpenbart / Frarådes",
+    "tips": ["3 konkrete tips om hva som må til for å gjøre dette til et bedre flippe-prosjekt"]
+  },
+  "bud_strategi": {
+    "anbefalt_startbud_nok": 0,
+    "startbud_pst_under_prisantydning": 0,
+    "anbefalt_maks_bud_nok": 0,
+    "maks_bud_pst_av_prisantydning": 0,
+    "begrunnelse": "2-3 setninger om budstrategi: hvor mye spillerom finnes mellom markedspris og prisantydning, hvor sterk konkurranse forventes (likviditet i området), og hvor det er verdt å gå over"
+  },
+  "foreslatte_oppussingsposter": [
+    {"navn": "Bad", "kostnad_nok": 0, "begrunnelse": "kort"},
+    {"navn": "Kjøkken", "kostnad_nok": 0, "begrunnelse": "kort"},
+    {"navn": "Maling og overflater", "kostnad_nok": 0, "begrunnelse": "kort"},
+    {"navn": "Gulv", "kostnad_nok": 0, "begrunnelse": "kort"}
+  ]
 }
+
+Score-veiledning (1-10 skala der 10 = perfekt for flipp):
+- lokasjon: er bydelen ettertraktet? høy etterspørsel? rask omsetning?
+- eiendomsstand: er det reelt oppside her, eller er den allerede pen? lavt = mye å gjøre = mer oppside
+- pris_vs_marked: er prisantydningen lav i forhold til markedet? høy score = under-priset
+- oppussingspotensial: gir oppussing reell verdiøkning her, eller når man taket?
+- risiko: skjulte feil-risiko, regulering, salgbarhet, markedsrisiko (10 = lav risiko, 1 = høy risiko)
+
+Lys-regler:
+- 🟢 hvis total >= 7 — sterkt flippe-prosjekt
+- 🟡 hvis total 5-6.9 — greit men risikabelt
+- 🔴 hvis total < 5 — frarådes
+
+For oppussingsposter: foreslå 4-7 typiske poster basert på byggeår, standard og hva annonsen sier. Realistiske norske 2025-26-priser. Sett kostnad_nok til 0 hvis du ikke vet.
 
 Sett tall til 0 og strenger til "" hvis ikke oppgitt. Hvis prisantydning ikke står, sett 0.`
       }]
