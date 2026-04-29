@@ -50,9 +50,11 @@ function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string |
     linjer.push(`Completely reimagine this ${romNavn} as a professionally designed space in the following style:`)
     linjer.push(stilPrompt)
     linjer.push('')
-    linjer.push('Required design changes:')
-    linjer.push(endringer)
-    linjer.push('')
+    if (endringer) {
+      linjer.push('Required design changes:')
+      linjer.push(endringer)
+      linjer.push('')
+    }
     linjer.push('You have full creative freedom to:')
     linjer.push('- Replace ALL cabinets, fixtures, countertops, appliances, flooring, lighting, furniture and décor with new ones that fit the style')
     linjer.push('- Rearrange the layout (e.g. island vs peninsula, L-shape vs U-shape, different furniture placement)')
@@ -124,9 +126,12 @@ export async function POST(req: NextRequest) {
     const p = (poster || []) as PostRad[]
     const t = (tilleggRader || []) as TilleggRad[]
 
-    if (p.length === 0 && t.length === 0) {
+    // Tillat generering uten konkrete oppussingsposter hvis brukeren har valgt
+    // en stil (typisk for norsk flipp der posterne lagres lokalt). Da blir det
+    // ren stil-visualisering. Ellers krever vi minst én godkjent post.
+    if (p.length === 0 && t.length === 0 && !effektivStilPrompt) {
       return NextResponse.json({
-        feil: 'Ingen godtatte forslag koblet til dette bildet. Godta minst ett forslag først.',
+        feil: 'Velg en stil eller godta minst ett oppussings-forslag for dette bildet.',
       }, { status: 400 })
     }
 

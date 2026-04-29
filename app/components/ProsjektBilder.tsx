@@ -384,7 +384,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                         )}
                       </div>
 
-                      {b.ai_analysert && antall > 0 && (
+                      {b.ai_analysert && (
                         <>
                           <select value={valgtStil[b.id] || ''}
                             onChange={e => setValgtStil(v => ({ ...v, [b.id]: e.target.value as StilId }))}
@@ -410,7 +410,9 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                             }}>
                             {jobb?.status === 'starter' && '⏳ Starter...'}
                             {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
-                            {(!jobb || jobb.status === 'feilet') && `✨ Generer før/etter (${antall} forslag, ~€0.08)`}
+                            {(!jobb || jobb.status === 'feilet') && (antall > 0
+                              ? `✨ Generer før/etter (${antall} forslag, ~€0.08)`
+                              : '✨ Generer før/etter (~€0.08)')}
                           </button>
                         </>
                       )}
