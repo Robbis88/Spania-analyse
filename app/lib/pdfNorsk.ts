@@ -64,6 +64,14 @@ type BoFlipp = {
     totalUtlegg: number; tilgjengeligEK: number; lanebehov: number
     overskudd: number; belaningsgrad: number; mndBetaling: number
   }
+  utleie?: {
+    aktiv: boolean
+    leie_mnd: number; belegg_pst: number; drift_pst: number
+    etableringskost: number; skattefri: boolean
+    brutto_mnd: number; netto_mnd: number
+    brutto_total: number; netto_total: number; skatt: number
+    nettoBidrag: number
+  }
 }
 
 const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
@@ -234,7 +242,27 @@ export async function byggNorskFlippePdf(args: {
     }
     rad('Belåningsgrad', PCT(bf.finansiering.belaningsgrad), 4, true)
     rad(`Mnd-betaling (annuitet 25 år, ${k.rente_pst} %)`, NOK(bf.finansiering.mndBetaling), 5, true)
+    if (bf.utleie?.aktiv && bf.utleie.netto_mnd > 0) {
+      rad('Netto leieinntekt fra utleiedel', '− ' + NOK(bf.utleie.netto_mnd), 6)
+      rad('Reell mnd-kostnad (etter leieinntekt)', NOK(bf.finansiering.mndBetaling - bf.utleie.netto_mnd), 7, true)
+    }
     y += 4
+
+    if (bf.utleie?.aktiv && bf.utleie.brutto_total > 0) {
+      seksjon('UTLEIE-DEL OVER BO-TIDEN')
+      rad(`Leie pr. mnd (estimat)`, NOK(bf.utleie.leie_mnd), 0)
+      rad(`Belegg`, PCT(bf.utleie.belegg_pst), 1)
+      rad(`Effektiv brutto leie over bo-tiden`, NOK(bf.utleie.brutto_total), 2)
+      rad(`Drift (${bf.utleie.drift_pst} %)`, '− ' + NOK(bf.utleie.brutto_total * (bf.utleie.drift_pst / 100)), 3)
+      if (bf.utleie.skatt > 0) {
+        rad('Skatt (22 %)', '− ' + NOK(bf.utleie.skatt), 4)
+      } else {
+        rad('Skatt', 'Skattefri (utleiedel < 50 %)', 4)
+      }
+      rad('Etableringskost (engang)', '− ' + NOK(bf.utleie.etableringskost), 5)
+      rad('Bidrag til total fortjeneste', NOK(bf.utleie.nettoBidrag), 6, true)
+      y += 4
+    }
   }
 
   // === KALKULATOR ===

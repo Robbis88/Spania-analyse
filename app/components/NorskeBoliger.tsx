@@ -63,6 +63,13 @@ type Analyse = {
   foreslatte_oppussingsposter?: Array<{ navn: string; kostnad_nok: number; begrunnelse?: string }>
   arlig_prisvekst_pst?: number
   prisvekst_begrunnelse?: string
+  utleiedel?: {
+    mulig?: boolean
+    type_egnet?: string
+    estimert_leie_mnd_nok?: number
+    etableringskost_nok?: number
+    begrunnelse?: string
+  }
 }
 
 type Kalk = {
@@ -106,6 +113,15 @@ type BoPlan = {
   arlig_prisvekst_pst: number
 }
 
+type UtleieDel = {
+  aktiv: boolean
+  leie_mnd: number
+  belegg_pst: number       // 90-95% typisk
+  drift_pst: number        // % av leie til vedlikehold/strøm/etc
+  etableringskost: number
+  skattefri: boolean       // primærbolig + utleiedel mindre enn halve verdien
+}
+
 export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [modus, setModus] = useState<Modus>('ren')
   const [input, setInput] = useState('')
@@ -124,6 +140,15 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [boPlan, setBoPlan] = useState<BoPlan>({
     bo_tid_mnd: 24,           // 24 mnd = 2 år, godt over 12-mnd-grensen for skattefri
     arlig_prisvekst_pst: 4,   // moderat default, AI overstyrer
+  })
+
+  const [utleieDel, setUtleieDel] = useState<UtleieDel>({
+    aktiv: false,
+    leie_mnd: 0,
+    belegg_pst: 92,
+    drift_pst: 15,
+    etableringskost: 0,
+    skattefri: true,         // utleiedel < halve verdien = skattefri (typisk for sokkelleilighet)
   })
 
   const [kalk, setKalk] = useState<Kalk>({
@@ -153,6 +178,17 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     // Hent prisvekst-estimat fra AI hvis det ble returnert
     if (a.arlig_prisvekst_pst && a.arlig_prisvekst_pst > 0) {
       setBoPlan(b => ({ ...b, arlig_prisvekst_pst: a.arlig_prisvekst_pst as number }))
+    }
+
+    // Hent utleie-del-estimat fra AI hvis mulig
+    if (a.utleiedel?.mulig && a.utleiedel.estimert_leie_mnd_nok) {
+      setUtleieDel(u => ({
+        ...u,
+        // Bare aktiver hvis leie > 0 og bruker ikke har endret feltene allerede
+        aktiv: u.leie_mnd === 0,
+        leie_mnd: u.leie_mnd === 0 ? (a.utleiedel?.estimert_leie_mnd_nok || 0) : u.leie_mnd,
+        etableringskost: u.etableringskost === 0 ? (a.utleiedel?.etableringskost_nok || 0) : u.etableringskost,
+      }))
     }
 
     setKalk(k => ({
@@ -230,6 +266,23 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     }
   }, [modus, kalk, boPlan.bo_tid_mnd, projisertSalgspris])
 
+  // === UTLEIE-DEL (kun bo-modus + når aktiv) ===
+  const utleieBeregning = useMemo(() => {
+    if (modus !== 'bo' || !utleieDel.aktiv || utleieDel.leie_mnd === 0) {
+      return { brutto_mnd: 0, netto_mnd: 0, brutto_total: 0, netto_total: 0, etableringskost: 0, skatt: 0 }
+    }
+    const brutto_mnd = utleieDel.leie_mnd * (utleieDel.belegg_pst / 100)
+    const drift_mnd = brutto_mnd * (utleieDel.drift_pst / 100)
+    const netto_mnd_for_skatt = brutto_mnd - drift_mnd
+    const brutto_total = brutto_mnd * boPlan.bo_tid_mnd
+    const drift_total = drift_mnd * boPlan.bo_tid_mnd
+    // Skatteregel: utleie av mindre enn halvparten av primærbolig er skattefri.
+    const skatt = utleieDel.skattefri ? 0 : (brutto_total - drift_total) * 0.22
+    const netto_mnd = utleieDel.skattefri ? netto_mnd_for_skatt : netto_mnd_for_skatt * 0.78
+    const netto_total = brutto_total - drift_total - skatt
+    return { brutto_mnd, netto_mnd, brutto_total, netto_total, etableringskost: utleieDel.etableringskost, skatt }
+  }, [modus, utleieDel, boPlan.bo_tid_mnd])
+
   // === SALG AV EKSISTERENDE BOLIG (kun bo-modus) ===
   const eksisterendeBeregning = useMemo(() => {
     if (modus !== 'bo' || eksisterende.salgssum === 0) {
@@ -276,7 +329,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const erSkattefri = k.skattefri || (modus === 'bo' && boPlan.bo_tid_mnd >= 12)
     const skatt = erSkattefri || skattegrunnlag <= 0 ? 0 : (skattegrunnlag * k.skattesats_pst) / 100
 
-    const nettoFortjeneste = nettoSalg - totalInvestering - skatt
+    // I bo-modus med utleie-del: legg til netto leieinntekt over bo-tiden,
+    // og trekk fra etableringskostnaden for utleiedelen
+    const utleieBidrag = utleieBeregning.netto_total - utleieBeregning.etableringskost
+    const nettoFortjeneste = nettoSalg - totalInvestering - skatt + utleieBidrag
     const egenkapital = totalInvestering - lanebelop
     const roi = egenkapital > 0 ? (nettoFortjeneste / egenkapital) * 100 : 0
 
@@ -285,8 +341,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       oppussingTotal, lanebelop, renterTotal, fellesutgTotal, holdekostnad,
       totalInvestering, meglerhonorar, salgskostnader, nettoSalg,
       skattegrunnlag, skatt, nettoFortjeneste, egenkapital, roi,
+      utleieBidrag,
     }
-  }, [effektivKalk, modus, boPlan.bo_tid_mnd])
+  }, [effektivKalk, modus, boPlan.bo_tid_mnd, utleieBeregning])
 
   // === FINANSIERING (kun bo-modus) ===
   // Bruker netto fra salg av eksisterende som faktisk egenkapital,
@@ -388,6 +445,20 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           },
           netto: eksisterendeBeregning,
           finansiering,
+          utleie: utleieDel.aktiv ? {
+            aktiv: true,
+            leie_mnd: utleieDel.leie_mnd,
+            belegg_pst: utleieDel.belegg_pst,
+            drift_pst: utleieDel.drift_pst,
+            etableringskost: utleieDel.etableringskost,
+            skattefri: utleieDel.skattefri,
+            brutto_mnd: utleieBeregning.brutto_mnd,
+            netto_mnd: utleieBeregning.netto_mnd,
+            brutto_total: utleieBeregning.brutto_total,
+            netto_total: utleieBeregning.netto_total,
+            skatt: utleieBeregning.skatt,
+            nettoBidrag: utleieBeregning.netto_total - utleieBeregning.etableringskost,
+          } : undefined,
         } : null,
       })
       const bin = atob(pdf.base64)
@@ -500,18 +571,26 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
             setNyPostNavn={setNyPostNavn}
           />
           {modus === 'bo' && (
-            <BoPlanPanel
-              boPlan={boPlan} setBoPlan={setBoPlan}
-              salgsprisIDag={kalk.salgspris}
-              projisert={projisertSalgspris}
-              aiBegrunnelse={analyse.prisvekst_begrunnelse}
-            />
+            <>
+              <BoPlanPanel
+                boPlan={boPlan} setBoPlan={setBoPlan}
+                salgsprisIDag={kalk.salgspris}
+                projisert={projisertSalgspris}
+                aiBegrunnelse={analyse.prisvekst_begrunnelse}
+              />
+              <UtleieDelPanel
+                utleieDel={utleieDel} setUtleieDel={setUtleieDel}
+                boTidMnd={boPlan.bo_tid_mnd}
+                beregning={utleieBeregning}
+                aiForslag={analyse.utleiedel}
+              />
+            </>
           )}
           <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} boModus={modus === 'bo'} effektivSalgspris={effektivKalk.salgspris} effektivHoldetid={effektivKalk.holdetid_mnd} />
           {modus === 'bo' && finansiering && (
-            <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} />
+            <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} utleieMnd={utleieBeregning.netto_mnd} />
           )}
-          <Sensitivitet kalk={effektivKalk} basis={beregning} />
+          <Sensitivitet kalk={effektivKalk} basis={beregning} utleieBidrag={utleieBeregning.netto_total - utleieBeregning.etableringskost} />
 
           <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
@@ -600,6 +679,7 @@ type Beregning = {
   oppussingTotal: number; lanebelop: number; renterTotal: number; fellesutgTotal: number; holdekostnad: number
   totalInvestering: number; meglerhonorar: number; salgskostnader: number; nettoSalg: number
   skattegrunnlag: number; skatt: number; nettoFortjeneste: number; egenkapital: number; roi: number
+  utleieBidrag?: number
 }
 
 function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster, boModus, effektivSalgspris, effektivHoldetid }: {
@@ -710,7 +790,7 @@ function Kalkulator({ kalk, setKalk, beregning, oppussingFraPoster, boModus, eff
 
 // Pure-funksjon som kan kjøres med vilkårlige Kalk-verdier — gjenbrukes
 // i sensitivitetsanalysen for å regne ut "hva-hvis"-scenarier.
-function regnUt(k: Kalk): Beregning {
+function regnUt(k: Kalk, utleieBidrag = 0): Beregning {
   const totalKjopspris = k.kjopesum + k.fellesgjeld
   const dokavg = (k.kjopesum * k.dokumentavgift_pst) / 100
   const kjopskostnader = dokavg + k.tinglysing
@@ -733,7 +813,7 @@ function regnUt(k: Kalk): Beregning {
   const skattegrunnlag = nettoSalg - (k.kjopesum + kjopskostnader + k.oppussing_kost + k.mobler_styling)
   const skatt = k.skattefri || skattegrunnlag <= 0 ? 0 : (skattegrunnlag * k.skattesats_pst) / 100
 
-  const nettoFortjeneste = nettoSalg - totalInvestering - skatt
+  const nettoFortjeneste = nettoSalg - totalInvestering - skatt + utleieBidrag
   const egenkapital = totalInvestering - lanebelop
   const roi = egenkapital > 0 ? (nettoFortjeneste / egenkapital) * 100 : 0
 
@@ -742,17 +822,18 @@ function regnUt(k: Kalk): Beregning {
     oppussingTotal, lanebelop, renterTotal, fellesutgTotal, holdekostnad,
     totalInvestering, meglerhonorar, salgskostnader, nettoSalg,
     skattegrunnlag, skatt, nettoFortjeneste, egenkapital, roi,
+    utleieBidrag,
   }
 }
 
-function Sensitivitet({ kalk, basis }: { kalk: Kalk; basis: Beregning }) {
+function Sensitivitet({ kalk, basis, utleieBidrag = 0 }: { kalk: Kalk; basis: Beregning; utleieBidrag?: number }) {
   // Scenarier — hver justerer ett felt
   const scenarier: Array<{ navn: string; emoji: string; resultat: Beregning }> = [
-    { navn: 'Salgspris −5 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.95 }) },
-    { navn: 'Salgspris −10 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.9 }) },
-    { navn: 'Oppussing +20 %', emoji: '🔨', resultat: regnUt({ ...kalk, oppussing_kost: kalk.oppussing_kost * 1.2 }) },
-    { navn: 'Holdetid +3 mnd', emoji: '⏱️', resultat: regnUt({ ...kalk, holdetid_mnd: kalk.holdetid_mnd + 3 }) },
-    { navn: 'Rente +1 %', emoji: '💸', resultat: regnUt({ ...kalk, rente_pst: kalk.rente_pst + 1 }) },
+    { navn: 'Salgspris −5 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.95 }, utleieBidrag) },
+    { navn: 'Salgspris −10 %', emoji: '📉', resultat: regnUt({ ...kalk, salgspris: kalk.salgspris * 0.9 }, utleieBidrag) },
+    { navn: 'Oppussing +20 %', emoji: '🔨', resultat: regnUt({ ...kalk, oppussing_kost: kalk.oppussing_kost * 1.2 }, utleieBidrag) },
+    { navn: 'Holdetid +3 mnd', emoji: '⏱️', resultat: regnUt({ ...kalk, holdetid_mnd: kalk.holdetid_mnd + 3 }, utleieBidrag) },
+    { navn: 'Rente +1 %', emoji: '💸', resultat: regnUt({ ...kalk, rente_pst: kalk.rente_pst + 1 }, utleieBidrag) },
   ]
 
   // Break-even: hvor lavt kan salgsprisen gå før netto = 0?
@@ -762,7 +843,7 @@ function Sensitivitet({ kalk, basis }: { kalk: Kalk; basis: Beregning }) {
     let lavt = kalk.kjopesum, hoyt = kalk.salgspris
     for (let i = 0; i < 40; i++) {
       const midt = (lavt + hoyt) / 2
-      const r = regnUt({ ...kalk, salgspris: midt })
+      const r = regnUt({ ...kalk, salgspris: midt }, utleieBidrag)
       if (r.nettoFortjeneste >= 0) hoyt = midt
       else lavt = midt
     }
@@ -952,14 +1033,98 @@ function BoPlanPanel({ boPlan, setBoPlan, salgsprisIDag, projisert, aiBegrunnels
   )
 }
 
-function Finansiering({ f, salgssum }: {
+function UtleieDelPanel({ utleieDel, setUtleieDel, boTidMnd, beregning, aiForslag }: {
+  utleieDel: UtleieDel
+  setUtleieDel: (u: UtleieDel) => void
+  boTidMnd: number
+  beregning: { brutto_mnd: number; netto_mnd: number; brutto_total: number; netto_total: number; etableringskost: number; skatt: number }
+  aiForslag?: { mulig?: boolean; type_egnet?: string; estimert_leie_mnd_nok?: number; etableringskost_nok?: number; begrunnelse?: string }
+}) {
+  const aiSierMulig = aiForslag?.mulig
+  const netto_bidrag = beregning.netto_total - beregning.etableringskost
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>🔑 Steg 3 — Utleie-del</div>
+          <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: 0, fontWeight: 300 }}>
+            Sokkelleilighet, hybel eller utleiedel som genererer leieinntekt mens du bor i hovedboligen.
+          </p>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={utleieDel.aktiv} onChange={e => setUtleieDel({ ...utleieDel, aktiv: e.target.checked })} style={{ width: 20, height: 20 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>Aktiv</span>
+        </label>
+      </div>
+
+      {aiForslag && (aiForslag.begrunnelse || aiForslag.type_egnet) && (
+        <div style={{
+          background: aiSierMulig ? '#e8f5ed' : '#fff8e1',
+          border: `1px solid ${aiSierMulig ? '#2D7D46' : '#B05E0A'}33`,
+          padding: 12, borderRadius: RADIUS.sm, fontSize: 12, lineHeight: 1.6, marginBottom: 14,
+          color: aiSierMulig ? '#1a4d2b' : '#6b3a0a',
+        }}>
+          🤖 <strong>AI-vurdering:</strong> {aiForslag.type_egnet ? `${aiForslag.type_egnet}. ` : ''}{aiForslag.begrunnelse}
+          {aiForslag.estimert_leie_mnd_nok ? ` Estimert leie: ${fmtNok(aiForslag.estimert_leie_mnd_nok)}/mnd.` : ''}
+        </div>
+      )}
+
+      {utleieDel.aktiv && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 14 }}>
+            <KalkInput lbl="Leie pr. mnd" val={utleieDel.leie_mnd} onChange={v => setUtleieDel({ ...utleieDel, leie_mnd: v })} step={500} />
+            <KalkInput lbl="Belegg %" val={utleieDel.belegg_pst} onChange={v => setUtleieDel({ ...utleieDel, belegg_pst: v })} step={1} />
+            <KalkInput lbl="Drift %" val={utleieDel.drift_pst} onChange={v => setUtleieDel({ ...utleieDel, drift_pst: v })} step={1} />
+            <KalkInput lbl="Etableringskost (engang)" val={utleieDel.etableringskost} onChange={v => setUtleieDel({ ...utleieDel, etableringskost: v })} />
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: FARGER.tekstMork, cursor: 'pointer', padding: '6px 0', marginBottom: 12 }}>
+            <input type="checkbox" checked={utleieDel.skattefri} onChange={e => setUtleieDel({ ...utleieDel, skattefri: e.target.checked })} style={{ width: 18, height: 18 }} />
+            <span>Skattefri (utleiedelen er mindre enn halvparten av primærboligens utleieverdi)</span>
+          </label>
+
+          <div style={{ background: FARGER.creamLys, padding: 16, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Resultat over bo-tiden ({boTidMnd} mnd)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13 }}>
+              <span style={{ color: FARGER.tekstMid }}>Effektiv brutto leie ({utleieDel.belegg_pst} % belegg)</span>
+              <span style={{ textAlign: 'right' }}>{fmtNok(beregning.brutto_total)}</span>
+              <span style={{ color: FARGER.tekstMid }}>− Drift ({utleieDel.drift_pst} %)</span>
+              <span style={{ textAlign: 'right' }}>− {fmtNok(beregning.brutto_total * (utleieDel.drift_pst / 100))}</span>
+              {beregning.skatt > 0 && (
+                <>
+                  <span style={{ color: FARGER.tekstMid }}>− Skatt (22 %)</span>
+                  <span style={{ textAlign: 'right' }}>− {fmtNok(beregning.skatt)}</span>
+                </>
+              )}
+              <span style={{ color: FARGER.tekstMid }}>− Etableringskost</span>
+              <span style={{ textAlign: 'right' }}>− {fmtNok(beregning.etableringskost)}</span>
+              <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
+                = Bidrag til total fortjeneste
+              </span>
+              <span style={{ textAlign: 'right', fontWeight: 700, color: netto_bidrag >= 0 ? FARGER.suksess : FARGER.feil, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4, fontSize: 16 }}>
+                {netto_bidrag >= 0 ? '+' : ''}{fmtNok(netto_bidrag)}
+              </span>
+              <span style={{ color: FARGER.tekstMid, fontSize: 12, fontStyle: 'italic' }}>Tilsvarer netto pr. mnd</span>
+              <span style={{ textAlign: 'right', color: FARGER.tekstMid, fontSize: 12, fontStyle: 'italic' }}>{fmtNok(beregning.netto_mnd)}/mnd</span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Finansiering({ f, salgssum, utleieMnd = 0 }: {
   f: { totalUtlegg: number; tilgjengeligEK: number; lanebehov: number; overskudd: number; belaningsgrad: number; mndBetaling: number }
   eks: { nettoTilDisposisjon: number }
   salgssum: number
+  utleieMnd?: number
 }) {
   const sunnBelaning = f.belaningsgrad <= 75
   const farge = sunnBelaning ? '#1a4d2b' : f.belaningsgrad <= 85 ? '#6b3a0a' : '#7a0c1e'
   const bgFarge = sunnBelaning ? '#e8f5ed' : f.belaningsgrad <= 85 ? '#fff8e1' : '#fde8ec'
+  const nettoMndKost = f.mndBetaling - utleieMnd
 
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
@@ -1000,6 +1165,13 @@ function Finansiering({ f, salgssum }: {
           <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling)}</div>
           <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag</div>
         </div>
+        {utleieMnd > 0 && (
+          <div style={{ background: '#e8f5ed', padding: 14, borderRadius: RADIUS.sm, border: '1px solid #2D7D4644' }}>
+            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Netto bo-kostnad / mnd</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#1a4d2b' }}>{fmtNok(nettoMndKost)}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Etter {fmtNok(utleieMnd)} netto leieinntekt</div>
+          </div>
+        )}
         {salgssum > 0 && (
           <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
             <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Frigjøring ved salg</div>

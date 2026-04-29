@@ -116,7 +116,14 @@ Returner dette (norsk språk i tekst-feltene, alle beløp i NOK):
     {"navn": "Gulv", "kostnad_nok": 0, "begrunnelse": "kort"}
   ],
   "arlig_prisvekst_pst": 0,
-  "prisvekst_begrunnelse": "1-2 setninger om realistisk årlig prisvekst i denne bydelen basert på siste 5-10 år, kommunale planer, befolkningsvekst og generell etterspørsel. Eksempler: Bergen sentrum/Bergenhus 4-6 %, Sandviken 3-5 %, perifere bydeler 2-4 %, fallende områder 0-2 %"
+  "prisvekst_begrunnelse": "1-2 setninger om realistisk årlig prisvekst i denne bydelen basert på siste 5-10 år, kommunale planer, befolkningsvekst og generell etterspørsel. Eksempler: Bergen sentrum/Bergenhus 4-6 %, Sandviken 3-5 %, perifere bydeler 2-4 %, fallende områder 0-2 %",
+  "utleiedel": {
+    "mulig": false,
+    "type_egnet": "f.eks. 'Hybel/sokkelleilighet i kjeller', 'Egen utleieenhet i 1. etg', 'Ikke egnet'",
+    "estimert_leie_mnd_nok": 0,
+    "etableringskost_nok": 0,
+    "begrunnelse": "1-2 setninger om hvorfor og hvor: er det allerede en utleiedel, kan en lages ved å skille av sokkel/loft, hva ville en realistisk leiepris være i området for en slik enhet, og omtrent hva koster det å klargjøre den (egen inngang, kjøkken, bad)"
+  }
 }
 
 Score-veiledning (1-10 skala der 10 = perfekt for flipp):
