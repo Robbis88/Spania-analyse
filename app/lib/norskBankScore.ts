@@ -54,6 +54,66 @@ export type BankScore = {
   total: number; lys: string; lysTekst: string
 }
 
+export type MeglerVurdering = {
+  navn: string; firma: string; telefon: string; epost: string
+  verdi_nok: number; dato: string; notat: string
+}
+
+export type TotalScore = {
+  flippeScore: number; harFlippeScore: boolean
+  bankScore: number; harBankScore: boolean
+  meglerSnitt: number; meglerRealisme: number; avvikPst: number; harMeglerSnitt: boolean; antallMeglere: number
+  total: number; lys: string; lysTekst: string
+}
+
+export function regnTotalScore(
+  flippeScoreFraAi: number | undefined,
+  bankScoreVerdi: BankScore,
+  meglerVurderinger: MeglerVurdering[],
+  forventetSalgspris: number,
+): TotalScore {
+  const flippeScore = flippeScoreFraAi ? flippeScoreFraAi * 10 : 0
+  const harFlippeScore = flippeScore > 0
+  const bankVerdi = bankScoreVerdi.sumInntektMnd > 0 ? bankScoreVerdi.total : 0
+  const harBankScore = bankVerdi > 0
+
+  const medVerdi = meglerVurderinger.filter(v => v.verdi_nok > 0)
+  const meglerSnitt = medVerdi.length > 0 ? medVerdi.reduce((s, v) => s + v.verdi_nok, 0) / medVerdi.length : 0
+  const harMeglerSnitt = meglerSnitt > 0 && forventetSalgspris > 0
+  const avvikPst = harMeglerSnitt ? Math.abs((forventetSalgspris - meglerSnitt) / meglerSnitt) * 100 : 0
+  const meglerRealisme = !harMeglerSnitt ? 0
+    : avvikPst <= 5 ? 100
+    : avvikPst <= 10 ? 80
+    : avvikPst <= 15 ? 60
+    : avvikPst <= 25 ? 35
+    : 15
+
+  type Komp = { score: number; vekt: number }
+  const aktive: Komp[] = []
+  if (harFlippeScore) aktive.push({ score: flippeScore, vekt: 0.35 })
+  if (harBankScore) aktive.push({ score: bankVerdi, vekt: 0.35 })
+  if (harMeglerSnitt) aktive.push({ score: meglerRealisme, vekt: 0.30 })
+
+  let total = 0
+  if (aktive.length > 0) {
+    const sumVekt = aktive.reduce((s, k) => s + k.vekt, 0)
+    total = Math.round(aktive.reduce((s, k) => s + k.score * (k.vekt / sumVekt), 0))
+  }
+
+  const lys = total >= 75 ? '🟢' : total >= 55 ? '🟡' : total > 0 ? '🔴' : '⚪'
+  const lysTekst = total >= 75 ? 'Sterkt prosjekt — bank, marked og potensial er på lag'
+    : total >= 55 ? 'Greit prosjekt — fungerer, men noen elementer trenger oppmerksomhet'
+    : total > 0 ? 'Risikofylt — vesentlige svakheter, vurder nøye'
+    : 'Fyll inn analyse, inntekt og megler-vurderinger for full vurdering'
+
+  return {
+    flippeScore, harFlippeScore,
+    bankScore: bankVerdi, harBankScore,
+    meglerSnitt, meglerRealisme, avvikPst, harMeglerSnitt, antallMeglere: medVerdi.length,
+    total, lys, lysTekst,
+  }
+}
+
 export function regnBankScore(
   husholdning: Husholdning,
   utleieBeregning: UtleieBeregning,

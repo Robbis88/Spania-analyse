@@ -9,7 +9,7 @@ import {
   type Kalk as KalkAlias, type EksisterendeBolig, type BoPlan, type UtleieDel,
   type OppussingsPost as OppussingsPostAlias, type Modus,
 } from './norskKalkulator'
-import { regnBankScore, type Husholdning } from './norskBankScore'
+import { regnBankScore, regnTotalScore, type Husholdning } from './norskBankScore'
 
 type SupabaseKlient = typeof supabaseType
 
@@ -92,6 +92,13 @@ type MeglerVurdering = {
   verdi_nok: number; dato: string; notat: string
 }
 
+type TotalScore = {
+  flippeScore: number; harFlippeScore: boolean
+  bankScore: number; harBankScore: boolean
+  meglerSnitt: number; meglerRealisme: number; avvikPst: number; harMeglerSnitt: boolean; antallMeglere: number
+  total: number; lys: string; lysTekst: string
+}
+
 type BoFlipp = {
   eksisterende: {
     salgssum: number; restgjeld: number
@@ -141,6 +148,7 @@ export async function byggNorskFlippePdf(args: {
   boFlipp?: BoFlipp | null
   bankVurdering?: BankVurdering | null
   meglerVurderinger?: MeglerVurdering[]
+  totalScore?: TotalScore | null
   prosjektId?: string                  // hvis satt: hent bilder fra Supabase
   supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
 }): Promise<{ base64: string; filnavn: string }> {
@@ -166,6 +174,34 @@ export async function byggNorskFlippePdf(args: {
   let y = 46
 
   const sjekk = (plass = 10) => { if (y + plass > 275) { doc.addPage(); y = 20 } }
+
+  // === TOTAL PROSJEKTSCORE — øverst som executive summary for banken ===
+  if (args.totalScore && args.totalScore.total > 0) {
+    const ts = args.totalScore
+    const lysFarge: [number, number, number] =
+      ts.lys.includes('🟢') ? [45, 125, 70] : ts.lys.includes('🔴') ? [200, 16, 46] : [176, 94, 10]
+    sjekk(40)
+    doc.setFillColor(lysFarge[0], lysFarge[1], lysFarge[2])
+    doc.rect(15, y, 180, 28, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+    doc.text('TOTAL PROSJEKTSCORE', 20, y + 8)
+    doc.setFontSize(13)
+    doc.text(ts.lysTekst, 20, y + 17)
+    doc.setFontSize(28)
+    doc.text(`${ts.total}/100`, 175, y + 18, { align: 'right' })
+    y += 32
+
+    doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+    const subscores: string[] = []
+    if (ts.harFlippeScore) subscores.push(`🔍 Flippe-potensial: ${(ts.flippeScore / 10).toFixed(1)}/10`)
+    if (ts.harBankScore) subscores.push(`🏦 Bank-finansierbarhet: ${ts.bankScore}/100`)
+    if (ts.harMeglerSnitt) subscores.push(`📋 Markeds-realisme: ${ts.meglerRealisme}/100 (${ts.antallMeglere} megler${ts.antallMeglere > 1 ? 'e' : ''}, avvik ${ts.avvikPst.toFixed(1)} %)`)
+    if (subscores.length > 0) {
+      doc.setFontSize(9); doc.setTextColor(80, 80, 80)
+      doc.text('Underliggende: ' + subscores.join('   ·   '), 20, y); y += 8
+    }
+    y += 4
+  }
 
   const seksjon = (tittel: string) => {
     sjekk(20)
@@ -635,6 +671,12 @@ export async function byggNorskPdfFraProsjekt(
   const bankScore = husholdning
     ? regnBankScore(husholdning, utleieBeregning, finansiering, effektivKalk)
     : null
+  const totalScoreVerdi = regnTotalScore(
+    analyse.score?.total,
+    bankScore || regnBankScore({ antall_voksne: 0, antall_barn: 0, inntekter: [], skattesats_pst: 0, andre_lan: [], annen_sikkerhet_aktiv: false, annen_bolig_verdi: 0, annen_bolig_lan: 0, annen_bolig_beskrivelse: '' }, utleieBeregning, finansiering, effektivKalk),
+    meglerVurderinger,
+    effektivKalk.salgspris,
+  )
 
   return byggNorskFlippePdf({
     analyse,
@@ -680,6 +722,7 @@ export async function byggNorskPdfFraProsjekt(
       } : undefined,
     } : null,
     meglerVurderinger,
+    totalScore: totalScoreVerdi,
     prosjektId,
     supabaseKlient,
   })

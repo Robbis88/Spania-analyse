@@ -8,7 +8,7 @@ import { FARGER, RADIUS } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
-import { regnBankScore, regnLivsopphold } from '../lib/norskBankScore'
+import { regnBankScore, regnLivsopphold, regnTotalScore } from '../lib/norskBankScore'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -531,6 +531,12 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     return regnBankScore(husholdning, utleieBeregning, finansiering, kalk)
   }, [husholdning, utleieBeregning, finansiering, kalk])
 
+  // === TOTAL PROSJEKTSCORE — kombinerer flippe-potensial, bank-finansierbarhet og megler-realisme ===
+  // Gjenbruker pure-funksjon fra lib (samme logikk som i PDF-bygger)
+  const totalScore = useMemo(() => {
+    return regnTotalScore(analyse?.score?.total, bankScore, meglerVurderinger, effektivKalk.salgspris)
+  }, [analyse, bankScore, meglerVurderinger, effektivKalk.salgspris])
+
   async function lagreSomProsjekt() {
     if (!analyse || lagrer) return
     setLagrer(true)
@@ -608,6 +614,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         beregning,
         oppussingsposter,
         meglerVurderinger,
+        totalScore,
         bankVurdering: bankScore.sumInntektMnd > 0 ? {
           inntekter: husholdning.inntekter,
           antallVoksne: husholdning.antall_voksne,
@@ -802,6 +809,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           <HusholdningPanel husholdning={husholdning} setHusholdning={setHusholdning} />
           <BankScore s={bankScore} />
           <Sensitivitet kalk={effektivKalk} basis={beregning} utleieBidrag={utleieBeregning.netto_total - utleieBeregning.etableringskost} />
+          <TotalProsjektScore s={totalScore} />
 
           {!lagretId && (
             <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
@@ -1455,6 +1463,69 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+type TotalScore = {
+  flippeScore: number; harFlippeScore: boolean
+  bankScore: number; harBankScore: boolean
+  meglerSnitt: number; meglerRealisme: number; avvikPst: number; harMeglerSnitt: boolean; antallMeglere: number
+  total: number; lys: string; lysTekst: string
+}
+
+function TotalProsjektScore({ s }: { s: TotalScore }) {
+  const lysBg = s.lys === '🟢' ? '#e8f5ed' : s.lys === '🔴' ? '#fde8ec' : s.lys === '🟡' ? '#fff8e1' : FARGER.creamLys
+  const lysBorder = s.lys === '🟢' ? '#2D7D46' : s.lys === '🔴' ? '#C8102E' : s.lys === '🟡' ? '#B05E0A' : FARGER.gullSvak
+  const lysText = s.lys === '🟢' ? '#1a4d2b' : s.lys === '🔴' ? '#7a0c1e' : s.lys === '🟡' ? '#6b3a0a' : FARGER.tekstMid
+
+  const fargeForScore = (sc: number) => sc >= 75 ? '#2D7D46' : sc >= 50 ? '#B05E0A' : '#C8102E'
+
+  return (
+    <div style={{ background: lysBg, border: `3px solid ${lysBorder}`, borderRadius: RADIUS.sm, padding: 26, marginBottom: 16, marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 56 }}>{s.lys}</div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>⭐ Total prosjektscore</div>
+          <div style={{ fontSize: 22, fontWeight: 500, color: lysText, lineHeight: 1.3 }}>{s.lysTekst}</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 56, fontWeight: 700, color: lysText, lineHeight: 1 }}>{s.total}</div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4, letterSpacing: '0.05em' }}>/ 100</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+        <ScoreBoks
+          lbl="🔍 Flippe-potensial"
+          val={s.harFlippeScore ? (s.flippeScore / 10).toFixed(1) + '/10' : '—'}
+          score={s.flippeScore}
+          farge={s.harFlippeScore ? fargeForScore(s.flippeScore) : '#bbb'}
+          undertekst={s.harFlippeScore ? 'AI-vurdering av boligen som flippe-objekt' : 'Krever AI-analyse av Finn-annonse'}
+        />
+        <ScoreBoks
+          lbl="🏦 Bank-finansierbarhet"
+          val={s.harBankScore ? s.bankScore + '/100' : '—'}
+          score={s.bankScore}
+          farge={s.harBankScore ? fargeForScore(s.bankScore) : '#bbb'}
+          undertekst={s.harBankScore ? 'Gjeldsgrad, betjening, stresstest' : 'Krever inntekter i Steg 4'}
+        />
+        <ScoreBoks
+          lbl="📋 Markeds-realisme"
+          val={s.harMeglerSnitt ? s.meglerRealisme + '/100' : '—'}
+          score={s.meglerRealisme}
+          farge={s.harMeglerSnitt ? fargeForScore(s.meglerRealisme) : '#bbb'}
+          undertekst={s.harMeglerSnitt
+            ? `Avvik vår vs ${s.antallMeglere} megler${s.antallMeglere > 1 ? 'e' : ''}: ${s.avvikPst.toFixed(1)} %`
+            : 'Krever megler-verdivurdering(er)'}
+        />
+      </div>
+
+      {!s.harMeglerSnitt && s.harFlippeScore && (
+        <div style={{ marginTop: 14, padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid, lineHeight: 1.5 }}>
+          💡 Tips: Legg inn megler-verdivurderinger ovenfor for å validere kalkulasjonen mot eksterne vurderinger. Det styrker både scoren og bankprospektet.
+        </div>
+      )}
     </div>
   )
 }
