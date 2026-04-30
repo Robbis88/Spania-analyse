@@ -8,6 +8,7 @@ import { FARGER, RADIUS } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
+import { regnBankScore, regnLivsopphold } from '../lib/norskBankScore'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -171,8 +172,19 @@ type Inntektskilde = {
   belop_mnd: number
 }
 
+type AnnetLan = {
+  beskrivelse: string      // f.eks. "Billån VW Golf", "Studielån (Lånekassen)"
+  type: 'billan' | 'studielan' | 'kreditt' | 'annet_boliglan' | 'annet'
+  saldo: number            // gjenstående saldo
+  mnd_betaling: number     // månedlig betjening (renter + avdrag)
+}
+
 type Husholdning = {
+  antall_voksne: number    // 1 eller 2 typisk
+  antall_barn: number      // antall barn under 18
   inntekter: Inntektskilde[]
+  skattesats_pst: number   // for å regne netto av brutto-inntekt
+  andre_lan: AnnetLan[]
   annen_sikkerhet_aktiv: boolean
   annen_bolig_verdi: number
   annen_bolig_lan: number
@@ -209,7 +221,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   })
 
   const [husholdning, setHusholdning] = useState<Husholdning>({
+    antall_voksne: 2,
+    antall_barn: 0,
     inntekter: [],
+    skattesats_pst: 28,         // grov default for inntektsskatt — bruker kan justere
+    andre_lan: [],
     annen_sikkerhet_aktiv: false,
     annen_bolig_verdi: 0,
     annen_bolig_lan: 0,
@@ -498,80 +514,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     return { totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling }
   }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.rente_pst])
 
-  // === BANK-SCORE — basert på inntekt, sikkerhet, gjeldsgrad, belåningsgrad, stresstest ===
+  // === BANK-SCORE — gjenbruker pure-funksjon fra lib (samme logikk som i PDF-bygger) ===
   const bankScore = useMemo(() => {
-    const sumInntektMnd = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
-    const sumInntektAr = sumInntektMnd * 12
-    const utleieMnd = utleieBeregning.netto_mnd
-    const totalInntektMnd = sumInntektMnd + utleieMnd
-    const annenSikkerhetNetto = husholdning.annen_sikkerhet_aktiv
-      ? Math.max(0, husholdning.annen_bolig_verdi - husholdning.annen_bolig_lan)
-      : 0
-
-    // Lånebehov og mnd-betaling — fra finansiering hvis bo-modus, ellers estimert
-    const lanebehov = finansiering ? finansiering.lanebehov : (kalk.kjopesum * (1 - kalk.egenkapital_pst / 100))
-    const mndBetaling = finansiering ? finansiering.mndBetaling : (() => {
-      const r = kalk.rente_pst / 100 / 12
-      return lanebehov > 0 && r > 0 ? (lanebehov * r) / (1 - Math.pow(1 + r, -25 * 12)) : 0
-    })()
-    const nettoMndBetaling = Math.max(0, mndBetaling - utleieMnd)
-
-    // 1. Gjeldsgrad ≤ 5x årsinntekt (Finanstilsynet utlånsforskrift)
-    // Annen sikkerhet kan kompensere — trekkes fra gjeldsgrunnlaget
-    const justertLanebehov = Math.max(0, lanebehov - annenSikkerhetNetto)
-    const gjeldsgrad = sumInntektAr > 0 ? (justertLanebehov / sumInntektAr) : 0
-    const gjeldsgradScore = sumInntektAr === 0 ? 0
-      : gjeldsgrad <= 4 ? 100
-      : gjeldsgrad <= 5 ? 70
-      : gjeldsgrad <= 6 ? 35
-      : 10
-
-    // 2. Belåningsgrad ≤ 75% sterk, ≤ 85% akseptabel
-    const belaningsgrad = finansiering ? finansiering.belaningsgrad : 0
-    const belaningsgradScore = belaningsgrad === 0 ? 0
-      : belaningsgrad <= 75 ? 100
-      : belaningsgrad <= 85 ? 60
-      : 25
-
-    // 3. Betjeningsevne — netto mnd-kostnad / brutto mnd-inntekt
-    const betjeningRatio = totalInntektMnd > 0 ? nettoMndBetaling / totalInntektMnd : 1
-    const betjeningScore = totalInntektMnd === 0 ? 0
-      : betjeningRatio < 0.30 ? 100
-      : betjeningRatio < 0.40 ? 75
-      : betjeningRatio < 0.50 ? 50
-      : 20
-
-    // 4. Stresstest — tåler vi rente +3pp? (Finanstilsynet krever)
-    const stressRente = (kalk.rente_pst + 3) / 100 / 12
-    const stressMnd = lanebehov > 0 && stressRente > 0
-      ? (lanebehov * stressRente) / (1 - Math.pow(1 + stressRente, -25 * 12))
-      : 0
-    const stressNettoMnd = Math.max(0, stressMnd - utleieMnd)
-    const stressRatio = totalInntektMnd > 0 ? stressNettoMnd / totalInntektMnd : 1
-    const stressScore = totalInntektMnd === 0 ? 0
-      : stressRatio < 0.40 ? 100
-      : stressRatio < 0.55 ? 70
-      : stressRatio < 0.70 ? 40
-      : 15
-
-    const total = Math.round(
-      gjeldsgradScore * 0.25 + belaningsgradScore * 0.25 + betjeningScore * 0.30 + stressScore * 0.20
-    )
-    const lys = total >= 75 ? '🟢' : total >= 55 ? '🟡' : '🔴'
-    const lysTekst = total >= 75 ? 'Sterkt finansieringsgrunnlag'
-      : total >= 55 ? 'Trolig akseptabelt — kan kreve dialog'
-      : 'Vanskelig å få godkjent'
-
-    return {
-      sumInntektMnd, sumInntektAr, utleieMnd, totalInntektMnd, annenSikkerhetNetto,
-      lanebehov, justertLanebehov, mndBetaling, nettoMndBetaling,
-      gjeldsgrad, gjeldsgradScore,
-      belaningsgrad, belaningsgradScore,
-      betjeningRatio, betjeningScore,
-      stressMnd, stressNettoMnd, stressRatio, stressScore,
-      total, lys, lysTekst,
-    }
-  }, [husholdning, utleieBeregning.netto_mnd, finansiering, kalk.kjopesum, kalk.egenkapital_pst, kalk.rente_pst])
+    return regnBankScore(husholdning, utleieBeregning, finansiering, kalk)
+  }, [husholdning, utleieBeregning, finansiering, kalk])
 
   async function lagreSomProsjekt() {
     if (!analyse || lagrer) return
@@ -651,6 +597,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         oppussingsposter,
         bankVurdering: bankScore.sumInntektMnd > 0 ? {
           inntekter: husholdning.inntekter,
+          antallVoksne: husholdning.antall_voksne,
+          antallBarn: husholdning.antall_barn,
+          andreLan: husholdning.andre_lan,
           ...bankScore,
           annenSikkerhet: husholdning.annen_sikkerhet_aktiv ? {
             aktiv: true,
@@ -1192,6 +1141,8 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
   setHusholdning: (h: Husholdning) => void
 }) {
   const sumInntekt = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
+  const livsopphold = regnLivsopphold(husholdning.antall_voksne, husholdning.antall_barn)
+  const sumAndreLanMnd = husholdning.andre_lan.reduce((s, l) => s + (l.mnd_betaling || 0), 0)
   const annenSikkerhet = husholdning.annen_sikkerhet_aktiv
     ? Math.max(0, husholdning.annen_bolig_verdi - husholdning.annen_bolig_lan) : 0
 
@@ -1208,15 +1159,46 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
     })
   }
 
+  function leggTilLan() {
+    setHusholdning({ ...husholdning, andre_lan: [...husholdning.andre_lan, { beskrivelse: '', type: 'annet', saldo: 0, mnd_betaling: 0 }] })
+  }
+  function fjernLan(i: number) {
+    setHusholdning({ ...husholdning, andre_lan: husholdning.andre_lan.filter((_, idx) => idx !== i) })
+  }
+  function oppdaterLan(i: number, felt: keyof AnnetLan, verdi: string | number) {
+    setHusholdning({
+      ...husholdning,
+      andre_lan: husholdning.andre_lan.map((l, idx) => idx === i ? { ...l, [felt]: verdi } : l),
+    })
+  }
+
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>👨‍👩‍👧 Steg 4 — Husholdning og sikkerhet</div>
       <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 18px', fontWeight: 300 }}>
-        Inntekter til husholdningen og evt. ekstra sikkerhet. Brukes til bank-vurdering nedenfor.
+        Inntekter, husholdningssammensetning, andre lån og evt. ekstra sikkerhet. Brukes til bank-vurdering nedenfor.
       </p>
 
+      {/* Husholdning + skattesats */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Månedlige inntekter</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Husholdning</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 10 }}>
+          <KalkInput lbl="Antall voksne" val={husholdning.antall_voksne}
+            onChange={v => setHusholdning({ ...husholdning, antall_voksne: Math.max(1, Math.min(2, v)) })} step={1} />
+          <KalkInput lbl="Barn under 18" val={husholdning.antall_barn}
+            onChange={v => setHusholdning({ ...husholdning, antall_barn: Math.max(0, v) })} step={1} />
+          <KalkInput lbl="Skattesats % (lønn)" val={husholdning.skattesats_pst}
+            onChange={v => setHusholdning({ ...husholdning, skattesats_pst: v })} step={1} />
+        </div>
+        <div style={{ background: FARGER.creamLys, padding: 10, borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid, lineHeight: 1.6 }}>
+          📊 Estimert SIFO-livsopphold: <strong>{fmtNok(livsopphold)}/mnd</strong>
+          {husholdning.antall_barn > 0 && ` (${fmtNok(livsopphold - regnLivsopphold(husholdning.antall_voksne, 0))} av dette går til barn)`}
+        </div>
+      </div>
+
+      {/* Inntekter */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Brutto månedlige inntekter</div>
         {husholdning.inntekter.length === 0 && (
           <div style={{ fontSize: 13, color: FARGER.tekstLys, fontStyle: 'italic', padding: '8px 0' }}>Ingen inntekter lagt inn ennå.</div>
         )}
@@ -1239,8 +1221,51 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
         </button>
         {sumInntekt > 0 && (
           <div style={{ marginTop: 10, padding: '8px 12px', background: FARGER.creamLys, borderRadius: RADIUS.sm, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: FARGER.tekstMid }}>Sum inntekter</span>
+            <span style={{ color: FARGER.tekstMid }}>Sum brutto</span>
             <span style={{ fontWeight: 700, color: FARGER.mork }}>{fmtNok(sumInntekt)}/mnd ({fmtNok(sumInntekt * 12)}/år)</span>
+          </div>
+        )}
+      </div>
+
+      {/* Andre lån */}
+      <div style={{ marginBottom: 18, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Andre eksisterende lån (billån, studielån, kreditt osv.)</div>
+        {husholdning.andre_lan.length === 0 && (
+          <div style={{ fontSize: 13, color: FARGER.tekstLys, fontStyle: 'italic', padding: '8px 0' }}>Ingen andre lån lagt inn.</div>
+        )}
+        {husholdning.andre_lan.map((l, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 110px 130px 110px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < husholdning.andre_lan.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
+            <input value={l.beskrivelse} onChange={e => oppdaterLan(i, 'beskrivelse', e.target.value)}
+              placeholder="F.eks. Billån VW Golf"
+              style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+            <select value={l.type} onChange={e => oppdaterLan(i, 'type', e.target.value)}
+              style={{ padding: '6px 8px', fontSize: 12, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, background: 'white' }}>
+              <option value="billan">Billån</option>
+              <option value="studielan">Studielån</option>
+              <option value="kreditt">Kreditt</option>
+              <option value="annet_boliglan">Boliglån</option>
+              <option value="annet">Annet</option>
+            </select>
+            <input type="number" min={0} step={10000} value={l.saldo || ''}
+              onChange={e => oppdaterLan(i, 'saldo', Number(e.target.value) || 0)}
+              placeholder="Saldo"
+              style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+            <input type="number" min={0} step={500} value={l.mnd_betaling || ''}
+              onChange={e => oppdaterLan(i, 'mnd_betaling', Number(e.target.value) || 0)}
+              placeholder="kr/mnd"
+              style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+            <button onClick={() => fjernLan(i)} title="Fjern"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
+          </div>
+        ))}
+        <button onClick={leggTilLan}
+          style={{ marginTop: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: '8px 14px', fontSize: 12, color: FARGER.mork, cursor: 'pointer', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          + Legg til lån
+        </button>
+        {sumAndreLanMnd > 0 && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: FARGER.creamLys, borderRadius: RADIUS.sm, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: FARGER.tekstMid }}>Sum andre lån — månedlig</span>
+            <span style={{ fontWeight: 700, color: FARGER.mork }}>{fmtNok(sumAndreLanMnd)}/mnd</span>
           </div>
         )}
       </div>
@@ -1279,15 +1304,7 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
   )
 }
 
-function BankScore({ s }: { s: ReturnType<typeof Object.assign> & {
-  sumInntektMnd: number; sumInntektAr: number; totalInntektMnd: number; annenSikkerhetNetto: number
-  lanebehov: number; mndBetaling: number; nettoMndBetaling: number
-  gjeldsgrad: number; gjeldsgradScore: number
-  belaningsgrad: number; belaningsgradScore: number
-  betjeningRatio: number; betjeningScore: number
-  stressMnd: number; stressNettoMnd: number; stressRatio: number; stressScore: number
-  total: number; lys: string; lysTekst: string
-} }) {
+function BankScore({ s }: { s: import('../lib/norskBankScore').BankScore }) {
   const lysBg = s.lys === '🟢' ? '#e8f5ed' : s.lys === '🔴' ? '#fde8ec' : '#fff8e1'
   const lysBorder = s.lys === '🟢' ? '#2D7D46' : s.lys === '🔴' ? '#C8102E' : '#B05E0A'
   const lysText = s.lys === '🟢' ? '#1a4d2b' : s.lys === '🔴' ? '#7a0c1e' : '#6b3a0a'
@@ -1324,40 +1341,51 @@ function BankScore({ s }: { s: ReturnType<typeof Object.assign> & {
               undertekst="Lån / boligverdi — bør være ≤75 %" />
             <ScoreBoks lbl="Betjeningsevne" val={fmtPct(s.betjeningRatio * 100)} score={s.betjeningScore} farge={fargeForScore(s.betjeningScore)}
               undertekst="Mnd-kost / mnd-inntekt — bør være <40 %" />
-            <ScoreBoks lbl="Stresstest" val={fmtPct(s.stressRatio * 100)} score={s.stressScore} farge={fargeForScore(s.stressScore)}
-              undertekst="Med rente +3pp — Finanstilsynet" />
+            <ScoreBoks lbl="Stresstest" val={s.stressDisponibel >= 0 ? fmtNok(s.stressDisponibel) : 'Negativ'} score={s.stressScore} farge={fargeForScore(s.stressScore)}
+              undertekst="Disponibelt etter alt med rente +3pp" />
           </div>
 
           <div style={{ background: 'rgba(255,255,255,0.85)', padding: 14, borderRadius: RADIUS.sm }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13 }}>
-              <span style={{ color: FARGER.tekstMid }}>Husholdningsinntekt</span>
+              <span style={{ color: FARGER.tekstMid }}>Brutto husholdningsinntekt</span>
               <span style={{ textAlign: 'right' }}>{fmtNok(s.sumInntektMnd)}/mnd</span>
+              <span style={{ color: FARGER.tekstMid }}>− Skatt (estimat)</span>
+              <span style={{ textAlign: 'right' }}>− {fmtNok(s.skatt_anslag_mnd)}</span>
               {s.utleieMnd > 0 && (
                 <>
                   <span style={{ color: FARGER.tekstMid }}>+ Netto leieinntekt fra utleie-del</span>
-                  <span style={{ textAlign: 'right' }}>+ {fmtNok(s.utleieMnd)}/mnd</span>
+                  <span style={{ textAlign: 'right' }}>+ {fmtNok(s.utleieMnd)}</span>
                 </>
               )}
-              <span style={{ color: FARGER.tekstMork, fontWeight: 600, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>= Total inntekt</span>
-              <span style={{ textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>{fmtNok(s.totalInntektMnd)}/mnd</span>
-              <span style={{ color: FARGER.tekstMid, marginTop: 8 }}>Mnd-betaling (annuitet)</span>
-              <span style={{ textAlign: 'right', marginTop: 8 }}>{fmtNok(s.mndBetaling)}</span>
-              {s.utleieMnd > 0 && (
+              <span style={{ color: FARGER.tekstMork, fontWeight: 600, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>= Netto inntekt</span>
+              <span style={{ textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>{fmtNok(s.netto_inntekt_mnd)}/mnd</span>
+
+              <span style={{ color: FARGER.tekstMid, marginTop: 8 }}>− Livsopphold (SIFO)</span>
+              <span style={{ textAlign: 'right', marginTop: 8 }}>− {fmtNok(s.livsopphold)}</span>
+              <span style={{ color: FARGER.tekstMid }}>− Mnd-betaling nytt boliglån (etter ev. leie)</span>
+              <span style={{ textAlign: 'right' }}>− {fmtNok(s.nettoMndBetaling)}</span>
+              {s.andreLanMndSum > 0 && (
                 <>
-                  <span style={{ color: FARGER.tekstMid }}>− Dekkes av leieinntekt</span>
-                  <span style={{ textAlign: 'right' }}>− {fmtNok(s.utleieMnd)}</span>
+                  <span style={{ color: FARGER.tekstMid }}>− Andre lån (billån/studielån/kreditt)</span>
+                  <span style={{ textAlign: 'right' }}>− {fmtNok(s.andreLanMndSum)}</span>
                 </>
               )}
-              <span style={{ color: FARGER.tekstMork, fontWeight: 600 }}>= Reell mnd-kostnad</span>
-              <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmtNok(s.nettoMndBetaling)}</span>
-              <span style={{ color: FARGER.tekstMid, marginTop: 6 }}>Stress-test mnd-kost (rente +3pp)</span>
-              <span style={{ textAlign: 'right', marginTop: 6, color: '#7a0c1e' }}>{fmtNok(s.stressNettoMnd)}</span>
+              <span style={{ color: FARGER.tekstMork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>= Disponibelt etter alt</span>
+              <span style={{ textAlign: 'right', fontWeight: 700, color: s.disponibelEtterAlt < 0 ? '#7a0c1e' : s.disponibelEtterAlt < 3000 ? '#6b3a0a' : '#1a4d2b', borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4, fontSize: 15 }}>
+                {fmtNok(s.disponibelEtterAlt)}
+              </span>
+              <span style={{ color: FARGER.tekstMid, marginTop: 8 }}>Stresstest disponibel (rente +3pp)</span>
+              <span style={{ textAlign: 'right', marginTop: 8, color: s.stressDisponibel < 0 ? '#7a0c1e' : '#5a6171' }}>
+                {fmtNok(s.stressDisponibel)}
+              </span>
               {s.annenSikkerhetNetto > 0 && (
                 <>
                   <span style={{ color: FARGER.tekstMid, marginTop: 6 }}>Tilgjengelig ekstra sikkerhet</span>
                   <span style={{ textAlign: 'right', marginTop: 6, color: FARGER.suksess, fontWeight: 600 }}>{fmtNok(s.annenSikkerhetNetto)}</span>
                 </>
               )}
+              <span style={{ color: FARGER.tekstMid, marginTop: 6 }}>Total gjeld inkl. nytt boliglån</span>
+              <span style={{ textAlign: 'right', marginTop: 6 }}>{fmtNok(s.totalGjeld)}</span>
             </div>
           </div>
         </>

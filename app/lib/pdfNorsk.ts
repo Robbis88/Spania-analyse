@@ -109,13 +109,19 @@ type BoFlipp = {
 
 type BankVurdering = {
   inntekter: Array<{ beskrivelse: string; belop_mnd: number }>
-  sumInntektMnd: number; sumInntektAr: number; totalInntektMnd: number; annenSikkerhetNetto: number
+  antallVoksne: number; antallBarn: number
+  andreLan: Array<{ beskrivelse: string; type: string; saldo: number; mnd_betaling: number }>
+  sumInntektMnd: number; sumInntektAr: number; utleieMnd: number; totalInntektMnd: number
+  skatt_anslag_mnd: number; netto_inntekt_mnd: number
+  annenSikkerhetNetto: number
   annenSikkerhet?: { aktiv: boolean; verdi: number; lan: number; beskrivelse: string }
   lanebehov: number; mndBetaling: number; nettoMndBetaling: number
+  andreLanSum: number; andreLanMndSum: number; totalGjeld: number; totalMndBetjening: number
+  livsopphold: number; disponibelEtterAlt: number
   gjeldsgrad: number; gjeldsgradScore: number
   belaningsgrad: number; belaningsgradScore: number
   betjeningRatio: number; betjeningScore: number
-  stressMnd: number; stressNettoMnd: number; stressRatio: number; stressScore: number
+  stressMnd: number; stressNettoMnd: number; stressTotalMnd: number; stressDisponibel: number; stressScore: number
   total: number; lys: string; lysTekst: string
 }
 
@@ -384,14 +390,32 @@ export async function byggNorskFlippePdf(args: {
     y += 18
     doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
 
+    // Husholdning
+    sjekk(14)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+    doc.text(`Husholdning: ${bv.antallVoksne} voksen${bv.antallVoksne > 1 ? 'e' : ''}, ${bv.antallBarn} barn under 18`, 20, y); y += 6
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60)
+
     // Inntektskilder
     if (bv.inntekter.length > 0) {
       sjekk(20)
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
-      doc.text('Husholdningens inntekter:', 20, y); y += 6
+      doc.text('Brutto inntekter:', 20, y); y += 6
       doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60)
       bv.inntekter.forEach((inn, i) => rad(inn.beskrivelse || `Inntektskilde ${i + 1}`, NOK(inn.belop_mnd) + '/mnd', i))
-      rad('Sum husholdningsinntekt', NOK(bv.sumInntektMnd) + '/mnd (' + NOK(bv.sumInntektAr) + '/år)', bv.inntekter.length, true)
+      rad('Sum brutto', NOK(bv.sumInntektMnd) + '/mnd (' + NOK(bv.sumInntektAr) + '/år)', bv.inntekter.length, true)
+      rad('− Skatt (estimat)', '− ' + NOK(bv.skatt_anslag_mnd) + '/mnd', bv.inntekter.length + 1)
+      if (bv.utleieMnd > 0) rad('+ Netto leieinntekt utleiedel', '+ ' + NOK(bv.utleieMnd) + '/mnd', bv.inntekter.length + 2)
+      rad('Netto inntekt disponibel', NOK(bv.netto_inntekt_mnd) + '/mnd', bv.inntekter.length + 3, true)
+      y += 4
+    }
+
+    // Andre lån
+    if (bv.andreLan.length > 0) {
+      sjekk(20)
+      seksjon('ANDRE EKSISTERENDE LÅN')
+      bv.andreLan.forEach((l, i) => rad(`${l.beskrivelse || l.type} (saldo ${NOK(l.saldo)})`, NOK(l.mnd_betaling) + '/mnd', i))
+      rad('Sum mnd-betjening andre lån', NOK(bv.andreLanMndSum) + '/mnd', bv.andreLan.length, true)
       y += 4
     }
 
@@ -405,19 +429,22 @@ export async function byggNorskFlippePdf(args: {
       y += 4
     }
 
-    // Bank-nøkkeltall
+    // Disponibel-analyse (det viktigste for banken)
+    seksjon('BETJENINGSANALYSE')
+    rad('Netto inntekt', NOK(bv.netto_inntekt_mnd) + '/mnd', 0)
+    rad(`− Livsopphold (SIFO, ${bv.antallVoksne}v + ${bv.antallBarn}b)`, '− ' + NOK(bv.livsopphold), 1)
+    rad('− Mnd-betaling nytt boliglån', '− ' + NOK(bv.nettoMndBetaling), 2)
+    if (bv.andreLanMndSum > 0) rad('− Andre lån', '− ' + NOK(bv.andreLanMndSum), 3)
+    rad('= Disponibelt etter alt', NOK(bv.disponibelEtterAlt) + '/mnd', 4, true)
+    rad('Stresstest disponibel (rente +3pp)', NOK(bv.stressDisponibel) + '/mnd', 5)
+    y += 4
+
+    // Nøkkeltall
     seksjon('NØKKELTALL FOR BANKEN')
-    rad('Total mnd-inntekt (inkl. ev. utleieinntekt)', NOK(bv.totalInntektMnd) + '/mnd', 0)
-    rad('Lånebehov', NOK(bv.lanebehov), 1)
-    rad('Mnd-betaling (annuitet 25 år)', NOK(bv.mndBetaling), 2)
-    if (bv.nettoMndBetaling !== bv.mndBetaling) {
-      rad('Reell mnd-kostnad (etter leieinntekt)', NOK(bv.nettoMndBetaling), 3)
-    }
-    rad('Stresstest mnd-kost (rente +3pp)', NOK(bv.stressNettoMnd), 4)
-    rad('Gjeldsgrad', bv.gjeldsgrad.toFixed(1) + 'x årsinntekt' + (bv.gjeldsgrad <= 5 ? ' (innenfor)' : ' (over grensen)'), 5, true)
-    rad('Belåningsgrad', PCT(bv.belaningsgrad) + (bv.belaningsgrad <= 75 ? ' (sterk)' : bv.belaningsgrad <= 85 ? ' (akseptabel)' : ' (over grensen)'), 6, true)
-    rad('Betjeningsevne', PCT(bv.betjeningRatio * 100) + ' av inntekt', 7)
-    rad('Stress-betjening', PCT(bv.stressRatio * 100) + ' av inntekt (rente +3pp)', 8)
+    rad('Total gjeld (nytt boliglån + andre)', NOK(bv.totalGjeld), 0)
+    rad('Gjeldsgrad', bv.gjeldsgrad.toFixed(1) + 'x årsinntekt' + (bv.gjeldsgrad <= 5 ? ' (innenfor 5x-grensen)' : ' (over Finanstilsynets 5x-grense)'), 1, true)
+    rad('Belåningsgrad', PCT(bv.belaningsgrad) + (bv.belaningsgrad <= 75 ? ' (sterk)' : bv.belaningsgrad <= 85 ? ' (akseptabel)' : ' (over grensen)'), 2, true)
+    rad('Betjeningsbelastning', PCT(bv.betjeningRatio * 100) + ' av netto inntekt', 3)
     y += 4
   }
 
@@ -604,6 +631,9 @@ export async function byggNorskPdfFraProsjekt(
     bankVurdering: bankScore && husholdning ? {
       ...bankScore,
       inntekter: husholdning.inntekter,
+      antallVoksne: husholdning.antall_voksne,
+      antallBarn: husholdning.antall_barn,
+      andreLan: husholdning.andre_lan,
       annenSikkerhet: husholdning.annen_sikkerhet_aktiv ? {
         aktiv: true,
         verdi: husholdning.annen_bolig_verdi,
