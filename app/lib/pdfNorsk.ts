@@ -9,6 +9,7 @@ import {
   type Kalk as KalkAlias, type EksisterendeBolig, type BoPlan, type UtleieDel,
   type OppussingsPost as OppussingsPostAlias, type Modus,
 } from './norskKalkulator'
+import { regnBankScore, type Husholdning } from './norskBankScore'
 
 type SupabaseKlient = typeof supabaseType
 
@@ -106,6 +107,18 @@ type BoFlipp = {
   }
 }
 
+type BankVurdering = {
+  inntekter: Array<{ beskrivelse: string; belop_mnd: number }>
+  sumInntektMnd: number; sumInntektAr: number; totalInntektMnd: number; annenSikkerhetNetto: number
+  annenSikkerhet?: { aktiv: boolean; verdi: number; lan: number; beskrivelse: string }
+  lanebehov: number; mndBetaling: number; nettoMndBetaling: number
+  gjeldsgrad: number; gjeldsgradScore: number
+  belaningsgrad: number; belaningsgradScore: number
+  betjeningRatio: number; betjeningScore: number
+  stressMnd: number; stressNettoMnd: number; stressRatio: number; stressScore: number
+  total: number; lys: string; lysTekst: string
+}
+
 const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 const PCT = (n: number) => n.toFixed(1) + ' %'
 
@@ -115,6 +128,7 @@ export async function byggNorskFlippePdf(args: {
   beregning: Beregning
   oppussingsposter: OppussingsPost[]
   boFlipp?: BoFlipp | null
+  bankVurdering?: BankVurdering | null
   prosjektId?: string                  // hvis satt: hent bilder fra Supabase
   supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
 }): Promise<{ base64: string; filnavn: string }> {
@@ -353,6 +367,60 @@ export async function byggNorskFlippePdf(args: {
   doc.text(PCT(b.roi), 110, y + 28)
   y += 38
 
+  // === BANK-VURDERING ===
+  if (args.bankVurdering && args.bankVurdering.sumInntektMnd > 0) {
+    const bv = args.bankVurdering
+    if (y > 220) { doc.addPage(); y = 20 }
+    seksjon('BANK-VURDERING')
+
+    // Lys-bånd
+    const lysFarge: [number, number, number] =
+      bv.lys.includes('🟢') ? [45, 125, 70] : bv.lys.includes('🔴') ? [200, 16, 46] : [176, 94, 10]
+    sjekk(16)
+    doc.setFillColor(lysFarge[0], lysFarge[1], lysFarge[2])
+    doc.rect(15, y, 180, 14, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
+    doc.text(bv.lysTekst + '   —   ' + bv.total + '/100', 20, y + 9)
+    y += 18
+    doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+
+    // Inntektskilder
+    if (bv.inntekter.length > 0) {
+      sjekk(20)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text('Husholdningens inntekter:', 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60)
+      bv.inntekter.forEach((inn, i) => rad(inn.beskrivelse || `Inntektskilde ${i + 1}`, NOK(inn.belop_mnd) + '/mnd', i))
+      rad('Sum husholdningsinntekt', NOK(bv.sumInntektMnd) + '/mnd (' + NOK(bv.sumInntektAr) + '/år)', bv.inntekter.length, true)
+      y += 4
+    }
+
+    // Annen sikkerhet
+    if (bv.annenSikkerhet?.aktiv) {
+      seksjon('TILGJENGELIG EKSTRA SIKKERHET')
+      if (bv.annenSikkerhet.beskrivelse) avsnitt(bv.annenSikkerhet.beskrivelse)
+      rad('Verdi (markedstakst)', NOK(bv.annenSikkerhet.verdi), 0)
+      rad('Eksisterende lån', '− ' + NOK(bv.annenSikkerhet.lan), 1)
+      rad('Tilgjengelig sikkerhet', NOK(bv.annenSikkerhetNetto), 2, true)
+      y += 4
+    }
+
+    // Bank-nøkkeltall
+    seksjon('NØKKELTALL FOR BANKEN')
+    rad('Total mnd-inntekt (inkl. ev. utleieinntekt)', NOK(bv.totalInntektMnd) + '/mnd', 0)
+    rad('Lånebehov', NOK(bv.lanebehov), 1)
+    rad('Mnd-betaling (annuitet 25 år)', NOK(bv.mndBetaling), 2)
+    if (bv.nettoMndBetaling !== bv.mndBetaling) {
+      rad('Reell mnd-kostnad (etter leieinntekt)', NOK(bv.nettoMndBetaling), 3)
+    }
+    rad('Stresstest mnd-kost (rente +3pp)', NOK(bv.stressNettoMnd), 4)
+    rad('Gjeldsgrad', bv.gjeldsgrad.toFixed(1) + 'x årsinntekt' + (bv.gjeldsgrad <= 5 ? ' (innenfor)' : ' (over grensen)'), 5, true)
+    rad('Belåningsgrad', PCT(bv.belaningsgrad) + (bv.belaningsgrad <= 75 ? ' (sterk)' : bv.belaningsgrad <= 85 ? ' (akseptabel)' : ' (over grensen)'), 6, true)
+    rad('Betjeningsevne', PCT(bv.betjeningRatio * 100) + ' av inntekt', 7)
+    rad('Stress-betjening', PCT(bv.stressRatio * 100) + ' av inntekt (rente +3pp)', 8)
+    y += 4
+  }
+
   // === AI-VURDERING ===
   if (a.ai_vurdering) {
     seksjon('AI-VURDERING')
@@ -485,6 +553,7 @@ export async function byggNorskPdfFraProsjekt(
   const boPlan = (d.boPlan as BoPlan) || { bo_tid_mnd: 24, arlig_prisvekst_pst: 4 }
   const utleieDel = (d.utleieDel as UtleieDel) || null
   const oppussingsposter = (d.oppussingsposter as OppussingsPostAlias[]) || []
+  const husholdning = (d.husholdning as Husholdning) || null
 
   const effektivKalk = regnEffektivKalk(kalk, modus, boPlan)
   const utleieBeregning = utleieDel
@@ -497,6 +566,9 @@ export async function byggNorskPdfFraProsjekt(
     : { meglerhonorar: 0, salgskostnader: 0, skatt: 0, nettoTilDisposisjon: 0 }
   const finansiering = eksisterende
     ? regnFinansiering(modus, beregning, eksisterendeBeregning, effektivKalk)
+    : null
+  const bankScore = husholdning
+    ? regnBankScore(husholdning, utleieBeregning, finansiering, effektivKalk)
     : null
 
   return byggNorskFlippePdf({
@@ -527,6 +599,16 @@ export async function byggNorskPdfFraProsjekt(
         netto_total: utleieBeregning.netto_total,
         skatt: utleieBeregning.skatt,
         nettoBidrag: utleieBidrag,
+      } : undefined,
+    } : null,
+    bankVurdering: bankScore && husholdning ? {
+      ...bankScore,
+      inntekter: husholdning.inntekter,
+      annenSikkerhet: husholdning.annen_sikkerhet_aktiv ? {
+        aktiv: true,
+        verdi: husholdning.annen_bolig_verdi,
+        lan: husholdning.annen_bolig_lan,
+        beskrivelse: husholdning.annen_bolig_beskrivelse,
       } : undefined,
     } : null,
     prosjektId,

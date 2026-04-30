@@ -166,6 +166,19 @@ type UtleieDel = {
   skattefri: boolean       // primærbolig + utleiedel mindre enn halve verdien
 }
 
+type Inntektskilde = {
+  beskrivelse: string      // f.eks. "Person 1 - Lønn", "Leieinntekt annen bolig"
+  belop_mnd: number
+}
+
+type Husholdning = {
+  inntekter: Inntektskilde[]
+  annen_sikkerhet_aktiv: boolean
+  annen_bolig_verdi: number
+  annen_bolig_lan: number
+  annen_bolig_beskrivelse: string
+}
+
 export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [modus, setModus] = useState<Modus>('ren')
   const [input, setInput] = useState('')
@@ -193,6 +206,14 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     drift_pst: 15,
     etableringskost: 0,
     skattefri: true,         // utleiedel < halve verdien = skattefri (typisk for sokkelleilighet)
+  })
+
+  const [husholdning, setHusholdning] = useState<Husholdning>({
+    inntekter: [],
+    annen_sikkerhet_aktiv: false,
+    annen_bolig_verdi: 0,
+    annen_bolig_lan: 0,
+    annen_bolig_beskrivelse: '',
   })
 
   const [kalk, setKalk] = useState<Kalk>({
@@ -338,6 +359,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setBoPlan((d.boPlan as BoPlan) || boPlan)
     setUtleieDel((d.utleieDel as UtleieDel) || utleieDel)
     setOppussingsposter((d.oppussingsposter as Array<{ navn: string; kostnad: number; notat: string }>) || [])
+    if (d.husholdning) setHusholdning(d.husholdning as Husholdning)
     setLagretId(p.id)
     setFeil(''); setFraCache(null)
     visToast('Prosjekt lastet inn', 'suksess')
@@ -476,6 +498,81 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     return { totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling }
   }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.rente_pst])
 
+  // === BANK-SCORE — basert på inntekt, sikkerhet, gjeldsgrad, belåningsgrad, stresstest ===
+  const bankScore = useMemo(() => {
+    const sumInntektMnd = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
+    const sumInntektAr = sumInntektMnd * 12
+    const utleieMnd = utleieBeregning.netto_mnd
+    const totalInntektMnd = sumInntektMnd + utleieMnd
+    const annenSikkerhetNetto = husholdning.annen_sikkerhet_aktiv
+      ? Math.max(0, husholdning.annen_bolig_verdi - husholdning.annen_bolig_lan)
+      : 0
+
+    // Lånebehov og mnd-betaling — fra finansiering hvis bo-modus, ellers estimert
+    const lanebehov = finansiering ? finansiering.lanebehov : (kalk.kjopesum * (1 - kalk.egenkapital_pst / 100))
+    const mndBetaling = finansiering ? finansiering.mndBetaling : (() => {
+      const r = kalk.rente_pst / 100 / 12
+      return lanebehov > 0 && r > 0 ? (lanebehov * r) / (1 - Math.pow(1 + r, -25 * 12)) : 0
+    })()
+    const nettoMndBetaling = Math.max(0, mndBetaling - utleieMnd)
+
+    // 1. Gjeldsgrad ≤ 5x årsinntekt (Finanstilsynet utlånsforskrift)
+    // Annen sikkerhet kan kompensere — trekkes fra gjeldsgrunnlaget
+    const justertLanebehov = Math.max(0, lanebehov - annenSikkerhetNetto)
+    const gjeldsgrad = sumInntektAr > 0 ? (justertLanebehov / sumInntektAr) : 0
+    const gjeldsgradScore = sumInntektAr === 0 ? 0
+      : gjeldsgrad <= 4 ? 100
+      : gjeldsgrad <= 5 ? 70
+      : gjeldsgrad <= 6 ? 35
+      : 10
+
+    // 2. Belåningsgrad ≤ 75% sterk, ≤ 85% akseptabel
+    const belaningsgrad = finansiering ? finansiering.belaningsgrad : 0
+    const belaningsgradScore = belaningsgrad === 0 ? 0
+      : belaningsgrad <= 75 ? 100
+      : belaningsgrad <= 85 ? 60
+      : 25
+
+    // 3. Betjeningsevne — netto mnd-kostnad / brutto mnd-inntekt
+    const betjeningRatio = totalInntektMnd > 0 ? nettoMndBetaling / totalInntektMnd : 1
+    const betjeningScore = totalInntektMnd === 0 ? 0
+      : betjeningRatio < 0.30 ? 100
+      : betjeningRatio < 0.40 ? 75
+      : betjeningRatio < 0.50 ? 50
+      : 20
+
+    // 4. Stresstest — tåler vi rente +3pp? (Finanstilsynet krever)
+    const stressRente = (kalk.rente_pst + 3) / 100 / 12
+    const stressMnd = lanebehov > 0 && stressRente > 0
+      ? (lanebehov * stressRente) / (1 - Math.pow(1 + stressRente, -25 * 12))
+      : 0
+    const stressNettoMnd = Math.max(0, stressMnd - utleieMnd)
+    const stressRatio = totalInntektMnd > 0 ? stressNettoMnd / totalInntektMnd : 1
+    const stressScore = totalInntektMnd === 0 ? 0
+      : stressRatio < 0.40 ? 100
+      : stressRatio < 0.55 ? 70
+      : stressRatio < 0.70 ? 40
+      : 15
+
+    const total = Math.round(
+      gjeldsgradScore * 0.25 + belaningsgradScore * 0.25 + betjeningScore * 0.30 + stressScore * 0.20
+    )
+    const lys = total >= 75 ? '🟢' : total >= 55 ? '🟡' : '🔴'
+    const lysTekst = total >= 75 ? 'Sterkt finansieringsgrunnlag'
+      : total >= 55 ? 'Trolig akseptabelt — kan kreve dialog'
+      : 'Vanskelig å få godkjent'
+
+    return {
+      sumInntektMnd, sumInntektAr, utleieMnd, totalInntektMnd, annenSikkerhetNetto,
+      lanebehov, justertLanebehov, mndBetaling, nettoMndBetaling,
+      gjeldsgrad, gjeldsgradScore,
+      belaningsgrad, belaningsgradScore,
+      betjeningRatio, betjeningScore,
+      stressMnd, stressNettoMnd, stressRatio, stressScore,
+      total, lys, lysTekst,
+    }
+  }, [husholdning, utleieBeregning.netto_mnd, finansiering, kalk.kjopesum, kalk.egenkapital_pst, kalk.rente_pst])
+
   async function lagreSomProsjekt() {
     if (!analyse || lagrer) return
     setLagrer(true)
@@ -522,7 +619,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         adresse: analyse.adresse || null,
         // Komplett state slik at vi kan laste inn igjen
         norsk_kalkulator_data: {
-          analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter,
+          analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter, husholdning,
           lagret_tidspunkt: new Date().toISOString(),
         },
       }
@@ -552,6 +649,16 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         kalk: effektivKalk,
         beregning,
         oppussingsposter,
+        bankVurdering: bankScore.sumInntektMnd > 0 ? {
+          inntekter: husholdning.inntekter,
+          ...bankScore,
+          annenSikkerhet: husholdning.annen_sikkerhet_aktiv ? {
+            aktiv: true,
+            verdi: husholdning.annen_bolig_verdi,
+            lan: husholdning.annen_bolig_lan,
+            beskrivelse: husholdning.annen_bolig_beskrivelse,
+          } : undefined,
+        } : null,
         prosjektId: lagretId || undefined,
         supabaseKlient: lagretId ? supabase : undefined,
         boFlipp: modus === 'bo' && finansiering ? {
@@ -725,6 +832,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           {modus === 'bo' && finansiering && (
             <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} utleieMnd={utleieBeregning.netto_mnd} />
           )}
+          <HusholdningPanel husholdning={husholdning} setHusholdning={setHusholdning} />
+          <BankScore s={bankScore} />
           <Sensitivitet kalk={effektivKalk} basis={beregning} utleieBidrag={utleieBeregning.netto_total - utleieBeregning.etableringskost} />
 
           {!lagretId && (
@@ -1076,6 +1185,198 @@ function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: 
     textTransform: header ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
   }
+}
+
+function HusholdningPanel({ husholdning, setHusholdning }: {
+  husholdning: Husholdning
+  setHusholdning: (h: Husholdning) => void
+}) {
+  const sumInntekt = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
+  const annenSikkerhet = husholdning.annen_sikkerhet_aktiv
+    ? Math.max(0, husholdning.annen_bolig_verdi - husholdning.annen_bolig_lan) : 0
+
+  function leggTilInntekt() {
+    setHusholdning({ ...husholdning, inntekter: [...husholdning.inntekter, { beskrivelse: '', belop_mnd: 0 }] })
+  }
+  function fjernInntekt(i: number) {
+    setHusholdning({ ...husholdning, inntekter: husholdning.inntekter.filter((_, idx) => idx !== i) })
+  }
+  function oppdaterInntekt(i: number, felt: 'beskrivelse' | 'belop_mnd', verdi: string | number) {
+    setHusholdning({
+      ...husholdning,
+      inntekter: husholdning.inntekter.map((inn, idx) => idx === i ? { ...inn, [felt]: verdi } : inn),
+    })
+  }
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>👨‍👩‍👧 Steg 4 — Husholdning og sikkerhet</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 18px', fontWeight: 300 }}>
+        Inntekter til husholdningen og evt. ekstra sikkerhet. Brukes til bank-vurdering nedenfor.
+      </p>
+
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Månedlige inntekter</div>
+        {husholdning.inntekter.length === 0 && (
+          <div style={{ fontSize: 13, color: FARGER.tekstLys, fontStyle: 'italic', padding: '8px 0' }}>Ingen inntekter lagt inn ennå.</div>
+        )}
+        {husholdning.inntekter.map((inn, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 130px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < husholdning.inntekter.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
+            <input value={inn.beskrivelse} onChange={e => oppdaterInntekt(i, 'beskrivelse', e.target.value)}
+              placeholder="F.eks. Person 1 - Lønn fast jobb"
+              style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+            <input type="number" min={0} step={1000} value={inn.belop_mnd || ''}
+              onChange={e => oppdaterInntekt(i, 'belop_mnd', Number(e.target.value) || 0)}
+              placeholder="kr/mnd"
+              style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+            <button onClick={() => fjernInntekt(i)} title="Fjern"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
+          </div>
+        ))}
+        <button onClick={leggTilInntekt}
+          style={{ marginTop: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: '8px 14px', fontSize: 12, color: FARGER.mork, cursor: 'pointer', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          + Legg til inntektskilde
+        </button>
+        {sumInntekt > 0 && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: FARGER.creamLys, borderRadius: RADIUS.sm, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: FARGER.tekstMid }}>Sum inntekter</span>
+            <span style={{ fontWeight: 700, color: FARGER.mork }}>{fmtNok(sumInntekt)}/mnd ({fmtNok(sumInntekt * 12)}/år)</span>
+          </div>
+        )}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 16 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: FARGER.tekstMork, cursor: 'pointer', marginBottom: 12 }}>
+          <input type="checkbox" checked={husholdning.annen_sikkerhet_aktiv}
+            onChange={e => setHusholdning({ ...husholdning, annen_sikkerhet_aktiv: e.target.checked })}
+            style={{ width: 18, height: 18 }} />
+          <span style={{ fontWeight: 600 }}>🏦 Vi kan stille sikkerhet i en annen bolig</span>
+        </label>
+
+        {husholdning.annen_sikkerhet_aktiv && (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 10, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 600 }}>Beskrivelse</label>
+              <input value={husholdning.annen_bolig_beskrivelse}
+                onChange={e => setHusholdning({ ...husholdning, annen_bolig_beskrivelse: e.target.value })}
+                placeholder="F.eks. Hytte i Hemsedal, fritidsbolig, sokkelleilighet"
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', boxSizing: 'border-box', background: 'white' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+              <KalkInput lbl="Verdi (markedstakst)" val={husholdning.annen_bolig_verdi}
+                onChange={v => setHusholdning({ ...husholdning, annen_bolig_verdi: v })} />
+              <KalkInput lbl="Eksisterende lån" val={husholdning.annen_bolig_lan}
+                onChange={v => setHusholdning({ ...husholdning, annen_bolig_lan: v })} />
+            </div>
+            <div style={{ background: FARGER.creamLys, padding: 12, borderRadius: RADIUS.sm, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: FARGER.tekstMid }}>Tilgjengelig sikkerhet</span>
+              <span style={{ fontWeight: 700, color: FARGER.mork }}>{fmtNok(annenSikkerhet)}</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BankScore({ s }: { s: ReturnType<typeof Object.assign> & {
+  sumInntektMnd: number; sumInntektAr: number; totalInntektMnd: number; annenSikkerhetNetto: number
+  lanebehov: number; mndBetaling: number; nettoMndBetaling: number
+  gjeldsgrad: number; gjeldsgradScore: number
+  belaningsgrad: number; belaningsgradScore: number
+  betjeningRatio: number; betjeningScore: number
+  stressMnd: number; stressNettoMnd: number; stressRatio: number; stressScore: number
+  total: number; lys: string; lysTekst: string
+} }) {
+  const lysBg = s.lys === '🟢' ? '#e8f5ed' : s.lys === '🔴' ? '#fde8ec' : '#fff8e1'
+  const lysBorder = s.lys === '🟢' ? '#2D7D46' : s.lys === '🔴' ? '#C8102E' : '#B05E0A'
+  const lysText = s.lys === '🟢' ? '#1a4d2b' : s.lys === '🔴' ? '#7a0c1e' : '#6b3a0a'
+
+  const ingenInntekt = s.sumInntektMnd === 0
+  const fargeForScore = (sc: number) => sc >= 75 ? '#2D7D46' : sc >= 50 ? '#B05E0A' : '#C8102E'
+
+  return (
+    <div style={{ background: lysBg, border: `2px solid ${lysBorder}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 48 }}>{s.lys}</div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.16em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>🏦 Bank-vurdering</div>
+          <div style={{ fontSize: 20, fontWeight: 500, color: lysText }}>{s.lysTekst}</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 36, fontWeight: 700, color: lysText, lineHeight: 1 }}>{s.total}</div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>/ 100</div>
+        </div>
+      </div>
+
+      {ingenInntekt && (
+        <div style={{ background: 'rgba(255,255,255,0.7)', padding: 12, borderRadius: RADIUS.sm, fontSize: 13, color: FARGER.tekstMid, fontStyle: 'italic', marginBottom: 14 }}>
+          Legg inn husholdningens inntekter ovenfor for å få en bank-vurdering basert på Finanstilsynets utlånsforskrift.
+        </div>
+      )}
+
+      {!ingenInntekt && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 14 }}>
+            <ScoreBoks lbl="Gjeldsgrad" val={s.gjeldsgrad.toFixed(1) + 'x'} score={s.gjeldsgradScore} farge={fargeForScore(s.gjeldsgradScore)}
+              undertekst={`Lån / årsinntekt — bør være ≤5x${s.annenSikkerhetNetto > 0 ? ' (justert for ekstra sikkerhet)' : ''}`} />
+            <ScoreBoks lbl="Belåningsgrad" val={fmtPct(s.belaningsgrad)} score={s.belaningsgradScore} farge={fargeForScore(s.belaningsgradScore)}
+              undertekst="Lån / boligverdi — bør være ≤75 %" />
+            <ScoreBoks lbl="Betjeningsevne" val={fmtPct(s.betjeningRatio * 100)} score={s.betjeningScore} farge={fargeForScore(s.betjeningScore)}
+              undertekst="Mnd-kost / mnd-inntekt — bør være <40 %" />
+            <ScoreBoks lbl="Stresstest" val={fmtPct(s.stressRatio * 100)} score={s.stressScore} farge={fargeForScore(s.stressScore)}
+              undertekst="Med rente +3pp — Finanstilsynet" />
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.85)', padding: 14, borderRadius: RADIUS.sm }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13 }}>
+              <span style={{ color: FARGER.tekstMid }}>Husholdningsinntekt</span>
+              <span style={{ textAlign: 'right' }}>{fmtNok(s.sumInntektMnd)}/mnd</span>
+              {s.utleieMnd > 0 && (
+                <>
+                  <span style={{ color: FARGER.tekstMid }}>+ Netto leieinntekt fra utleie-del</span>
+                  <span style={{ textAlign: 'right' }}>+ {fmtNok(s.utleieMnd)}/mnd</span>
+                </>
+              )}
+              <span style={{ color: FARGER.tekstMork, fontWeight: 600, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>= Total inntekt</span>
+              <span style={{ textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>{fmtNok(s.totalInntektMnd)}/mnd</span>
+              <span style={{ color: FARGER.tekstMid, marginTop: 8 }}>Mnd-betaling (annuitet)</span>
+              <span style={{ textAlign: 'right', marginTop: 8 }}>{fmtNok(s.mndBetaling)}</span>
+              {s.utleieMnd > 0 && (
+                <>
+                  <span style={{ color: FARGER.tekstMid }}>− Dekkes av leieinntekt</span>
+                  <span style={{ textAlign: 'right' }}>− {fmtNok(s.utleieMnd)}</span>
+                </>
+              )}
+              <span style={{ color: FARGER.tekstMork, fontWeight: 600 }}>= Reell mnd-kostnad</span>
+              <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmtNok(s.nettoMndBetaling)}</span>
+              <span style={{ color: FARGER.tekstMid, marginTop: 6 }}>Stress-test mnd-kost (rente +3pp)</span>
+              <span style={{ textAlign: 'right', marginTop: 6, color: '#7a0c1e' }}>{fmtNok(s.stressNettoMnd)}</span>
+              {s.annenSikkerhetNetto > 0 && (
+                <>
+                  <span style={{ color: FARGER.tekstMid, marginTop: 6 }}>Tilgjengelig ekstra sikkerhet</span>
+                  <span style={{ textAlign: 'right', marginTop: 6, color: FARGER.suksess, fontWeight: 600 }}>{fmtNok(s.annenSikkerhetNetto)}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ScoreBoks({ lbl, val, score, farge, undertekst }: { lbl: string; val: string; score: number; farge: string; undertekst: string }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.85)', padding: 12, borderRadius: RADIUS.sm }}>
+      <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 4, fontWeight: 600 }}>{lbl}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: farge }}>{val}</div>
+      <div style={{ background: '#e0e0e0', borderRadius: 3, height: 4, marginTop: 6, overflow: 'hidden' }}>
+        <div style={{ width: `${score}%`, height: 4, background: farge }} />
+      </div>
+      <div style={{ fontSize: 10, color: FARGER.tekstLys, marginTop: 6, lineHeight: 1.4 }}>{undertekst}</div>
+    </div>
+  )
 }
 
 function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
