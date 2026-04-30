@@ -179,6 +179,16 @@ type AnnetLan = {
   mnd_betaling: number     // månedlig betjening (renter + avdrag)
 }
 
+type MeglerVurdering = {
+  navn: string             // megleren som har gitt vurderingen
+  firma: string            // f.eks. "Krogsveen Bergen", "DNB Eiendom"
+  telefon: string
+  epost: string
+  verdi_nok: number        // verdivurdering i NOK
+  dato: string             // ISO-date YYYY-MM-DD
+  notat: string            // valgfri kommentar fra megleren
+}
+
 type Husholdning = {
   antall_voksne: number    // 1 eller 2 typisk
   antall_barn: number      // antall barn under 18
@@ -244,6 +254,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
   const [oppussingsposter, setOppussingsposter] = useState<Array<{ navn: string; kostnad: number; notat: string }>>([])
   const [nyPostNavn, setNyPostNavn] = useState('')
+  const [meglerVurderinger, setMeglerVurderinger] = useState<MeglerVurdering[]>([])
   const [pdfLaster, setPdfLaster] = useState(false)
   const [fraCache, setFraCache] = useState<number | null>(null)
   const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null }>>([])
@@ -376,6 +387,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setUtleieDel((d.utleieDel as UtleieDel) || utleieDel)
     setOppussingsposter((d.oppussingsposter as Array<{ navn: string; kostnad: number; notat: string }>) || [])
     if (d.husholdning) setHusholdning(d.husholdning as Husholdning)
+    if (d.meglerVurderinger) setMeglerVurderinger(d.meglerVurderinger as MeglerVurdering[])
     setLagretId(p.id)
     setFeil(''); setFraCache(null)
     visToast('Prosjekt lastet inn', 'suksess')
@@ -565,7 +577,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         adresse: analyse.adresse || null,
         // Komplett state slik at vi kan laste inn igjen
         norsk_kalkulator_data: {
-          analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter, husholdning,
+          analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter, husholdning, meglerVurderinger,
           lagret_tidspunkt: new Date().toISOString(),
         },
       }
@@ -595,6 +607,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         kalk: effektivKalk,
         beregning,
         oppussingsposter,
+        meglerVurderinger,
         bankVurdering: bankScore.sumInntektMnd > 0 ? {
           inntekter: husholdning.inntekter,
           antallVoksne: husholdning.antall_voksne,
@@ -778,6 +791,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
             </>
           )}
           <Kalkulator kalk={kalk} setKalk={setKalk} beregning={beregning} oppussingFraPoster={oppussingsposter.length > 0} boModus={modus === 'bo'} effektivSalgspris={effektivKalk.salgspris} effektivHoldetid={effektivKalk.holdetid_mnd} />
+          <MeglerVurderingerPanel
+            vurderinger={meglerVurderinger}
+            setVurderinger={setMeglerVurderinger}
+            forventetSalgspris={effektivKalk.salgspris}
+          />
           {modus === 'bo' && finansiering && (
             <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} utleieMnd={utleieBeregning.netto_mnd} />
           )}
@@ -1134,6 +1152,143 @@ function tdStil(header: boolean, align: 'left' | 'right', bold = false, color?: 
     textTransform: header ? 'uppercase' : 'none',
     whiteSpace: 'nowrap',
   }
+}
+
+function MeglerVurderingerPanel({ vurderinger, setVurderinger, forventetSalgspris }: {
+  vurderinger: MeglerVurdering[]
+  setVurderinger: (v: MeglerVurdering[]) => void
+  forventetSalgspris: number
+}) {
+  function leggTil() {
+    setVurderinger([...vurderinger, {
+      navn: '', firma: '', telefon: '', epost: '',
+      verdi_nok: 0, dato: new Date().toISOString().slice(0, 10), notat: '',
+    }])
+  }
+  function fjern(i: number) {
+    setVurderinger(vurderinger.filter((_, idx) => idx !== i))
+  }
+  function oppdater(i: number, felt: keyof MeglerVurdering, verdi: string | number) {
+    setVurderinger(vurderinger.map((v, idx) => idx === i ? { ...v, [felt]: verdi } : v))
+  }
+
+  const med_verdi = vurderinger.filter(v => v.verdi_nok > 0)
+  const snitt = med_verdi.length > 0 ? med_verdi.reduce((s, v) => s + v.verdi_nok, 0) / med_verdi.length : 0
+  const min = med_verdi.length > 0 ? Math.min(...med_verdi.map(v => v.verdi_nok)) : 0
+  const max = med_verdi.length > 0 ? Math.max(...med_verdi.map(v => v.verdi_nok)) : 0
+  const avvikSnittPst = forventetSalgspris > 0 && snitt > 0 ? ((forventetSalgspris - snitt) / snitt) * 100 : 0
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>📋 Megler-verdivurderinger</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', fontWeight: 300 }}>
+        Forhåndsvurderinger fra meglere du har snakket med. Brukes som ekstern referanse i bankprospektet — styrker troverdigheten betydelig.
+      </p>
+
+      {vurderinger.length === 0 && (
+        <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm, fontSize: 13, color: FARGER.tekstMid, marginBottom: 14, fontStyle: 'italic', textAlign: 'center' }}>
+          Ingen verdivurderinger registrert. Legg til vurderinger fra meglere du har vært i kontakt med.
+        </div>
+      )}
+
+      {vurderinger.map((v, i) => (
+        <div key={i} style={{ background: FARGER.creamLys, borderRadius: RADIUS.sm, padding: 14, marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vurdering {i + 1}</div>
+            <button onClick={() => fjern(i)} title="Fjern"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#888', padding: '2px 6px' }}>✕</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
+            <MeglerFelt lbl="Megler navn" val={v.navn} onChange={s => oppdater(i, 'navn', s)} placeholder="Ola Hansen" />
+            <MeglerFelt lbl="Firma" val={v.firma} onChange={s => oppdater(i, 'firma', s)} placeholder="Krogsveen Bergen" />
+            <MeglerFelt lbl="Telefon" val={v.telefon} onChange={s => oppdater(i, 'telefon', s)} placeholder="91 23 45 67" />
+            <MeglerFelt lbl="E-post" val={v.epost} onChange={s => oppdater(i, 'epost', s)} placeholder="ola@krogsveen.no" />
+            <MeglerFeltTall lbl="Verdivurdering (kr)" val={v.verdi_nok} onChange={n => oppdater(i, 'verdi_nok', n)} />
+            <MeglerFeltDato lbl="Dato" val={v.dato} onChange={s => oppdater(i, 'dato', s)} />
+          </div>
+          <MeglerFelt lbl="Notat fra megleren (valgfri)" val={v.notat} onChange={s => oppdater(i, 'notat', s)} placeholder="F.eks. 'Tror det er marginalt over markedssnittet i området'" multiline />
+        </div>
+      ))}
+
+      <button onClick={leggTil}
+        style={{ background: FARGER.mork, color: 'white', border: 'none', borderRadius: RADIUS.sm, padding: '10px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>
+        + Legg til verdivurdering
+      </button>
+
+      {med_verdi.length > 0 && (
+        <div style={{ marginTop: 16, padding: 14, background: '#fdfcf7', border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Sammendrag av verdivurderinger</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, color: FARGER.tekstLys, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Snitt ({med_verdi.length} st.)</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork, marginTop: 2 }}>{fmtNok(snitt)}</div>
+            </div>
+            {med_verdi.length > 1 && (
+              <>
+                <div>
+                  <div style={{ fontSize: 10, color: FARGER.tekstLys, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Lavest</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.tekstMid, marginTop: 2 }}>{fmtNok(min)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: FARGER.tekstLys, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Høyest</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.tekstMid, marginTop: 2 }}>{fmtNok(max)}</div>
+                </div>
+              </>
+            )}
+            {forventetSalgspris > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: FARGER.tekstLys, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Vår kalkulasjon vs snitt</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: avvikSnittPst > 5 ? '#7a0c1e' : avvikSnittPst < -5 ? '#1a4d2b' : FARGER.tekstMid, marginTop: 2 }}>
+                  {avvikSnittPst >= 0 ? '+' : ''}{avvikSnittPst.toFixed(1)} %
+                </div>
+              </div>
+            )}
+          </div>
+          {Math.abs(avvikSnittPst) > 10 && forventetSalgspris > 0 && (
+            <div style={{ marginTop: 10, padding: 10, background: 'rgba(255,255,255,0.7)', borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid, lineHeight: 1.5 }}>
+              ⚠ Vår forventede salgspris ligger {Math.abs(avvikSnittPst).toFixed(0)}% {avvikSnittPst > 0 ? 'over' : 'under'} meglersnittet — vurder å justere kalkulasjonen for å være konsistent med de eksterne vurderingene.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MeglerFelt({ lbl, val, onChange, placeholder, multiline }: { lbl: string; val: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 4, fontWeight: 600 }}>{lbl}</label>
+      {multiline ? (
+        <textarea value={val} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          rows={2}
+          style={{ width: '100%', padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white', boxSizing: 'border-box', resize: 'vertical' }} />
+      ) : (
+        <input value={val} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          style={{ width: '100%', padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white', boxSizing: 'border-box' }} />
+      )}
+    </div>
+  )
+}
+
+function MeglerFeltTall({ lbl, val, onChange }: { lbl: string; val: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 4, fontWeight: 600 }}>{lbl}</label>
+      <input type="number" min={0} step={10000} value={val || ''} onChange={e => onChange(Number(e.target.value) || 0)}
+        style={{ width: '100%', padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white', boxSizing: 'border-box', textAlign: 'right' }} />
+    </div>
+  )
+}
+
+function MeglerFeltDato({ lbl, val, onChange }: { lbl: string; val: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 4, fontWeight: 600 }}>{lbl}</label>
+      <input type="date" value={val} onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white', boxSizing: 'border-box' }} />
+    </div>
+  )
 }
 
 function HusholdningPanel({ husholdning, setHusholdning }: {

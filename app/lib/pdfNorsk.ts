@@ -87,6 +87,11 @@ type AnalyseLite = {
 
 type OppussingsPost = { navn: string; kostnad: number; notat: string }
 
+type MeglerVurdering = {
+  navn: string; firma: string; telefon: string; epost: string
+  verdi_nok: number; dato: string; notat: string
+}
+
 type BoFlipp = {
   eksisterende: {
     salgssum: number; restgjeld: number
@@ -135,6 +140,7 @@ export async function byggNorskFlippePdf(args: {
   oppussingsposter: OppussingsPost[]
   boFlipp?: BoFlipp | null
   bankVurdering?: BankVurdering | null
+  meglerVurderinger?: MeglerVurdering[]
   prosjektId?: string                  // hvis satt: hent bilder fra Supabase
   supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
 }): Promise<{ base64: string; filnavn: string }> {
@@ -373,6 +379,37 @@ export async function byggNorskFlippePdf(args: {
   doc.text(PCT(b.roi), 110, y + 28)
   y += 38
 
+  // === MEGLER-VERDIVURDERINGER (ekstern kvalitetssikring av salgspris) ===
+  if (args.meglerVurderinger && args.meglerVurderinger.length > 0) {
+    const med = args.meglerVurderinger.filter(v => v.verdi_nok > 0)
+    if (med.length > 0) {
+      if (y > 220) { doc.addPage(); y = 20 }
+      seksjon('MEGLER-VERDIVURDERINGER')
+      const snitt = med.reduce((s, v) => s + v.verdi_nok, 0) / med.length
+      avsnitt(`Forhåndsvurderinger fra ${med.length} ${med.length === 1 ? 'megler' : 'meglere'}. Snitt: ${NOK(snitt)}.`)
+      y += 2
+      args.meglerVurderinger.forEach((v, i) => {
+        sjekk(20)
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+        const datoFmt = v.dato ? new Date(v.dato).toLocaleDateString('nb-NO') : ''
+        doc.text(`${i + 1}. ${v.navn || 'Ukjent megler'}${v.firma ? ' — ' + v.firma : ''}${datoFmt ? '   (' + datoFmt + ')' : ''}`, 20, y); y += 6
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+        const kontaktLinje = [v.telefon, v.epost].filter(Boolean).join('   ·   ')
+        if (kontaktLinje) { doc.text(kontaktLinje, 20, y); y += 5 }
+        if (v.verdi_nok > 0) {
+          doc.setFont('helvetica', 'bold')
+          doc.text('Verdivurdering: ' + NOK(v.verdi_nok), 20, y); y += 5
+          doc.setFont('helvetica', 'normal')
+        }
+        if (v.notat) {
+          const linjer = doc.splitTextToSize('"' + v.notat + '"', 175)
+          linjer.forEach((l: string) => { sjekk(5); doc.text(l, 20, y); y += 5 })
+        }
+        y += 4
+      })
+    }
+  }
+
   // === BANK-VURDERING ===
   if (args.bankVurdering && args.bankVurdering.sumInntektMnd > 0) {
     const bv = args.bankVurdering
@@ -581,6 +618,7 @@ export async function byggNorskPdfFraProsjekt(
   const utleieDel = (d.utleieDel as UtleieDel) || null
   const oppussingsposter = (d.oppussingsposter as OppussingsPostAlias[]) || []
   const husholdning = (d.husholdning as Husholdning) || null
+  const meglerVurderinger = (d.meglerVurderinger as MeglerVurdering[]) || []
 
   const effektivKalk = regnEffektivKalk(kalk, modus, boPlan)
   const utleieBeregning = utleieDel
@@ -641,6 +679,7 @@ export async function byggNorskPdfFraProsjekt(
         beskrivelse: husholdning.annen_bolig_beskrivelse,
       } : undefined,
     } : null,
+    meglerVurderinger,
     prosjektId,
     supabaseKlient,
   })
