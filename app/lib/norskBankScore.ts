@@ -114,17 +114,27 @@ export function regnTotalScore(
   }
 }
 
+export type BeholdtBolig = {
+  aktiv: boolean       // hvis modus = 'behold' og verdi > 0
+  restlan: number      // restgjeld på gammelt lån
+  mnd_lan_betaling: number
+  netto_leie_mnd: number  // netto leieinntekt etter belegg, drift og skatt
+}
+
 export function regnBankScore(
   husholdning: Husholdning,
   utleieBeregning: UtleieBeregning,
   finansiering: Finansiering | null,
   kalk: Kalk,
+  beholdtBolig?: BeholdtBolig,
 ): BankScore {
   // === INNTEKTER ===
   const sumInntektMnd = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
   const sumInntektAr = sumInntektMnd * 12
   const utleieMnd = utleieBeregning.netto_mnd
-  const totalInntektMnd = sumInntektMnd + utleieMnd
+  // Hvis brukeren beholder gammel bolig som utleie, legges netto leie inntekt der til
+  const beholdtLeieMnd = beholdtBolig?.aktiv ? beholdtBolig.netto_leie_mnd : 0
+  const totalInntektMnd = sumInntektMnd + utleieMnd + beholdtLeieMnd
   const skatt_anslag_mnd = sumInntektMnd * (husholdning.skattesats_pst / 100)
   const netto_inntekt_mnd = totalInntektMnd - skatt_anslag_mnd
 
@@ -140,8 +150,11 @@ export function regnBankScore(
     return lanebehov > 0 && r > 0 ? (lanebehov * r) / (1 - Math.pow(1 + r, -25 * 12)) : 0
   })()
   const nettoMndBetaling = Math.max(0, mndBetaling - utleieMnd)
+  // Andre lån + ev. lån på beholdt bolig
   const andreLanSum = husholdning.andre_lan.reduce((s, l) => s + (l.saldo || 0), 0)
+    + (beholdtBolig?.aktiv ? beholdtBolig.restlan : 0)
   const andreLanMndSum = husholdning.andre_lan.reduce((s, l) => s + (l.mnd_betaling || 0), 0)
+    + (beholdtBolig?.aktiv ? beholdtBolig.mnd_lan_betaling : 0)
 
   // Total gjeld inkluderer eksisterende lån + nytt boliglån — minus tilgjengelig ekstra sikkerhet
   const justertNyttLan = Math.max(0, lanebehov - annenSikkerhetNetto)
