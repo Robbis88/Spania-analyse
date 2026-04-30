@@ -4,6 +4,11 @@
 
 import type { Prosjektbilde } from '../types'
 import type { supabase as supabaseType } from './supabase'
+import {
+  regnEffektivKalk, regnEksisterende, regnUtleie, regnUt, regnFinansiering,
+  type Kalk as KalkAlias, type EksisterendeBolig, type BoPlan, type UtleieDel,
+  type OppussingsPost as OppussingsPostAlias, type Modus,
+} from './norskKalkulator'
 
 type SupabaseKlient = typeof supabaseType
 
@@ -456,5 +461,76 @@ async function hentBildePar(prosjektId: string, supabase: SupabaseKlient): Promi
     })
   }
   return par
+}
+
+// Bygger norsk flippe-PDF fra et lagret prosjekt — gjenoppretter all
+// state fra norsk_kalkulator_data, regner ut beregning/finansiering/utleie,
+// og kaller hovedbyggeren. Brukes f.eks. fra AgentChat når brukeren sender
+// e-post med PDF-vedlegg på et norsk prosjekt.
+export async function byggNorskPdfFraProsjekt(
+  prosjektId: string,
+  supabaseKlient: SupabaseKlient,
+): Promise<{ base64: string; filnavn: string } | null> {
+  const { data } = await supabaseKlient.from('prosjekter').select('*').eq('id', prosjektId).single()
+  if (!data) return null
+  const p = data as { norsk_kalkulator_data?: Record<string, unknown> | null; navn?: string }
+  const d = p.norsk_kalkulator_data
+  if (!d) return null
+
+  const analyse = (d.analyse as AnalyseLite) || {}
+  const kalk = (d.kalk as KalkAlias) || null
+  if (!kalk) return null
+  const modus = (d.modus as Modus) || 'ren'
+  const eksisterende = (d.eksisterende as EksisterendeBolig) || null
+  const boPlan = (d.boPlan as BoPlan) || { bo_tid_mnd: 24, arlig_prisvekst_pst: 4 }
+  const utleieDel = (d.utleieDel as UtleieDel) || null
+  const oppussingsposter = (d.oppussingsposter as OppussingsPostAlias[]) || []
+
+  const effektivKalk = regnEffektivKalk(kalk, modus, boPlan)
+  const utleieBeregning = utleieDel
+    ? regnUtleie(modus, utleieDel, boPlan.bo_tid_mnd)
+    : { brutto_mnd: 0, netto_mnd: 0, brutto_total: 0, netto_total: 0, etableringskost: 0, skatt: 0 }
+  const utleieBidrag = utleieBeregning.netto_total - utleieBeregning.etableringskost
+  const beregning = regnUt(effektivKalk, utleieBidrag, modus, boPlan.bo_tid_mnd)
+  const eksisterendeBeregning = eksisterende
+    ? regnEksisterende(modus, eksisterende)
+    : { meglerhonorar: 0, salgskostnader: 0, skatt: 0, nettoTilDisposisjon: 0 }
+  const finansiering = eksisterende
+    ? regnFinansiering(modus, beregning, eksisterendeBeregning, effektivKalk)
+    : null
+
+  return byggNorskFlippePdf({
+    analyse,
+    kalk: effektivKalk,
+    beregning,
+    oppussingsposter,
+    boFlipp: modus === 'bo' && finansiering && eksisterende ? {
+      eksisterende: {
+        salgssum: eksisterende.salgssum,
+        restgjeld: eksisterende.restgjeld,
+        meglerhonorar_pst: eksisterende.meglerhonorar_pst,
+        marknadsforing: eksisterende.marknadsforing,
+        skattefri: eksisterende.skattefri,
+      },
+      netto: eksisterendeBeregning,
+      finansiering,
+      utleie: utleieDel?.aktiv ? {
+        aktiv: true,
+        leie_mnd: utleieDel.leie_mnd,
+        belegg_pst: utleieDel.belegg_pst,
+        drift_pst: utleieDel.drift_pst,
+        etableringskost: utleieDel.etableringskost,
+        skattefri: utleieDel.skattefri,
+        brutto_mnd: utleieBeregning.brutto_mnd,
+        netto_mnd: utleieBeregning.netto_mnd,
+        brutto_total: utleieBeregning.brutto_total,
+        netto_total: utleieBeregning.netto_total,
+        skatt: utleieBeregning.skatt,
+        nettoBidrag: utleieBidrag,
+      } : undefined,
+    } : null,
+    prosjektId,
+    supabaseKlient,
+  })
 }
 

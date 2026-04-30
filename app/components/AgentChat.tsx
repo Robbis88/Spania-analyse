@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { byggProsjektPdf } from '../lib/pdf'
+import { byggNorskPdfFraProsjekt } from '../lib/pdfNorsk'
 import { EpostGodkjenningsKort, type EpostUtkast } from './EpostGodkjenningsKort'
 
 type TekstBlokk = { type: 'text'; text: string }
@@ -14,7 +15,7 @@ type ChatMelding =
   | { role: 'user'; content: string | ContentBlock[] }
   | { role: 'assistant'; content: ContentBlock[] }
 
-type ProsjektValg = { id: string; navn: string; status?: string | null }
+type ProsjektValg = { id: string; navn: string; status?: string | null; marked?: string | null }
 
 function harTextFra(c: string | ContentBlock[]): string {
   if (typeof c === 'string') return c
@@ -54,7 +55,7 @@ export function AgentChat() {
 
   useEffect(() => {
     let avbrutt = false
-    supabase.from('prosjekter').select('id, navn, status').or('marked.is.null,marked.eq.spania').order('opprettet', { ascending: false }).then(({ data }) => {
+    supabase.from('prosjekter').select('id, navn, status, marked').order('opprettet', { ascending: false }).then(({ data }) => {
       if (!avbrutt && data) setProsjekter(data as ProsjektValg[])
     })
     return () => { avbrutt = true }
@@ -68,7 +69,7 @@ export function AgentChat() {
       const id = detail?.prosjektId
       if (id) {
         // Refresh prosjektliste i tilfelle den nye boligen ikke er lastet inn enda
-        supabase.from('prosjekter').select('id, navn, status').or('marked.is.null,marked.eq.spania').order('opprettet', { ascending: false }).then(({ data }) => {
+        supabase.from('prosjekter').select('id, navn, status, marked').order('opprettet', { ascending: false }).then(({ data }) => {
           if (data) setProsjekter(data as ProsjektValg[])
         })
         setProsjektId(id)
@@ -121,7 +122,12 @@ export function AgentChat() {
       let vedlegg_filnavn: string | undefined
       if (endret.vedlegg_pdf && endret.relatert_prosjekt_id) {
         try {
-          const pdfData = await byggProsjektPdf(endret.relatert_prosjekt_id, supabase)
+          // Velg riktig PDF-bygger basert på marked-feltet
+          const valgtProsjekt = prosjekter.find(p => p.id === endret.relatert_prosjekt_id)
+          const erNorsk = valgtProsjekt?.marked === 'norge'
+          const pdfData = erNorsk
+            ? await byggNorskPdfFraProsjekt(endret.relatert_prosjekt_id, supabase)
+            : await byggProsjektPdf(endret.relatert_prosjekt_id, supabase)
           if (pdfData) {
             vedlegg_pdf_base64 = pdfData.base64
             vedlegg_filnavn = pdfData.filnavn
@@ -224,17 +230,24 @@ export function AgentChat() {
               style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }}>
               <option value="">Ingen – generell samtale</option>
               {(() => {
-                const underVurdering = prosjekter.filter(p => p.status === 'Under vurdering')
-                const andre = prosjekter.filter(p => p.status !== 'Under vurdering')
+                const norske = prosjekter.filter(p => p.marked === 'norge')
+                const spaniaProsjekter = prosjekter.filter(p => p.marked !== 'norge')
+                const underVurdering = spaniaProsjekter.filter(p => p.status === 'Under vurdering')
+                const andre = spaniaProsjekter.filter(p => p.status !== 'Under vurdering')
                 return (
                   <>
+                    {norske.length > 0 && (
+                      <optgroup label="🇳🇴 Norske prosjekter">
+                        {norske.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
+                      </optgroup>
+                    )}
                     {underVurdering.length > 0 && (
-                      <optgroup label="🏠 Under vurdering">
+                      <optgroup label="🏠 Under vurdering (Spania)">
                         {underVurdering.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
                       </optgroup>
                     )}
                     {andre.length > 0 && (
-                      <optgroup label="📁 Eide / aktive prosjekter">
+                      <optgroup label="🇪🇸 Eide / aktive prosjekter">
                         {andre.map(p => <option key={p.id} value={p.id}>{p.navn}</option>)}
                       </optgroup>
                     )}

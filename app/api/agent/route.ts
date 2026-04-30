@@ -128,23 +128,43 @@ async function hentProsjektKontekst(id: string): Promise<string> {
   const { data: pRad } = await supabase.from('prosjekter').select('*').eq('id', id).single()
   if (!pRad) return ''
   const p = pRad as Prosjekt
+  const erNorsk = p.marked === 'norge'
+  const valuta = erNorsk ? 'kr' : '€'
   const bd = (p.bolig_data || {}) as BoligData
   const linjer: string[] = [
     `Prosjekt: ${p.navn} (id: ${p.id})`,
+    erNorsk ? `Marked: Norge (norsk flipp/bo-prosjekt — bruk NOK i all kommunikasjon)` : 'Marked: Spania',
     `Kategori: ${p.kategori === 'flipp' ? 'Boligflipp' : 'Boligutleie'}`,
     `Status: ${p.status}`,
-    `Kjøpesum: €${p.kjøpesum || '?'}`,
+    `Kjøpesum: ${p.kjøpesum || '?'} ${valuta}`,
   ]
+  if (erNorsk) {
+    if (p.eierform) linjer.push(`Eierform: ${p.eierform}`)
+    if (p.adresse) linjer.push(`Adresse: ${p.adresse}`)
+    if (p.fellesgjeld_nok) linjer.push(`Fellesgjeld: ${p.fellesgjeld_nok} kr`)
+    if (p.fellesutgifter_mnd_nok) linjer.push(`Fellesutgifter: ${p.fellesutgifter_mnd_nok} kr/mnd`)
+    if (p.energimerke) linjer.push(`Energimerke: ${p.energimerke}`)
+  }
   if (bd.type) linjer.push(`Boligtype: ${bd.type}`)
   if (bd.beliggenhet) linjer.push(`Beliggenhet: ${bd.beliggenhet}`)
   if (bd.areal) linjer.push(`Areal: ${bd.areal} m²`)
   if (bd.soverom) linjer.push(`Soverom: ${bd.soverom}`)
   if (bd.bad) linjer.push(`Bad: ${bd.bad}`)
-  if (bd.basseng) linjer.push(`Basseng: ${bd.basseng}`)
-  if (bd.avstand_strand) linjer.push(`Avstand strand: ${bd.avstand_strand} m`)
+  if (!erNorsk && bd.basseng) linjer.push(`Basseng: ${bd.basseng}`)
+  if (!erNorsk && bd.avstand_strand) linjer.push(`Avstand strand: ${bd.avstand_strand} m`)
   if (bd.standard) linjer.push(`Standard: ${bd.standard}`)
   if (bd.ekstra) linjer.push(`Ekstra: ${bd.ekstra}`)
   if (p.ai_vurdering) linjer.push(`AI-vurdering: ${p.ai_vurdering}`)
+
+  // Norsk-spesifikk kalkulator-data
+  if (erNorsk && p.norsk_kalkulator_data) {
+    const d = p.norsk_kalkulator_data as Record<string, unknown>
+    const k = d.kalk as { kjopesum?: number; salgspris?: number; oppussing_kost?: number } | undefined
+    if (k) {
+      linjer.push(`Norsk kalkulator: Kjøp ${k.kjopesum || 0} kr, oppussing ${k.oppussing_kost || 0} kr, forventet salg ${k.salgspris || 0} kr`)
+    }
+    if (d.modus === 'bo') linjer.push(`Modus: Bo og flipp (selger eget hjem først, bor og pusser opp, selger senere)`)
+  }
 
   if (p.airbnb_data && typeof p.airbnb_data === 'object') {
     const ad = p.airbnb_data as { konklusjon?: { vurdering?: string; anbefalt_leietype?: string; egnethet_score?: number } }
