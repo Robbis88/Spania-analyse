@@ -145,6 +145,12 @@ const fmtPct = (n: number) => n.toFixed(1) + ' %'
 
 type Modus = 'ren' | 'bo'
 
+type Paakostning = {
+  beskrivelse: string  // f.eks. "Nytt bad 2022", "Kjøkken 2020"
+  aar: number          // når påkostningen ble gjort
+  belop: number        // kostnad i NOK — øker inngangsverdien
+}
+
 type EksisterendeBolig = {
   modus: 'selg' | 'behold'
   // Selg-felter
@@ -155,12 +161,15 @@ type EksisterendeBolig = {
   skattefri: boolean
   // Behold-og-leie-ut-felter
   verdi_naa: number             // markedsverdi i dag
+  opprinnelig_kjopspris: number // hva du betalte da du kjøpte (for inngangsverdi-beregning)
   mnd_lan_betaling: number      // mnd betaling på eksisterende boliglån
+  utleie_horisont_aar: number   // hvor lenge planlegger du å leie ut (kan være lengre enn flippe-bo-tid)
   utleie_mnd_brutto: number     // forventet brutto leieinntekt
   utleie_belegg_pst: number     // 95% typisk for langtid
   utleie_drift_pst: number      // 15-20% til vedlikehold/forsikring/etc
   utleie_skattepliktig: boolean // når den ikke er primærbolig — typisk skattepliktig
   arlig_prisvekst_pst: number   // forventet prisvekst på den gamle boligen
+  paakostninger: Paakostning[]  // påkostninger som øker inngangsverdi
 }
 
 type BoPlan = {
@@ -227,12 +236,15 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     skattefri: true,
     // Behold-og-leie-ut-felter:
     verdi_naa: 0,
+    opprinnelig_kjopspris: 0,
     mnd_lan_betaling: 0,
+    utleie_horisont_aar: 5,
     utleie_mnd_brutto: 0,
     utleie_belegg_pst: 95,
     utleie_drift_pst: 18,
     utleie_skattepliktig: true,
     arlig_prisvekst_pst: 4,
+    paakostninger: [],
   })
 
   const [boPlan, setBoPlan] = useState<BoPlan>({
@@ -469,8 +481,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       modus: eksisterende.modus, meglerhonorar: 0, salgskostnader: 0, skatt: 0, nettoTilDisposisjon: 0,
       brutto_leie_mnd: 0, drift_mnd: 0, skatt_leie_mnd: 0, netto_leie_mnd: 0,
       mnd_lan_betaling: 0, netto_belastning_mnd: 0,
-      verdi_etter_botid: 0, verdiokning_total: 0, leie_total: 0, lan_betalt_total: 0,
+      verdi_etter_horisont: 0, verdiokning_total: 0, leie_total: 0, lan_betalt_total: 0,
       total_bidrag_behold: 0,
+      sum_paakostninger: 0, inngangsverdi: 0,
+      fremtidig_kapitalgevinst: 0, fremtidig_skatt: 0, fremtidig_skatt_uten_paakost: 0,
+      skatt_spart_paakost: 0, horisont_aar: 0,
     }
     if (modus !== 'bo') return tom
 
@@ -493,22 +508,37 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       : 0
     const netto_leie_mnd = brutto_leie_mnd - drift_mnd - skatt_leie_mnd
     const mnd_lan_betaling = eksisterende.mnd_lan_betaling
-    // Negativ = vi får cashflow positivt fra utleien, positiv = vi må betale mer enn vi får inn
     const netto_belastning_mnd = mnd_lan_betaling - netto_leie_mnd
 
-    const aar = boPlan.bo_tid_mnd / 12
-    const vekstFaktor = Math.pow(1 + eksisterende.arlig_prisvekst_pst / 100, aar)
-    const verdi_etter_botid = eksisterende.verdi_naa * vekstFaktor
-    const verdiokning_total = verdi_etter_botid - eksisterende.verdi_naa
-    const leie_total = netto_leie_mnd * boPlan.bo_tid_mnd
-    const lan_betalt_total = mnd_lan_betaling * boPlan.bo_tid_mnd
-    // Forenklet: totalt bidrag = verdivekst på gammel bolig + netto leieinntekt − total lånebetaling (rente+avdrag)
-    // Rentene blir kostnad, men avdragene øker EK — for forenkling teller vi netto bidrag som verdivekst + leie − rentekostnader.
-    // Approksimasjon: ~70% av lånebetalingen er rente i tidlig fase. Ta heller bare verdivekst + netto leie etter alle kostnader,
-    // og la lånet "være som det er" (avdrag er sparing, renter er kostnad). Forenkler ved å telle netto cashflow + verdivekst.
-    const total_bidrag_behold = verdiokning_total + leie_total // verdivekst + netto leie etter drift+skatt
+    // Bruk utleie_horisont_aar (kan være lengre enn bo-tid på flippen)
+    const horisont_aar = eksisterende.utleie_horisont_aar > 0 ? eksisterende.utleie_horisont_aar : boPlan.bo_tid_mnd / 12
+    const horisont_mnd = horisont_aar * 12
+    const vekstFaktor = Math.pow(1 + eksisterende.arlig_prisvekst_pst / 100, horisont_aar)
+    const verdi_etter_horisont = eksisterende.verdi_naa * vekstFaktor
+    const verdiokning_total = verdi_etter_horisont - eksisterende.verdi_naa
+    const leie_total = netto_leie_mnd * horisont_mnd
+    const lan_betalt_total = mnd_lan_betaling * horisont_mnd
+
+    // PÅKOSTNINGER → øker inngangsverdi → reduserer fremtidig kapitalgevinst-skatt
+    const sum_paakostninger = eksisterende.paakostninger.reduce((s, p) => s + (p.belop || 0), 0)
+    const inngangsverdi = (eksisterende.opprinnelig_kjopspris || 0) + sum_paakostninger
+
+    // Fremtidig salg etter horisont: gevinst = salgspris - salgskostnader - inngangsverdi
+    const fremtidig_salgskostnader = (verdi_etter_horisont * eksisterende.meglerhonorar_pst / 100) + eksisterende.marknadsforing
+    const fremtidig_kapitalgevinst = inngangsverdi > 0
+      ? Math.max(0, verdi_etter_horisont - fremtidig_salgskostnader - inngangsverdi)
+      : 0
+    const fremtidig_skatt = fremtidig_kapitalgevinst * 0.22
+    const fremtidig_skatt_uten_paakost = (eksisterende.opprinnelig_kjopspris || 0) > 0
+      ? Math.max(0, verdi_etter_horisont - fremtidig_salgskostnader - eksisterende.opprinnelig_kjopspris) * 0.22
+      : 0
+    const skatt_spart_paakost = fremtidig_skatt_uten_paakost - fremtidig_skatt
+
+    const total_bidrag_behold = verdiokning_total + leie_total
     return { ...tom, brutto_leie_mnd, drift_mnd, skatt_leie_mnd, netto_leie_mnd, mnd_lan_betaling,
-      netto_belastning_mnd, verdi_etter_botid, verdiokning_total, leie_total, lan_betalt_total, total_bidrag_behold }
+      netto_belastning_mnd, verdi_etter_horisont, verdiokning_total, leie_total, lan_betalt_total, total_bidrag_behold,
+      sum_paakostninger, inngangsverdi, fremtidig_kapitalgevinst, fremtidig_skatt,
+      fremtidig_skatt_uten_paakost, skatt_spart_paakost, horisont_aar }
   }, [modus, eksisterende, boPlan.bo_tid_mnd])
 
   // === SAMMENLIGNING SELG vs BEHOLD (alltid sammen — ikke avhengig av valgt modus) ===
@@ -524,10 +554,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const sSkatt = eksisterende.skattefri || sGrunnlag <= 0 ? 0 : sGrunnlag * 0.22
     const sNetto = sSalgssum - sKost - eksisterende.restgjeld - sSkatt
 
-    // Beregn BEHOLD-scenario
+    // Beregn BEHOLD-scenario over utleie-horisonten (kan være lengre enn flippe-bo-tid)
     const bVerdi = eksisterende.verdi_naa || eksisterende.salgssum
     if (bVerdi === 0) return null
-    const aar = boPlan.bo_tid_mnd / 12
+    const aar = eksisterende.utleie_horisont_aar > 0 ? eksisterende.utleie_horisont_aar : boPlan.bo_tid_mnd / 12
     const vekstFaktor = Math.pow(1 + eksisterende.arlig_prisvekst_pst / 100, aar)
     const bVerdiEtter = bVerdi * vekstFaktor
     const bVerdiokning = bVerdiEtter - bVerdi
@@ -535,13 +565,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const bDriftMnd = bBruttoLeieMnd * (eksisterende.utleie_drift_pst / 100)
     const bSkattMnd = eksisterende.utleie_skattepliktig ? (bBruttoLeieMnd - bDriftMnd) * 0.22 : 0
     const bNettoLeieMnd = bBruttoLeieMnd - bDriftMnd - bSkattMnd
-    const bLeieTotal = bNettoLeieMnd * boPlan.bo_tid_mnd
-    // Behold-scenariet: vi beholder lånet (renter + avdrag fortsetter). Vi har ingen frigjøring fra salg,
-    // men vi får leieinntekt + verdivekst over bo-tiden + EK står i den gamle boligen.
-    // Forenklet: total bidrag = verdivekst + netto leie − ekstra rentekostnader på det større nye lånet
-    const ekstraLanebehov = sNetto  // dette ekstra må vi låne i ny bolig fordi vi ikke selger
+    const bLeieTotal = bNettoLeieMnd * (aar * 12)
+    // Ekstra rentekostnader på det større nye lånet (vi har ikke frigjort EK fra salg)
+    const ekstraLanebehov = sNetto
     const ekstraRenteMnd = ekstraLanebehov * (kalk.rente_pst / 100) / 12
-    const ekstraRenteTotal = ekstraRenteMnd * boPlan.bo_tid_mnd
+    const ekstraRenteTotal = ekstraRenteMnd * (aar * 12)
     const bTotal = bVerdiokning + bLeieTotal - ekstraRenteTotal
 
     // Selg-scenariet: vi har frigjort EK = sNetto, mindre lånerenter på ny bolig (allerede regnet i hovedkalkulasjonen)
@@ -1801,12 +1829,25 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
   netto: ReturnType<typeof Object.assign> & {
     meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number
     brutto_leie_mnd: number; drift_mnd: number; skatt_leie_mnd: number; netto_leie_mnd: number
-    netto_belastning_mnd: number; verdi_etter_botid: number; verdiokning_total: number
+    netto_belastning_mnd: number; verdi_etter_horisont: number; verdiokning_total: number
     leie_total: number; total_bidrag_behold: number
+    sum_paakostninger: number; inngangsverdi: number
+    fremtidig_kapitalgevinst: number; fremtidig_skatt: number
+    fremtidig_skatt_uten_paakost: number; skatt_spart_paakost: number; horisont_aar: number
   }
   sammenligning: Sammenligning | null
   botidAar: number
 }) {
+  void botidAar
+  function leggTilPaakost() {
+    setEks({ ...eks, paakostninger: [...eks.paakostninger, { beskrivelse: '', aar: new Date().getFullYear(), belop: 0 }] })
+  }
+  function fjernPaakost(i: number) {
+    setEks({ ...eks, paakostninger: eks.paakostninger.filter((_, idx) => idx !== i) })
+  }
+  function oppdaterPaakost(i: number, felt: keyof Paakostning, verdi: string | number) {
+    setEks({ ...eks, paakostninger: eks.paakostninger.map((p, idx) => idx === i ? { ...p, [felt]: verdi } : p) })
+  }
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>🏠 Steg 1 — Eksisterende bolig</div>
@@ -1886,8 +1927,10 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 14 }}>
             <KalkInput lbl="Markedsverdi i dag" val={eks.verdi_naa} onChange={v => setEks({ ...eks, verdi_naa: v })} />
+            <KalkInput lbl="Opprinnelig kjøpspris" val={eks.opprinnelig_kjopspris} onChange={v => setEks({ ...eks, opprinnelig_kjopspris: v })} />
             <KalkInput lbl="Restgjeld på lån" val={eks.restgjeld} onChange={v => setEks({ ...eks, restgjeld: v })} />
             <KalkInput lbl="Mnd-betaling lån (renter+avdrag)" val={eks.mnd_lan_betaling} onChange={v => setEks({ ...eks, mnd_lan_betaling: v })} />
+            <KalkInput lbl="Utleie-horisont (år)" val={eks.utleie_horisont_aar} onChange={v => setEks({ ...eks, utleie_horisont_aar: v })} step={1} />
             <KalkInput lbl="Forventet leie/mnd (brutto)" val={eks.utleie_mnd_brutto} onChange={v => setEks({ ...eks, utleie_mnd_brutto: v })} />
             <KalkInput lbl="Belegg %" val={eks.utleie_belegg_pst} onChange={v => setEks({ ...eks, utleie_belegg_pst: v })} step={1} />
             <KalkInput lbl="Drift %" val={eks.utleie_drift_pst} onChange={v => setEks({ ...eks, utleie_drift_pst: v })} step={1} />
@@ -1925,17 +1968,73 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
                   {netto.netto_belastning_mnd <= 0 ? '+ ' : '− '}{fmtNok(Math.abs(netto.netto_belastning_mnd))}
                 </span>
 
-                <span style={{ color: FARGER.tekstMid, fontWeight: 600, marginTop: 12 }}>Over {botidAar.toFixed(1)} år:</span>
+                <span style={{ color: FARGER.tekstMid, fontWeight: 600, marginTop: 12 }}>Over {netto.horisont_aar.toFixed(0)} år (utleie-horisont):</span>
                 <span style={{ marginTop: 12 }}></span>
                 <span style={{ color: FARGER.tekstMid }}>Verdi-vekst (boligen øker)</span>
                 <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(netto.verdiokning_total)}</span>
                 <span style={{ color: FARGER.tekstMid }}>Netto leieinntekt totalt</span>
                 <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(netto.leie_total)}</span>
-                <span style={{ color: FARGER.tekstMid }}>Verdi etter {botidAar.toFixed(1)} år</span>
-                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmtNok(netto.verdi_etter_botid)}</span>
+                <span style={{ color: FARGER.tekstMid }}>Verdi etter {netto.horisont_aar.toFixed(0)} år</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmtNok(netto.verdi_etter_horisont)}</span>
               </div>
             </div>
           )}
+
+          {/* PÅKOSTNINGER — øker inngangsverdi → mindre skatt ved fremtidig salg */}
+          <div style={{ marginTop: 14, padding: 14, background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>📋 Tidligere påkostninger</div>
+            <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 12px', lineHeight: 1.5 }}>
+              Påkostninger som har hevet standard (nytt bad, kjøkken, tilbygg etc.) øker inngangsverdien og reduserer fremtidig kapitalgevinst-skatt når du selger. Vedlikehold (maling, mindre reparasjoner) regnes ikke her.
+            </p>
+
+            {eks.paakostninger.length === 0 && (
+              <div style={{ fontSize: 12, color: FARGER.tekstLys, fontStyle: 'italic', padding: '6px 0' }}>Ingen påkostninger registrert.</div>
+            )}
+            {eks.paakostninger.map((p, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < eks.paakostninger.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
+                <input value={p.beskrivelse} onChange={e => oppdaterPaakost(i, 'beskrivelse', e.target.value)}
+                  placeholder="F.eks. Nytt bad"
+                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+                <input type="number" min={1990} max={new Date().getFullYear()} value={p.aar || ''}
+                  onChange={e => oppdaterPaakost(i, 'aar', Number(e.target.value) || new Date().getFullYear())}
+                  placeholder="År"
+                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+                <input type="number" min={0} step={10000} value={p.belop || ''}
+                  onChange={e => oppdaterPaakost(i, 'belop', Number(e.target.value) || 0)}
+                  placeholder="kr"
+                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+                <button onClick={() => fjernPaakost(i)} title="Fjern"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
+              </div>
+            ))}
+            <button onClick={leggTilPaakost}
+              style={{ marginTop: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: '8px 14px', fontSize: 12, color: FARGER.mork, cursor: 'pointer', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              + Legg til påkostning
+            </button>
+
+            {netto.sum_paakostninger > 0 && eks.opprinnelig_kjopspris > 0 && (
+              <div style={{ marginTop: 12, padding: 12, background: '#e8f5ed', borderRadius: RADIUS.sm }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 4, fontSize: 12 }}>
+                  <span style={{ color: FARGER.tekstMid }}>Opprinnelig kjøpspris</span>
+                  <span style={{ textAlign: 'right' }}>{fmtNok(eks.opprinnelig_kjopspris)}</span>
+                  <span style={{ color: FARGER.tekstMid }}>+ Sum påkostninger ({eks.paakostninger.length} st.)</span>
+                  <span style={{ textAlign: 'right', color: FARGER.suksess }}>+ {fmtNok(netto.sum_paakostninger)}</span>
+                  <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 2 }}>
+                    = Inngangsverdi
+                  </span>
+                  <span style={{ textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 2 }}>
+                    {fmtNok(netto.inngangsverdi)}
+                  </span>
+                </div>
+                {netto.skatt_spart_paakost > 0 && (
+                  <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.7)', borderRadius: RADIUS.sm, fontSize: 12, color: '#1a4d2b', lineHeight: 1.5 }}>
+                    💡 Påkostningene sparer deg <strong>{fmtNok(netto.skatt_spart_paakost)}</strong> i kapitalgevinst-skatt ved salg om {netto.horisont_aar.toFixed(0)} år
+                    (skatt med påkostninger: {fmtNok(netto.fremtidig_skatt)} vs uten: {fmtNok(netto.fremtidig_skatt_uten_paakost)})
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
 
