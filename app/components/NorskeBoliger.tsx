@@ -223,6 +223,7 @@ type Husholdning = {
 export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [modus, setModus] = useState<Modus>('ren')
   const [input, setInput] = useState('')
+  const [finnUrl, setFinnUrl] = useState<string>('')
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [laster, setLaster] = useState(false)
   const [feil, setFeil] = useState('')
@@ -352,6 +353,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   async function analyser(opts: { tvingNy?: boolean } = {}) {
     if (!input.trim() || laster) return
     setLaster(true); setFeil(''); setAnalyse(null); setLagretId(null); setFraCache(null)
+    // Hvis input er en URL, husk den så den blir med på prosjektet og PDF-en
+    const trimmet = input.trim()
+    setFinnUrl(trimmet.startsWith('http') ? trimmet : '')
 
     // Sjekk cache først (med mindre brukeren tvinger ny analyse)
     if (!opts.tvingNy) {
@@ -419,6 +423,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setOppussingsposter((d.oppussingsposter as Array<{ navn: string; kostnad: number; notat: string }>) || [])
     if (d.husholdning) setHusholdning(d.husholdning as Husholdning)
     if (d.meglerVurderinger) setMeglerVurderinger(d.meglerVurderinger as MeglerVurdering[])
+    if (typeof d.finnUrl === 'string') setFinnUrl(d.finnUrl)
     setLagretId(p.id)
     setFeil(''); setFraCache(null)
     visToast('Prosjekt lastet inn', 'suksess')
@@ -722,6 +727,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         // Komplett state slik at vi kan laste inn igjen
         norsk_kalkulator_data: {
           analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter, husholdning, meglerVurderinger,
+          finnUrl,
           lagret_tidspunkt: new Date().toISOString(),
         },
       }
@@ -753,6 +759,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         oppussingsposter,
         meglerVurderinger,
         totalScore,
+        finnUrl: finnUrl || undefined,
         bankVurdering: bankScore.sumInntektMnd > 0 ? {
           inntekter: husholdning.inntekter,
           antallVoksne: husholdning.antall_voksne,
@@ -815,7 +822,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   }
 
   function nullstill() {
-    setInput(''); setAnalyse(null); setFeil(''); setLagretId(null); setFraCache(null)
+    setInput(''); setFinnUrl(''); setAnalyse(null); setFeil(''); setLagretId(null); setFraCache(null)
     setKalk({
       kjopesum: 0, fellesgjeld: 0,
       dokumentavgift_pst: 2.5, tinglysing: 1140,
@@ -908,7 +915,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
       {analyse && (
         <>
-          <AnalyseSammendrag a={analyse} />
+          <AnalyseSammendrag a={analyse} finnUrl={finnUrl} />
           {analyse.score && <FlippeScore s={analyse.score} />}
           {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
           <OppussingsPoster
@@ -985,7 +992,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   )
 }
 
-function AnalyseSammendrag({ a }: { a: Analyse }) {
+function AnalyseSammendrag({ a, finnUrl }: { a: Analyse; finnUrl?: string }) {
   const fakta: Array<[string, string]> = []
   if (a.type) fakta.push(['Type', a.type])
   if (a.eierform) fakta.push(['Eierform', a.eierform])
@@ -999,7 +1006,15 @@ function AnalyseSammendrag({ a }: { a: Analyse }) {
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
       <h3 style={{ fontSize: 18, fontWeight: 400, color: FARGER.mork, margin: '0 0 6px', letterSpacing: '-0.005em' }}>{a.tittel || a.adresse || 'Bolig'}</h3>
-      {a.adresse && a.tittel && <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 14 }}>{a.adresse}</div>}
+      {a.adresse && a.tittel && <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 8 }}>{a.adresse}</div>}
+      {finnUrl && (
+        <div style={{ marginBottom: 14 }}>
+          <a href={finnUrl} target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: FARGER.gull, textDecoration: 'none', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
+            🔗 Se annonsen på Finn →
+          </a>
+        </div>
+      )}
 
       {fakta.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 16 }}>

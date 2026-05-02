@@ -149,6 +149,7 @@ export async function byggNorskFlippePdf(args: {
   bankVurdering?: BankVurdering | null
   meglerVurderinger?: MeglerVurdering[]
   totalScore?: TotalScore | null
+  finnUrl?: string                     // Finn-lenke til annonsen
   prosjektId?: string                  // hvis satt: hent bilder fra Supabase
   supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
 }): Promise<{ base64: string; filnavn: string }> {
@@ -248,6 +249,17 @@ export async function byggNorskFlippePdf(args: {
   if (a.pris_antydning_nok) fakta.push(['Prisantydning', NOK(a.pris_antydning_nok)])
   fakta.forEach(([l, v], i) => rad(l, v, i, l === 'Prisantydning'))
   y += 4
+
+  // Finn-lenke som klikkbar referanse — nyttig for banken å verifisere annonsen
+  if (args.finnUrl) {
+    sjekk(12)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(80, 80, 80)
+    doc.text('Kilde:', 20, y)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(24, 95, 165)
+    doc.textWithLink(args.finnUrl, 35, y, { url: args.finnUrl })
+    y += 8
+    doc.setTextColor(60, 60, 60)
+  }
 
   // === MARKEDSANALYSE ===
   if (a.markedspris_begrunnelse || a.markedspris_bra_m2_nok) {
@@ -655,6 +667,7 @@ export async function byggNorskPdfFraProsjekt(
   const oppussingsposter = (d.oppussingsposter as OppussingsPostAlias[]) || []
   const husholdning = (d.husholdning as Husholdning) || null
   const meglerVurderinger = (d.meglerVurderinger as MeglerVurdering[]) || []
+  const finnUrl = (typeof d.finnUrl === 'string' ? d.finnUrl : '') || ''
 
   const effektivKalk = regnEffektivKalk(kalk, modus, boPlan)
   const utleieBeregning = utleieDel
@@ -723,6 +736,7 @@ export async function byggNorskPdfFraProsjekt(
     } : null,
     meglerVurderinger,
     totalScore: totalScoreVerdi,
+    finnUrl: finnUrl || undefined,
     prosjektId,
     supabaseKlient,
   })
