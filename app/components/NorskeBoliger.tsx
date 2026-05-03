@@ -147,8 +147,9 @@ type Modus = 'ren' | 'bo'
 
 type Paakostning = {
   beskrivelse: string  // f.eks. "Nytt bad 2022", "Kjøkken 2020"
-  aar: number          // når påkostningen ble gjort
-  belop: number        // kostnad i NOK — øker inngangsverdien
+  aar: number          // når kostnaden ble utført
+  belop: number        // kostnad i NOK
+  type?: 'paakostning' | 'vedlikehold' // default 'paakostning' for bakoverkompatibilitet
 }
 
 type EksisterendeBolig = {
@@ -491,6 +492,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       sum_paakostninger: 0, inngangsverdi: 0,
       fremtidig_kapitalgevinst: 0, fremtidig_skatt: 0, fremtidig_skatt_uten_paakost: 0,
       skatt_spart_paakost: 0, horisont_aar: 0,
+      sum_vedlikehold_i_horisont: 0, vedlikehold_fradrag_per_mnd: 0,
     }
     if (modus !== 'bo') return tom
 
@@ -506,26 +508,41 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
     // BEHOLD-OG-LEIE-UT
     if (eksisterende.verdi_naa === 0) return tom
-    const brutto_leie_mnd = eksisterende.utleie_mnd_brutto * (eksisterende.utleie_belegg_pst / 100)
-    const drift_mnd = brutto_leie_mnd * (eksisterende.utleie_drift_pst / 100)
-    const skatt_leie_mnd = eksisterende.utleie_skattepliktig
-      ? (brutto_leie_mnd - drift_mnd) * 0.22
-      : 0
-    const netto_leie_mnd = brutto_leie_mnd - drift_mnd - skatt_leie_mnd
-    const mnd_lan_betaling = eksisterende.mnd_lan_betaling
-    const netto_belastning_mnd = mnd_lan_betaling - netto_leie_mnd
 
     // Bruk utleie_horisont_aar (kan være lengre enn bo-tid på flippen)
     const horisont_aar = eksisterende.utleie_horisont_aar > 0 ? eksisterende.utleie_horisont_aar : boPlan.bo_tid_mnd / 12
     const horisont_mnd = horisont_aar * 12
+
+    // Skille vedlikehold fra påkostninger:
+    // - Vedlikehold (gjenoppretter standard): fradragsberettiget mot leieinntekt
+    // - Påkostning (hever standard): øker inngangsverdi
+    const paakostningPoster = eksisterende.paakostninger.filter(p => (p.type ?? 'paakostning') === 'paakostning')
+    const vedlikeholdPoster = eksisterende.paakostninger.filter(p => p.type === 'vedlikehold')
+    const sum_paakostninger = paakostningPoster.reduce((s, p) => s + (p.belop || 0), 0)
+    // Vedlikehold som er gjort innenfor utleie-horisonten gir skattefradrag
+    const naa_aar = new Date().getFullYear()
+    const sum_vedlikehold_i_horisont = vedlikeholdPoster
+      .filter(p => p.aar >= naa_aar - 1 && p.aar <= naa_aar + horisont_aar)
+      .reduce((s, p) => s + (p.belop || 0), 0)
+    const vedlikehold_fradrag_per_mnd = sum_vedlikehold_i_horisont / Math.max(1, horisont_mnd)
+
+    const brutto_leie_mnd = eksisterende.utleie_mnd_brutto * (eksisterende.utleie_belegg_pst / 100)
+    const drift_mnd = brutto_leie_mnd * (eksisterende.utleie_drift_pst / 100)
+    // Skattegrunnlag = brutto - drift - vedlikeholdsfradrag (alt fradragsberettiget)
+    const skattegrunnlag_leie_mnd = Math.max(0, brutto_leie_mnd - drift_mnd - vedlikehold_fradrag_per_mnd)
+    const skatt_leie_mnd = eksisterende.utleie_skattepliktig ? skattegrunnlag_leie_mnd * 0.22 : 0
+    // Netto pengestrøm = brutto - drift - skatt (vedlikeholdsfradraget reduserer skatten, ikke pengestrømmen direkte
+    // fordi pengene går til vedlikehold uansett — men vi får skatte-fordelen)
+    const netto_leie_mnd = brutto_leie_mnd - drift_mnd - skatt_leie_mnd
+    const mnd_lan_betaling = eksisterende.mnd_lan_betaling
+    const netto_belastning_mnd = mnd_lan_betaling - netto_leie_mnd
+
     const vekstFaktor = Math.pow(1 + eksisterende.arlig_prisvekst_pst / 100, horisont_aar)
     const verdi_etter_horisont = eksisterende.verdi_naa * vekstFaktor
     const verdiokning_total = verdi_etter_horisont - eksisterende.verdi_naa
     const leie_total = netto_leie_mnd * horisont_mnd
     const lan_betalt_total = mnd_lan_betaling * horisont_mnd
 
-    // PÅKOSTNINGER → øker inngangsverdi → reduserer fremtidig kapitalgevinst-skatt
-    const sum_paakostninger = eksisterende.paakostninger.reduce((s, p) => s + (p.belop || 0), 0)
     const inngangsverdi = (eksisterende.opprinnelig_kjopspris || 0) + sum_paakostninger
 
     // Fremtidig salg etter horisont: gevinst = salgspris - salgskostnader - inngangsverdi
@@ -543,7 +560,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     return { ...tom, brutto_leie_mnd, drift_mnd, skatt_leie_mnd, netto_leie_mnd, mnd_lan_betaling,
       netto_belastning_mnd, verdi_etter_horisont, verdiokning_total, leie_total, lan_betalt_total, total_bidrag_behold,
       sum_paakostninger, inngangsverdi, fremtidig_kapitalgevinst, fremtidig_skatt,
-      fremtidig_skatt_uten_paakost, skatt_spart_paakost, horisont_aar }
+      fremtidig_skatt_uten_paakost, skatt_spart_paakost, horisont_aar,
+      sum_vedlikehold_i_horisont, vedlikehold_fradrag_per_mnd }
   }, [modus, eksisterende, boPlan.bo_tid_mnd])
 
   // === SAMMENLIGNING SELG vs BEHOLD (alltid sammen — ikke avhengig av valgt modus) ===
@@ -1849,13 +1867,14 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
     sum_paakostninger: number; inngangsverdi: number
     fremtidig_kapitalgevinst: number; fremtidig_skatt: number
     fremtidig_skatt_uten_paakost: number; skatt_spart_paakost: number; horisont_aar: number
+    sum_vedlikehold_i_horisont: number; vedlikehold_fradrag_per_mnd: number
   }
   sammenligning: Sammenligning | null
   botidAar: number
 }) {
   void botidAar
   function leggTilPaakost() {
-    setEks({ ...eks, paakostninger: [...eks.paakostninger, { beskrivelse: '', aar: new Date().getFullYear(), belop: 0 }] })
+    setEks({ ...eks, paakostninger: [...eks.paakostninger, { beskrivelse: '', aar: new Date().getFullYear(), belop: 0, type: 'paakostning' }] })
   }
   function fjernPaakost(i: number) {
     setEks({ ...eks, paakostninger: eks.paakostninger.filter((_, idx) => idx !== i) })
@@ -1966,9 +1985,15 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
                 <span style={{ textAlign: 'right' }}>{fmtNok(netto.brutto_leie_mnd)}</span>
                 <span style={{ color: FARGER.tekstMid }}>− Drift ({eks.utleie_drift_pst} %)</span>
                 <span style={{ textAlign: 'right' }}>− {fmtNok(netto.drift_mnd)}</span>
+                {netto.vedlikehold_fradrag_per_mnd > 0 && (
+                  <>
+                    <span style={{ color: FARGER.tekstMid }}>− Vedlikehold (skattefradrag)</span>
+                    <span style={{ textAlign: 'right', color: '#1a4d2b' }}>− {fmtNok(netto.vedlikehold_fradrag_per_mnd)}</span>
+                  </>
+                )}
                 {netto.skatt_leie_mnd > 0 && (
                   <>
-                    <span style={{ color: FARGER.tekstMid }}>− Skatt</span>
+                    <span style={{ color: FARGER.tekstMid }}>− Skatt på netto leie (22 %)</span>
                     <span style={{ textAlign: 'right' }}>− {fmtNok(netto.skatt_leie_mnd)}</span>
                   </>
                 )}
@@ -1997,35 +2022,54 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
 
           {/* PÅKOSTNINGER — øker inngangsverdi → mindre skatt ved fremtidig salg */}
           <div style={{ marginTop: 14, padding: 14, background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm }}>
-            <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>📋 Tidligere påkostninger</div>
-            <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 12px', lineHeight: 1.5 }}>
-              Påkostninger som har hevet standard (nytt bad, kjøkken, tilbygg etc.) øker inngangsverdien og reduserer fremtidig kapitalgevinst-skatt når du selger. Vedlikehold (maling, mindre reparasjoner) regnes ikke her.
+            <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 8 }}>📋 Tidligere kostnader på boligen</div>
+            <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 6px', lineHeight: 1.5 }}>
+              Marker hver post som <strong>påkostning</strong> (hever standard — øker inngangsverdi) eller <strong>vedlikehold</strong> (gjenoppretter standard — fradrag i leieinntekt under utleie).
+            </p>
+            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '0 0 12px', lineHeight: 1.5, fontStyle: 'italic' }}>
+              Eksempler påkostning: nytt bad, kjøkken, tilbygg, ny pipe.<br />
+              Eksempler vedlikehold: maling, bytte slitt parkett, reparere takstein, oppgradere rør (når gammelt var slitt).
             </p>
 
             {eks.paakostninger.length === 0 && (
-              <div style={{ fontSize: 12, color: FARGER.tekstLys, fontStyle: 'italic', padding: '6px 0' }}>Ingen påkostninger registrert.</div>
+              <div style={{ fontSize: 12, color: FARGER.tekstLys, fontStyle: 'italic', padding: '6px 0' }}>Ingen kostnader registrert.</div>
             )}
-            {eks.paakostninger.map((p, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < eks.paakostninger.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
-                <input value={p.beskrivelse} onChange={e => oppdaterPaakost(i, 'beskrivelse', e.target.value)}
-                  placeholder="F.eks. Nytt bad"
-                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
-                <input type="number" min={1990} max={new Date().getFullYear()} value={p.aar || ''}
-                  onChange={e => oppdaterPaakost(i, 'aar', Number(e.target.value) || new Date().getFullYear())}
-                  placeholder="År"
-                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
-                <input type="number" min={0} step={10000} value={p.belop || ''}
-                  onChange={e => oppdaterPaakost(i, 'belop', Number(e.target.value) || 0)}
-                  placeholder="kr"
-                  style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
-                <button onClick={() => fjernPaakost(i)} title="Fjern"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
-              </div>
-            ))}
+            {eks.paakostninger.map((p, i) => {
+              const erVedlikehold = p.type === 'vedlikehold'
+              return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 110px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: i < eks.paakostninger.length - 1 ? `1px solid ${FARGER.kantLys}` : 'none' }}>
+                  <input value={p.beskrivelse} onChange={e => oppdaterPaakost(i, 'beskrivelse', e.target.value)}
+                    placeholder="F.eks. Nytt bad"
+                    style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', background: 'white' }} />
+                  <select value={p.type ?? 'paakostning'} onChange={e => oppdaterPaakost(i, 'type', e.target.value)}
+                    style={{ padding: '6px 8px', fontSize: 12, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, background: erVedlikehold ? '#e8f5ed' : '#fdfcf7', color: FARGER.mork, cursor: 'pointer' }}>
+                    <option value="paakostning">Påkostning</option>
+                    <option value="vedlikehold">Vedlikehold</option>
+                  </select>
+                  <input type="number" min={1990} max={new Date().getFullYear() + 30} value={p.aar || ''}
+                    onChange={e => oppdaterPaakost(i, 'aar', Number(e.target.value) || new Date().getFullYear())}
+                    placeholder="År"
+                    style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+                  <input type="number" min={0} step={10000} value={p.belop || ''}
+                    onChange={e => oppdaterPaakost(i, 'belop', Number(e.target.value) || 0)}
+                    placeholder="kr"
+                    style={{ padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, fontFamily: 'sans-serif', textAlign: 'right', background: 'white' }} />
+                  <button onClick={() => fjernPaakost(i)} title="Fjern"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '4px 8px' }}>✕</button>
+                </div>
+              )
+            })}
             <button onClick={leggTilPaakost}
               style={{ marginTop: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: '8px 14px', fontSize: 12, color: FARGER.mork, cursor: 'pointer', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              + Legg til påkostning
+              + Legg til kostnad
             </button>
+
+            {netto.sum_vedlikehold_i_horisont > 0 && (
+              <div style={{ marginTop: 12, padding: 12, background: '#e8f5ed', borderRadius: RADIUS.sm, fontSize: 12, color: '#1a4d2b', lineHeight: 1.6 }}>
+                💡 Sum vedlikehold innen utleie-horisonten: <strong>{fmtNok(netto.sum_vedlikehold_i_horisont)}</strong>.
+                Det gir <strong>{fmtNok(netto.vedlikehold_fradrag_per_mnd)}/mnd</strong> i fradrag mot leieinntekten — sparer deg ca. <strong>{fmtNok(netto.sum_vedlikehold_i_horisont * 0.22)}</strong> i skatt over perioden.
+              </div>
+            )}
 
             {netto.sum_paakostninger > 0 && eks.opprinnelig_kjopspris > 0 && (
               <div style={{ marginTop: 12, padding: 12, background: '#e8f5ed', borderRadius: RADIUS.sm }}>
