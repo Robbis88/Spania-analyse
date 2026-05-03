@@ -164,6 +164,7 @@ type EksisterendeBolig = {
   verdi_naa: number             // markedsverdi i dag
   opprinnelig_kjopspris: number // hva du betalte da du kjøpte (for inngangsverdi-beregning)
   mnd_lan_betaling: number      // mnd betaling på eksisterende boliglån
+  rente_pst_gammel: number      // rente på det gamle boliglånet (presis avdragsplan)
   utleie_horisont_aar: number   // hvor lenge planlegger du å leie ut (kan være lengre enn flippe-bo-tid)
   utleie_mnd_brutto: number     // forventet brutto leieinntekt
   utleie_belegg_pst: number     // 95% typisk for langtid
@@ -240,6 +241,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     verdi_naa: 0,
     opprinnelig_kjopspris: 0,
     mnd_lan_betaling: 0,
+    rente_pst_gammel: 5.5,
     utleie_horisont_aar: 5,
     utleie_mnd_brutto: 0,
     utleie_belegg_pst: 95,
@@ -591,11 +593,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const bLeieTotal = bNettoLeieMnd * (aar * 12)
 
     // NEDBETALING (avdrag) på gammelt lån — bygger opp EK krone for krone.
-    // Vi simulerer annuitetsplanen mnd for mnd: rente trekkes fra mnd-betaling, resten er avdrag.
-    // Antar samme rente som ny bolig (godt nok estimat — flytende boliglån i Norge i samme periode).
+    // Bruker den faktiske renten på det gamle lånet (oppgitt av bruker).
     let restgjeld_simulert = eksisterende.restgjeld
     let bAvdragSum = 0
-    const renteMndGammel = kalk.rente_pst / 100 / 12
+    const renteMndGammel = (eksisterende.rente_pst_gammel || kalk.rente_pst) / 100 / 12
     const horisontMnd = aar * 12
     if (eksisterende.mnd_lan_betaling > 0 && restgjeld_simulert > 0) {
       for (let m = 0; m < horisontMnd && restgjeld_simulert > 0; m++) {
@@ -1999,6 +2000,7 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
             <KalkInput lbl="Opprinnelig kjøpspris" val={eks.opprinnelig_kjopspris} onChange={v => setEks({ ...eks, opprinnelig_kjopspris: v })} />
             <KalkInput lbl="Restgjeld på lån" val={eks.restgjeld} onChange={v => setEks({ ...eks, restgjeld: v })} />
             <KalkInput lbl="Mnd-betaling lån (renter+avdrag)" val={eks.mnd_lan_betaling} onChange={v => setEks({ ...eks, mnd_lan_betaling: v })} />
+            <KalkInput lbl="Rente på gammelt lån %" val={eks.rente_pst_gammel} onChange={v => setEks({ ...eks, rente_pst_gammel: v })} step={0.1} />
             <KalkInput lbl="Utleie-horisont (år)" val={eks.utleie_horisont_aar} onChange={v => setEks({ ...eks, utleie_horisont_aar: v })} step={1} />
             <KalkInput lbl="Forventet leie/mnd (brutto)" val={eks.utleie_mnd_brutto} onChange={v => setEks({ ...eks, utleie_mnd_brutto: v })} />
             <KalkInput lbl="Belegg %" val={eks.utleie_belegg_pst} onChange={v => setEks({ ...eks, utleie_belegg_pst: v })} step={1} />
