@@ -7,6 +7,7 @@ export type Kalk = {
   dokumentavgift_pst: number; tinglysing: number
   oppussing_kost: number; mobler_styling: number
   holdetid_mnd: number; rente_pst: number; egenkapital_pst: number; fellesutg_mnd: number
+  nedbetalingstid_aar?: number  // ny boliglån — default 25
   salgspris: number; meglerhonorar_pst: number; marknadsforing: number
   skattefri: boolean; skattesats_pst: number
 }
@@ -20,6 +21,7 @@ export type EksisterendeBolig = {
   opprinnelig_kjopspris?: number
   mnd_lan_betaling?: number
   rente_pst_gammel?: number
+  restlopetid_aar_gammel?: number
   utleie_horisont_aar?: number
   utleie_mnd_brutto?: number
   utleie_belegg_pst?: number
@@ -163,7 +165,7 @@ export function regnFinansiering(modus: Modus, beregning: Beregning, eksisterend
   const overskudd = Math.max(0, tilgjengeligEK - totalUtlegg)
   const belaningsgrad = kalk.kjopesum > 0 ? (lanebehov / kalk.kjopesum) * 100 : 0
   const renteMnd = kalk.rente_pst / 100 / 12
-  const antMnd = 25 * 12
+  const antMnd = (kalk.nedbetalingstid_aar && kalk.nedbetalingstid_aar > 0 ? kalk.nedbetalingstid_aar : 25) * 12
   const mndBetaling = lanebehov > 0 && renteMnd > 0
     ? (lanebehov * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd))
     : 0

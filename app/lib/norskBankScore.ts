@@ -147,7 +147,8 @@ export function regnBankScore(
   const lanebehov = finansiering ? finansiering.lanebehov : (kalk.kjopesum * (1 - kalk.egenkapital_pst / 100))
   const mndBetaling = finansiering ? finansiering.mndBetaling : (() => {
     const r = kalk.rente_pst / 100 / 12
-    return lanebehov > 0 && r > 0 ? (lanebehov * r) / (1 - Math.pow(1 + r, -25 * 12)) : 0
+    const aar = (kalk.nedbetalingstid_aar && kalk.nedbetalingstid_aar > 0 ? kalk.nedbetalingstid_aar : 25)
+    return lanebehov > 0 && r > 0 ? (lanebehov * r) / (1 - Math.pow(1 + r, -aar * 12)) : 0
   })()
   const nettoMndBetaling = Math.max(0, mndBetaling - utleieMnd)
   // Andre lån + ev. lån på beholdt bolig
@@ -189,7 +190,7 @@ export function regnBankScore(
   // 4. Stresstest — rente +3pp på hovedboliglån
   const stressRente = (kalk.rente_pst + 3) / 100 / 12
   const stressMnd = lanebehov > 0 && stressRente > 0
-    ? (lanebehov * stressRente) / (1 - Math.pow(1 + stressRente, -25 * 12))
+    ? (lanebehov * stressRente) / (1 - Math.pow(1 + stressRente, -((kalk.nedbetalingstid_aar && kalk.nedbetalingstid_aar > 0 ? kalk.nedbetalingstid_aar : 25)) * 12))
     : 0
   const stressNettoMnd = Math.max(0, stressMnd - utleieMnd)
   const stressTotalMnd = stressNettoMnd + andreLanMndSum

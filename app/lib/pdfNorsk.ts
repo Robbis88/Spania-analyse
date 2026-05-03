@@ -46,6 +46,7 @@ type Kalk = {
   kjopesum: number; fellesgjeld: number; dokumentavgift_pst: number; tinglysing: number
   oppussing_kost: number; mobler_styling: number
   holdetid_mnd: number; rente_pst: number; egenkapital_pst: number; fellesutg_mnd: number
+  nedbetalingstid_aar?: number
   salgspris: number; meglerhonorar_pst: number; marknadsforing: number
   skattefri: boolean; skattesats_pst: number
 }
