@@ -589,13 +589,38 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const bSkattMnd = eksisterende.utleie_skattepliktig ? (bBruttoLeieMnd - bDriftMnd) * 0.22 : 0
     const bNettoLeieMnd = bBruttoLeieMnd - bDriftMnd - bSkattMnd
     const bLeieTotal = bNettoLeieMnd * (aar * 12)
+
+    // NEDBETALING (avdrag) på gammelt lån — bygger opp EK krone for krone.
+    // Vi simulerer annuitetsplanen mnd for mnd: rente trekkes fra mnd-betaling, resten er avdrag.
+    // Antar samme rente som ny bolig (godt nok estimat — flytende boliglån i Norge i samme periode).
+    let restgjeld_simulert = eksisterende.restgjeld
+    let bAvdragSum = 0
+    const renteMndGammel = kalk.rente_pst / 100 / 12
+    const horisontMnd = aar * 12
+    if (eksisterende.mnd_lan_betaling > 0 && restgjeld_simulert > 0) {
+      for (let m = 0; m < horisontMnd && restgjeld_simulert > 0; m++) {
+        const renteIMnd = restgjeld_simulert * renteMndGammel
+        const avdragIMnd = Math.min(restgjeld_simulert, Math.max(0, eksisterende.mnd_lan_betaling - renteIMnd))
+        bAvdragSum += avdragIMnd
+        restgjeld_simulert -= avdragIMnd
+      }
+    }
+    const original_EK_gammel = bVerdi - eksisterende.restgjeld    // EK i gammel bolig i dag
+    const EK_gammel_etter = original_EK_gammel + bVerdiokning + bAvdragSum  // EK om aar år
+
     // Ekstra rentekostnader på det større nye lånet (vi har ikke frigjort EK fra salg)
     const ekstraLanebehov = sNetto
     const ekstraRenteMnd = ekstraLanebehov * (kalk.rente_pst / 100) / 12
-    const ekstraRenteTotal = ekstraRenteMnd * (aar * 12)
-    const bTotal = bVerdiokning + bLeieTotal - ekstraRenteTotal
+    const ekstraRenteTotal = ekstraRenteMnd * horisontMnd
 
-    // Selg-scenariet: vi har frigjort EK = sNetto, mindre lånerenter på ny bolig (allerede regnet i hovedkalkulasjonen)
+    // BeholdTotalt = total økning i formue fra å beholde:
+    // verdivekst (boligen) + nedbetaling (avdrag) + netto leie - ekstra rentekostnad på ny bolig
+    const bTotal = bVerdiokning + bAvdragSum + bLeieTotal - ekstraRenteTotal
+
+    // Selg-scenariet: sNetto er frigjort, brukes som EK i ny bolig.
+    // Forenkling: vi sammenligner sNetto direkte (sNetto er pengene "i hånda").
+    // Den faktiske rentebesparelsen på ny bolig er allerede en "fordel" som BEHOLD ikke har —
+    // som reflekteres ved at vi trekker ekstraRenteTotal fra BEHOLD-siden.
     const sTotal = sNetto
     const differanse = bTotal - sTotal
     const anbefaling: 'selg' | 'behold' | 'likt' = differanse > 50000 ? 'behold' : differanse < -50000 ? 'selg' : 'likt'
@@ -603,8 +628,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     return {
       selgFrigjort: sNetto,
       beholdVerdivekst: bVerdiokning,
+      beholdAvdragSum: bAvdragSum,
       beholdNettoLeie: bLeieTotal,
       beholdEkstraRente: ekstraRenteTotal,
+      beholdEKGammel: EK_gammel_etter,
       beholdTotalt: bTotal,
       selgTotalt: sTotal,
       differanse,
@@ -1851,9 +1878,17 @@ function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
 }
 
 type Sammenligning = {
-  selgFrigjort: number; beholdVerdivekst: number; beholdNettoLeie: number
-  beholdEkstraRente: number; beholdTotalt: number; selgTotalt: number
-  differanse: number; anbefaling: 'behold' | 'selg' | 'likt'; aar: number
+  selgFrigjort: number
+  beholdVerdivekst: number
+  beholdAvdragSum: number
+  beholdNettoLeie: number
+  beholdEkstraRente: number
+  beholdEKGammel: number
+  beholdTotalt: number
+  selgTotalt: number
+  differanse: number
+  anbefaling: 'behold' | 'selg' | 'likt'
+  aar: number
 }
 
 function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
@@ -2108,22 +2143,40 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
           <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>
             ⚖️ Selg vs Behold over {sammenligning.aar.toFixed(1)} år
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 11, color: FARGER.tekstLys, fontWeight: 600, marginBottom: 4 }}>💰 SELG-SCENARIO</div>
-              <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 6 }}>Frigjort EK + mindre lån på ny bolig</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork }}>{fmtNok(sammenligning.selgTotalt)}</div>
-              <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>Netto disponibelt nå</div>
+              <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 6 }}>Frigjort EK brukes som EK i ny bolig</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(sammenligning.selgTotalt)}</div>
+              <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>Netto formue-bidrag</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: FARGER.tekstLys, fontWeight: 600, marginBottom: 4 }}>🔑 BEHOLD-SCENARIO</div>
-              <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 6 }}>Verdivekst + leie − ekstra rente</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork }}>{fmtNok(sammenligning.beholdTotalt)}</div>
-              <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>
-                Vekst {fmtNok(sammenligning.beholdVerdivekst)} + leie {fmtNok(sammenligning.beholdNettoLeie)} − rente {fmtNok(sammenligning.beholdEkstraRente)}
-              </div>
+              <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 6 }}>EK-vekst + nedbetaling + leie</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(sammenligning.beholdTotalt)}</div>
+              <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>Netto formue-bidrag</div>
             </div>
           </div>
+
+          {/* Detaljert oppstilling for behold-scenariet */}
+          <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: RADIUS.sm, padding: 12, marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>Behold — slik bygges formuen over {sammenligning.aar.toFixed(1)} år</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 4, fontSize: 13 }}>
+              <span style={{ color: FARGER.tekstMid }}>+ Verdivekst på gammel bolig</span>
+              <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(sammenligning.beholdVerdivekst)}</span>
+              <span style={{ color: FARGER.tekstMid }}>+ Nedbetaling av lån (avdrag)</span>
+              <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(sammenligning.beholdAvdragSum)}</span>
+              <span style={{ color: FARGER.tekstMid }}>+ Netto leieinntekt</span>
+              <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>+ {fmtNok(sammenligning.beholdNettoLeie)}</span>
+              <span style={{ color: FARGER.tekstMid }}>− Ekstra rentekostnad på ny bolig</span>
+              <span style={{ textAlign: 'right', color: '#7a0c1e' }}>- {fmtNok(sammenligning.beholdEkstraRente)}</span>
+              <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>= Netto formue-bidrag</span>
+              <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 6, marginTop: 4 }}>{fmtNok(sammenligning.beholdTotalt)}</span>
+              <span style={{ color: FARGER.tekstLys, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}>EK i gammel bolig om {sammenligning.aar.toFixed(0)} år</span>
+              <span style={{ textAlign: 'right', color: FARGER.tekstLys, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}>{fmtNok(sammenligning.beholdEKGammel)}</span>
+            </div>
+          </div>
+
           <div style={{ paddingTop: 10, borderTop: `1px solid ${FARGER.kantLys}`, fontSize: 14, fontWeight: 600 }}>
             {sammenligning.anbefaling === 'behold' && (
               <span style={{ color: '#1a4d2b' }}>🟢 Behold lønner seg med +{fmtNok(sammenligning.differanse)} over {sammenligning.aar.toFixed(1)} år</span>
