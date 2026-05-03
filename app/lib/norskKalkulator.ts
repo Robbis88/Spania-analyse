@@ -12,8 +12,21 @@ export type Kalk = {
 }
 
 export type EksisterendeBolig = {
+  modus?: 'selg' | 'behold'
   salgssum: number; restgjeld: number
   meglerhonorar_pst: number; marknadsforing: number; skattefri: boolean
+  // Behold-felter
+  verdi_naa?: number
+  opprinnelig_kjopspris?: number
+  mnd_lan_betaling?: number
+  rente_pst_gammel?: number
+  utleie_horisont_aar?: number
+  utleie_mnd_brutto?: number
+  utleie_belegg_pst?: number
+  utleie_drift_pst?: number
+  utleie_skattepliktig?: boolean
+  arlig_prisvekst_pst?: number
+  paakostninger?: Array<{ beskrivelse: string; aar: number; belop: number; type?: 'paakostning' | 'vedlikehold' }>
 }
 
 export type BoPlan = {

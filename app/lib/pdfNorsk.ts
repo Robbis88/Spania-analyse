@@ -101,10 +101,30 @@ type TotalScore = {
 
 type BoFlipp = {
   eksisterende: {
+    modus?: 'selg' | 'behold'
     salgssum: number; restgjeld: number
     meglerhonorar_pst: number; marknadsforing: number; skattefri: boolean
+    // Behold-felter
+    verdi_naa?: number
+    opprinnelig_kjopspris?: number
+    mnd_lan_betaling?: number
+    rente_pst_gammel?: number
+    utleie_horisont_aar?: number
+    utleie_mnd_brutto?: number
+    utleie_belegg_pst?: number
+    utleie_drift_pst?: number
+    utleie_skattepliktig?: boolean
+    arlig_prisvekst_pst?: number
   }
-  netto: { meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number }
+  netto: { meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number
+    // Behold-beregninger
+    brutto_leie_mnd?: number; drift_mnd?: number; skatt_leie_mnd?: number; netto_leie_mnd?: number
+    netto_belastning_mnd?: number; verdi_etter_horisont?: number; verdiokning_total?: number
+    leie_total?: number; horisont_aar?: number
+    sum_paakostninger?: number; inngangsverdi?: number
+    fremtidig_skatt?: number; fremtidig_skatt_uten_paakost?: number; skatt_spart_paakost?: number
+    sum_vedlikehold_i_horisont?: number; vedlikehold_fradrag_per_mnd?: number
+  }
   finansiering: {
     totalUtlegg: number; tilgjengeligEK: number; lanebehov: number
     overskudd: number; belaningsgrad: number; mndBetaling: number
@@ -116,6 +136,15 @@ type BoFlipp = {
     brutto_mnd: number; netto_mnd: number
     brutto_total: number; netto_total: number; skatt: number
     nettoBidrag: number
+  }
+  // Tidligere kostnader på boligen — påkostninger og vedlikehold
+  paakostninger?: Array<{ beskrivelse: string; aar: number; belop: number; type?: 'paakostning' | 'vedlikehold' }>
+  // Sammenligning selg vs behold
+  sammenligning?: {
+    selgFrigjort: number; beholdVerdivekst: number; beholdAvdragSum: number
+    beholdNettoLeie: number; beholdEkstraRente: number; beholdEKGammel: number
+    beholdTotalt: number; selgTotalt: number; differanse: number
+    anbefaling: 'behold' | 'selg' | 'likt'; aar: number
   }
 }
 
@@ -330,21 +359,96 @@ export async function byggNorskFlippePdf(args: {
     y += 4
   }
 
-  // === BO-FLIPP: SALG AV EGEN BOLIG + FINANSIERING ===
+  // === BO-FLIPP: SALG AV EGEN BOLIG / BEHOLD OG LEIE UT + FINANSIERING ===
   if (args.boFlipp) {
     const bf = args.boFlipp
-    seksjon('SALG AV EKSISTERENDE BOLIG')
-    rad('Forventet salgssum', NOK(bf.eksisterende.salgssum), 0)
-    rad(`Meglerhonorar (${bf.eksisterende.meglerhonorar_pst} %)`, '- ' + NOK(bf.netto.meglerhonorar), 1)
-    rad('Markedsføring/takst', '- ' + NOK(bf.eksisterende.marknadsforing), 2)
-    rad('Restgjeld på lån', '- ' + NOK(bf.eksisterende.restgjeld), 3)
-    if (!bf.eksisterende.skattefri && bf.netto.skatt > 0) {
-      rad('Skatt (22 %)', '- ' + NOK(bf.netto.skatt), 4)
+    const erBehold = bf.eksisterende.modus === 'behold'
+
+    if (erBehold) {
+      // === BEHOLD-MODUS ===
+      seksjon('EKSISTERENDE BOLIG — BEHOLDES OG LEIES UT')
+      rad('Markedsverdi i dag', NOK(bf.eksisterende.verdi_naa || 0), 0)
+      if (bf.eksisterende.opprinnelig_kjopspris) rad('Opprinnelig kjøpspris', NOK(bf.eksisterende.opprinnelig_kjopspris), 1)
+      rad('Restgjeld på lån', NOK(bf.eksisterende.restgjeld), 2)
+      rad('Mnd-betaling lån (renter+avdrag)', NOK(bf.eksisterende.mnd_lan_betaling || 0), 3)
+      rad('Rente på gammelt lån', PCT(bf.eksisterende.rente_pst_gammel || 0), 4)
+      rad('Forventet leie/mnd (brutto)', NOK(bf.eksisterende.utleie_mnd_brutto || 0), 5)
+      rad('Belegg', PCT(bf.eksisterende.utleie_belegg_pst || 0), 6)
+      rad('Drift', PCT(bf.eksisterende.utleie_drift_pst || 0), 7)
+      rad('Utleie-horisont', (bf.eksisterende.utleie_horisont_aar || 0) + ' år', 8)
+      rad('Forventet årlig prisvekst', PCT(bf.eksisterende.arlig_prisvekst_pst || 0), 9)
+      y += 4
+
+      // Månedlig cashflow
+      seksjon('MÅNEDLIG CASHFLOW PÅ EKSISTERENDE BOLIG')
+      rad(`Brutto leie (${bf.eksisterende.utleie_belegg_pst} % belegg)`, NOK(bf.netto.brutto_leie_mnd || 0), 0)
+      rad(`Drift (${bf.eksisterende.utleie_drift_pst} %)`, '- ' + NOK(bf.netto.drift_mnd || 0), 1)
+      if (bf.netto.vedlikehold_fradrag_per_mnd && bf.netto.vedlikehold_fradrag_per_mnd > 0) {
+        rad('Vedlikehold (skattefradrag)', '- ' + NOK(bf.netto.vedlikehold_fradrag_per_mnd), 2)
+      }
+      if (bf.netto.skatt_leie_mnd && bf.netto.skatt_leie_mnd > 0) {
+        rad('Skatt på netto leie (22 %)', '- ' + NOK(bf.netto.skatt_leie_mnd), 3)
+      } else {
+        rad('Skatt', 'Skattefri', 3)
+      }
+      rad('Netto leieinntekt', NOK(bf.netto.netto_leie_mnd || 0), 4, true)
+      rad('Mnd-betaling lån', '- ' + NOK(bf.eksisterende.mnd_lan_betaling || 0), 5)
+      const nettoCash = (bf.netto.netto_leie_mnd || 0) - (bf.eksisterende.mnd_lan_betaling || 0)
+      rad('Netto cashflow / mnd', (nettoCash >= 0 ? '+ ' : '- ') + NOK(Math.abs(nettoCash)), 6, true)
+      y += 4
+
+      // Over horisonten
+      const horisont_aar = bf.netto.horisont_aar || bf.eksisterende.utleie_horisont_aar || 0
+      seksjon(`OVER UTLEIE-HORISONT (${horisont_aar} ÅR)`)
+      rad('Verdi-vekst (boligen øker)', '+ ' + NOK(bf.netto.verdiokning_total || 0), 0)
+      rad('Netto leieinntekt totalt', '+ ' + NOK(bf.netto.leie_total || 0), 1)
+      rad(`Verdi etter ${horisont_aar} år`, NOK(bf.netto.verdi_etter_horisont || 0), 2, true)
+      y += 4
+
+      // Påkostninger og vedlikehold
+      if (bf.paakostninger && bf.paakostninger.length > 0) {
+        const paakost = bf.paakostninger.filter(p => (p.type ?? 'paakostning') === 'paakostning')
+        const vedlikehold = bf.paakostninger.filter(p => p.type === 'vedlikehold')
+
+        if (paakost.length > 0) {
+          seksjon('PÅKOSTNINGER (ØKER INNGANGSVERDI)')
+          paakost.forEach((p, i) => rad(`${p.beskrivelse} (${p.aar})`, NOK(p.belop), i))
+          rad('Sum påkostninger', NOK(bf.netto.sum_paakostninger || 0), paakost.length, true)
+          if (bf.eksisterende.opprinnelig_kjopspris) {
+            rad('+ Opprinnelig kjøpspris', NOK(bf.eksisterende.opprinnelig_kjopspris), paakost.length + 1)
+            rad('= Inngangsverdi (skattegrunnlag)', NOK(bf.netto.inngangsverdi || 0), paakost.length + 2, true)
+          }
+          if (bf.netto.skatt_spart_paakost && bf.netto.skatt_spart_paakost > 0) {
+            rad(`Sparet kapitalgevinst-skatt ved fremtidig salg`, NOK(bf.netto.skatt_spart_paakost), paakost.length + 3, true)
+          }
+          y += 4
+        }
+
+        if (vedlikehold.length > 0) {
+          seksjon('VEDLIKEHOLD (FRADRAG MOT LEIEINNTEKT)')
+          vedlikehold.forEach((p, i) => rad(`${p.beskrivelse} (${p.aar})`, NOK(p.belop), i))
+          if (bf.netto.sum_vedlikehold_i_horisont && bf.netto.sum_vedlikehold_i_horisont > 0) {
+            rad('Sum vedlikehold i utleie-horisont', NOK(bf.netto.sum_vedlikehold_i_horisont), vedlikehold.length, true)
+            rad('Sparet skatt på leieinntekt (22 %)', NOK(bf.netto.sum_vedlikehold_i_horisont * 0.22), vedlikehold.length + 1, true)
+          }
+          y += 4
+        }
+      }
     } else {
-      rad('Skatt', 'Skattefri (botid)', 4)
+      // === SELG-MODUS ===
+      seksjon('SALG AV EKSISTERENDE BOLIG')
+      rad('Forventet salgssum', NOK(bf.eksisterende.salgssum), 0)
+      rad(`Meglerhonorar (${bf.eksisterende.meglerhonorar_pst} %)`, '- ' + NOK(bf.netto.meglerhonorar), 1)
+      rad('Markedsføring/takst', '- ' + NOK(bf.eksisterende.marknadsforing), 2)
+      rad('Restgjeld på lån', '- ' + NOK(bf.eksisterende.restgjeld), 3)
+      if (!bf.eksisterende.skattefri && bf.netto.skatt > 0) {
+        rad('Skatt (22 %)', '- ' + NOK(bf.netto.skatt), 4)
+      } else {
+        rad('Skatt', 'Skattefri (botid)', 4)
+      }
+      rad('Netto til disposisjon', NOK(bf.netto.nettoTilDisposisjon), 5, true)
+      y += 4
     }
-    rad('Netto til disposisjon', NOK(bf.netto.nettoTilDisposisjon), 5, true)
-    y += 4
 
     seksjon('FINANSIERING & LÅNEBEHOV')
     rad('Totalt utlegg (kjøp + oppussing + møblering)', NOK(bf.finansiering.totalUtlegg), 0)
@@ -375,6 +479,40 @@ export async function byggNorskFlippePdf(args: {
       rad('Etableringskost (engang)', '- ' + NOK(bf.utleie.etableringskost), 5)
       rad('Bidrag til total fortjeneste', NOK(bf.utleie.nettoBidrag), 6, true)
       y += 4
+    }
+
+    // === SAMMENLIGNING SELG vs BEHOLD ===
+    if (bf.sammenligning) {
+      const s = bf.sammenligning
+      seksjon(`SAMMENLIGNING — SELG VS BEHOLD OVER ${s.aar.toFixed(0)} ÅR`)
+      rad('SELG-scenario: netto frigjort til ny bolig', NOK(s.selgTotalt), 0, true)
+      rad('BEHOLD-scenario: total formue-bidrag', NOK(s.beholdTotalt), 1, true)
+      y += 2
+
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text('Behold — slik bygges formuen:', 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60)
+      rad('+ Verdivekst på gammel bolig', '+ ' + NOK(s.beholdVerdivekst), 0)
+      rad('+ Nedbetaling av lån (avdrag)', '+ ' + NOK(s.beholdAvdragSum), 1)
+      rad('+ Netto leieinntekt totalt', '+ ' + NOK(s.beholdNettoLeie), 2)
+      rad('- Ekstra rentekostnad på ny bolig', '- ' + NOK(s.beholdEkstraRente), 3)
+      rad('= Netto formue-bidrag', NOK(s.beholdTotalt), 4, true)
+      rad(`EK i gammel bolig om ${s.aar.toFixed(0)} år`, NOK(s.beholdEKGammel), 5)
+      y += 4
+
+      // Anbefaling
+      sjekk(16)
+      const anbFarge: [number, number, number] = s.anbefaling === 'behold' ? [45, 125, 70]
+        : s.anbefaling === 'selg' ? [184, 154, 111] : [120, 120, 120]
+      doc.setFillColor(anbFarge[0], anbFarge[1], anbFarge[2])
+      doc.rect(15, y, 180, 12, 'F')
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+      let anbTekst = ''
+      if (s.anbefaling === 'behold') anbTekst = `Behold lonner seg med + ${NOK(s.differanse)} over ${s.aar.toFixed(1)} ar`
+      else if (s.anbefaling === 'selg') anbTekst = `Selg lonner seg - behold-scenariet gir ${NOK(s.differanse)} mindre`
+      else anbTekst = 'Tilnaermet likt - andre faktorer (risiko, fleksibilitet) blir avgjorende'
+      doc.text(anbTekst, 20, y + 8)
+      y += 16
     }
   }
 
@@ -703,14 +841,26 @@ export async function byggNorskPdfFraProsjekt(
     oppussingsposter,
     boFlipp: modus === 'bo' && finansiering && eksisterende ? {
       eksisterende: {
+        modus: eksisterende.modus,
         salgssum: eksisterende.salgssum,
         restgjeld: eksisterende.restgjeld,
         meglerhonorar_pst: eksisterende.meglerhonorar_pst,
         marknadsforing: eksisterende.marknadsforing,
         skattefri: eksisterende.skattefri,
+        verdi_naa: eksisterende.verdi_naa,
+        opprinnelig_kjopspris: eksisterende.opprinnelig_kjopspris,
+        mnd_lan_betaling: eksisterende.mnd_lan_betaling,
+        rente_pst_gammel: eksisterende.rente_pst_gammel,
+        utleie_horisont_aar: eksisterende.utleie_horisont_aar,
+        utleie_mnd_brutto: eksisterende.utleie_mnd_brutto,
+        utleie_belegg_pst: eksisterende.utleie_belegg_pst,
+        utleie_drift_pst: eksisterende.utleie_drift_pst,
+        utleie_skattepliktig: eksisterende.utleie_skattepliktig,
+        arlig_prisvekst_pst: eksisterende.arlig_prisvekst_pst,
       },
       netto: eksisterendeBeregning,
       finansiering,
+      paakostninger: eksisterende.paakostninger,
       utleie: utleieDel?.aktiv ? {
         aktiv: true,
         leie_mnd: utleieDel.leie_mnd,
