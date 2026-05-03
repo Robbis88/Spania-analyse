@@ -137,7 +137,7 @@ type BankVurdering = {
   total: number; lys: string; lysTekst: string
 }
 
-const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
+const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '-'
 const PCT = (n: number) => n.toFixed(1) + ' %'
 
 export async function byggNorskFlippePdf(args: {
@@ -181,25 +181,30 @@ export async function byggNorskFlippePdf(args: {
     const ts = args.totalScore
     const lysFarge: [number, number, number] =
       ts.lys.includes('🟢') ? [45, 125, 70] : ts.lys.includes('🔴') ? [200, 16, 46] : [176, 94, 10]
-    sjekk(40)
+    sjekk(44)
     doc.setFillColor(lysFarge[0], lysFarge[1], lysFarge[2])
-    doc.rect(15, y, 180, 28, 'F')
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
-    doc.text('TOTAL PROSJEKTSCORE', 20, y + 8)
-    doc.setFontSize(13)
-    doc.text(ts.lysTekst, 20, y + 17)
-    doc.setFontSize(28)
-    doc.text(`${ts.total}/100`, 175, y + 18, { align: 'right' })
-    y += 32
+    doc.rect(15, y, 180, 32, 'F')
 
-    doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+    // Score til høyre — stort tall plassert separat for å unngå overlapp
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(28)
+    doc.text(`${ts.total}/100`, 188, y + 21, { align: 'right' })
+
+    // Tittel + statustekst på venstre side, kuttet ved 130mm så det ikke krasjer
+    doc.setFontSize(10)
+    doc.text('TOTAL PROSJEKTSCORE', 20, y + 9)
+    doc.setFontSize(12)
+    const lysLinjer = doc.splitTextToSize(ts.lysTekst, 120)
+    doc.text(lysLinjer, 20, y + 19)
+    y += 36
+
+    doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
     const subscores: string[] = []
-    if (ts.harFlippeScore) subscores.push(`🔍 Flippe-potensial: ${(ts.flippeScore / 10).toFixed(1)}/10`)
-    if (ts.harBankScore) subscores.push(`🏦 Bank-finansierbarhet: ${ts.bankScore}/100`)
-    if (ts.harMeglerSnitt) subscores.push(`📋 Markeds-realisme: ${ts.meglerRealisme}/100 (${ts.antallMeglere} megler${ts.antallMeglere > 1 ? 'e' : ''}, avvik ${ts.avvikPst.toFixed(1)} %)`)
+    if (ts.harFlippeScore) subscores.push(`Flippe-potensial: ${(ts.flippeScore / 10).toFixed(1)}/10`)
+    if (ts.harBankScore) subscores.push(`Bank: ${ts.bankScore}/100`)
+    if (ts.harMeglerSnitt) subscores.push(`Markeds-realisme: ${ts.meglerRealisme}/100 (${ts.antallMeglere} megler${ts.antallMeglere > 1 ? 'e' : ''}, avvik ${ts.avvikPst.toFixed(1)} %)`)
     if (subscores.length > 0) {
-      doc.setFontSize(9); doc.setTextColor(80, 80, 80)
-      doc.text('Underliggende: ' + subscores.join('   ·   '), 20, y); y += 8
+      doc.setTextColor(80, 80, 80)
+      doc.text('Underliggende: ' + subscores.join('   |   '), 20, y); y += 8
     }
     y += 4
   }
@@ -330,11 +335,11 @@ export async function byggNorskFlippePdf(args: {
     const bf = args.boFlipp
     seksjon('SALG AV EKSISTERENDE BOLIG')
     rad('Forventet salgssum', NOK(bf.eksisterende.salgssum), 0)
-    rad(`Meglerhonorar (${bf.eksisterende.meglerhonorar_pst} %)`, '− ' + NOK(bf.netto.meglerhonorar), 1)
-    rad('Markedsføring/takst', '− ' + NOK(bf.eksisterende.marknadsforing), 2)
-    rad('Restgjeld på lån', '− ' + NOK(bf.eksisterende.restgjeld), 3)
+    rad(`Meglerhonorar (${bf.eksisterende.meglerhonorar_pst} %)`, '- ' + NOK(bf.netto.meglerhonorar), 1)
+    rad('Markedsføring/takst', '- ' + NOK(bf.eksisterende.marknadsforing), 2)
+    rad('Restgjeld på lån', '- ' + NOK(bf.eksisterende.restgjeld), 3)
     if (!bf.eksisterende.skattefri && bf.netto.skatt > 0) {
-      rad('Skatt (22 %)', '− ' + NOK(bf.netto.skatt), 4)
+      rad('Skatt (22 %)', '- ' + NOK(bf.netto.skatt), 4)
     } else {
       rad('Skatt', 'Skattefri (botid)', 4)
     }
@@ -343,7 +348,7 @@ export async function byggNorskFlippePdf(args: {
 
     seksjon('FINANSIERING & LÅNEBEHOV')
     rad('Totalt utlegg (kjøp + oppussing + møblering)', NOK(bf.finansiering.totalUtlegg), 0)
-    rad('Tilgjengelig EK fra salg av eget hjem', '− ' + NOK(bf.finansiering.tilgjengeligEK), 1)
+    rad('Tilgjengelig EK fra salg av eget hjem', '- ' + NOK(bf.finansiering.tilgjengeligEK), 1)
     rad('Lånebehov', NOK(bf.finansiering.lanebehov), 2, true)
     if (bf.finansiering.overskudd > 0) {
       rad('Overskudd egenkapital (fri kapital)', NOK(bf.finansiering.overskudd), 3)
@@ -351,7 +356,7 @@ export async function byggNorskFlippePdf(args: {
     rad('Belåningsgrad', PCT(bf.finansiering.belaningsgrad), 4, true)
     rad(`Mnd-betaling (annuitet 25 år, ${k.rente_pst} %)`, NOK(bf.finansiering.mndBetaling), 5, true)
     if (bf.utleie?.aktiv && bf.utleie.netto_mnd > 0) {
-      rad('Netto leieinntekt fra utleiedel', '− ' + NOK(bf.utleie.netto_mnd), 6)
+      rad('Netto leieinntekt fra utleiedel', '- ' + NOK(bf.utleie.netto_mnd), 6)
       rad('Reell mnd-kostnad (etter leieinntekt)', NOK(bf.finansiering.mndBetaling - bf.utleie.netto_mnd), 7, true)
     }
     y += 4
@@ -361,13 +366,13 @@ export async function byggNorskFlippePdf(args: {
       rad(`Leie pr. mnd (estimat)`, NOK(bf.utleie.leie_mnd), 0)
       rad(`Belegg`, PCT(bf.utleie.belegg_pst), 1)
       rad(`Effektiv brutto leie over bo-tiden`, NOK(bf.utleie.brutto_total), 2)
-      rad(`Drift (${bf.utleie.drift_pst} %)`, '− ' + NOK(bf.utleie.brutto_total * (bf.utleie.drift_pst / 100)), 3)
+      rad(`Drift (${bf.utleie.drift_pst} %)`, '- ' + NOK(bf.utleie.brutto_total * (bf.utleie.drift_pst / 100)), 3)
       if (bf.utleie.skatt > 0) {
-        rad('Skatt (22 %)', '− ' + NOK(bf.utleie.skatt), 4)
+        rad('Skatt (22 %)', '- ' + NOK(bf.utleie.skatt), 4)
       } else {
         rad('Skatt', 'Skattefri (utleiedel < 50 %)', 4)
       }
-      rad('Etableringskost (engang)', '− ' + NOK(bf.utleie.etableringskost), 5)
+      rad('Etableringskost (engang)', '- ' + NOK(bf.utleie.etableringskost), 5)
       rad('Bidrag til total fortjeneste', NOK(bf.utleie.nettoBidrag), 6, true)
       y += 4
     }
@@ -489,7 +494,7 @@ export async function byggNorskFlippePdf(args: {
       doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60)
       bv.inntekter.forEach((inn, i) => rad(inn.beskrivelse || `Inntektskilde ${i + 1}`, NOK(inn.belop_mnd) + '/mnd', i))
       rad('Sum brutto', NOK(bv.sumInntektMnd) + '/mnd (' + NOK(bv.sumInntektAr) + '/år)', bv.inntekter.length, true)
-      rad('− Skatt (estimat)', '− ' + NOK(bv.skatt_anslag_mnd) + '/mnd', bv.inntekter.length + 1)
+      rad('- Skatt (estimat)', '- ' + NOK(bv.skatt_anslag_mnd) + '/mnd', bv.inntekter.length + 1)
       if (bv.utleieMnd > 0) rad('+ Netto leieinntekt utleiedel', '+ ' + NOK(bv.utleieMnd) + '/mnd', bv.inntekter.length + 2)
       rad('Netto inntekt disponibel', NOK(bv.netto_inntekt_mnd) + '/mnd', bv.inntekter.length + 3, true)
       y += 4
@@ -509,7 +514,7 @@ export async function byggNorskFlippePdf(args: {
       seksjon('TILGJENGELIG EKSTRA SIKKERHET')
       if (bv.annenSikkerhet.beskrivelse) avsnitt(bv.annenSikkerhet.beskrivelse)
       rad('Verdi (markedstakst)', NOK(bv.annenSikkerhet.verdi), 0)
-      rad('Eksisterende lån', '− ' + NOK(bv.annenSikkerhet.lan), 1)
+      rad('Eksisterende lån', '- ' + NOK(bv.annenSikkerhet.lan), 1)
       rad('Tilgjengelig sikkerhet', NOK(bv.annenSikkerhetNetto), 2, true)
       y += 4
     }
@@ -517,9 +522,9 @@ export async function byggNorskFlippePdf(args: {
     // Disponibel-analyse (det viktigste for banken)
     seksjon('BETJENINGSANALYSE')
     rad('Netto inntekt', NOK(bv.netto_inntekt_mnd) + '/mnd', 0)
-    rad(`− Livsopphold (SIFO, ${bv.antallVoksne}v + ${bv.antallBarn}b)`, '− ' + NOK(bv.livsopphold), 1)
-    rad('− Mnd-betaling nytt boliglån', '− ' + NOK(bv.nettoMndBetaling), 2)
-    if (bv.andreLanMndSum > 0) rad('− Andre lån', '− ' + NOK(bv.andreLanMndSum), 3)
+    rad(`- Livsopphold (SIFO, ${bv.antallVoksne}v + ${bv.antallBarn}b)`, '- ' + NOK(bv.livsopphold), 1)
+    rad('- Mnd-betaling nytt boliglån', '- ' + NOK(bv.nettoMndBetaling), 2)
+    if (bv.andreLanMndSum > 0) rad('- Andre lån', '- ' + NOK(bv.andreLanMndSum), 3)
     rad('= Disponibelt etter alt', NOK(bv.disponibelEtterAlt) + '/mnd', 4, true)
     rad('Stresstest disponibel (rente +3pp)', NOK(bv.stressDisponibel) + '/mnd', 5)
     y += 4
