@@ -106,7 +106,11 @@ export async function GET(req: NextRequest) {
       q = q.eq('marked', 'norge')
     }
     const { data: prosjekterRader } = await q
-    const prosjekter = (prosjekterRader || []) as Prosjekt[]
+    // Filtrer ut prosjekter som er skjult for denne brukeren (UI-filter — ikke
+    // ekte tilgangskontroll). Gjøres på klient-siden av admin pga eldre rader
+    // som mangler skjult_for-kolonne.
+    const prosjekter = ((prosjekterRader || []) as Prosjekt[])
+      .filter(p => !(p.skjult_for || []).includes(auth.bruker))
     const prosjektIds = prosjekter.map(p => p.id)
     const navnPerId: Record<string, string> = {}
     for (const p of prosjekter) navnPerId[p.id] = p.navn

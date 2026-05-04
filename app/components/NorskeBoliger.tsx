@@ -302,7 +302,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [meglerVurderinger, setMeglerVurderinger] = useState<MeglerVurdering[]>([])
   const [pdfLaster, setPdfLaster] = useState(false)
   const [fraCache, setFraCache] = useState<number | null>(null)
-  const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null }>>([])
+  const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>>([])
+  const [adminBrukere, setAdminBrukere] = useState<string[]>([])
+  const aktivBruker = (typeof window !== 'undefined' ? hentAktivBruker() : null) || ''
 
   function fyllFraAnalyse(a: Analyse) {
     // Pre-utfyll oppussingsposter fra AI-forslag
@@ -408,18 +410,62 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     void analyser({ tvingNy: true })
   }
 
-  // Hent alle lagrede norske prosjekter — vises som liste øverst
+  // Hent alle lagrede norske prosjekter — vises som liste øverst.
+  // Filtrerer ut prosjekter brukeren har valgt å skjule for seg selv (eller
+  // andre har skjult for denne brukeren).
   const hentLagrede = useCallback(async () => {
+    // Henter kun analyse-prosjekter (ikke de som allerede er i porteføljen).
+    // Eide eiendommer vises i Min portefølje-fanen.
     const { data } = await supabase
       .from('prosjekter')
-      .select('id, navn, opprettet, bolig_data, norsk_kalkulator_data')
+      .select('id, navn, opprettet, bolig_data, norsk_kalkulator_data, skjult_for, er_portefolje')
       .eq('marked', 'norge')
+      .or('er_portefolje.is.null,er_portefolje.eq.false')
       .order('opprettet', { ascending: false })
-    if (data) setLagrede(data)
-  }, [])
+    if (data) {
+      const synlig = (data as Array<{ skjult_for?: string[] | null }>).filter(
+        p => !(p.skjult_for || []).includes(aktivBruker)
+      ) as typeof lagrede
+      setLagrede(synlig)
+    }
+  }, [aktivBruker])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hentLagrede() }, [hentLagrede])
+
+  // Hent listen over admin-brukere én gang så vi kan vise haker i synlighets-popoveren
+  useEffect(() => {
+    fetch('/api/auth/brukere')
+      .then(r => r.json())
+      .then((d: { brukere?: string[] }) => { if (d.brukere) setAdminBrukere(d.brukere) })
+      .catch(() => { /* ikke kritisk */ })
+  }, [])
+
+  async function oppdaterSkjultFor(prosjektId: string, skjultFor: string[]) {
+    const { error } = await supabase.from('prosjekter').update({ skjult_for: skjultFor }).eq('id', prosjektId)
+    if (error) {
+      visToast('Kunne ikke lagre synlighet: ' + error.message, 'feil', 4000)
+      return
+    }
+    setLagrede(l => l.map(p => p.id === prosjektId ? { ...p, skjult_for: skjultFor } : p))
+  }
+
+  // Markerer et eksisterende analyse-prosjekt som kjøpt — flyttes til Min portefølje.
+  // Beholder all data: bilder, oppussing, dokumenter, kvitteringer.
+  async function markerSomKjopt(prosjektId: string, navn: string) {
+    if (!confirm(`Markere «${navn}» som kjøpt og flytte til Min portefølje?`)) return
+    const { error } = await supabase
+      .from('prosjekter')
+      .update({ er_portefolje: true, eieretappe: 'eid' })
+      .eq('id', prosjektId)
+    if (error) {
+      visToast('Kunne ikke markere som kjøpt: ' + error.message, 'feil', 4000)
+      return
+    }
+    await loggAktivitet({ handling: 'markerte prosjekt som kjøpt', tabell: 'prosjekter', rad_id: prosjektId, detaljer: { navn } })
+    visToast('Flyttet til Min portefølje. Åpne der for å fylle inn lån, leie og kostnader.', 'suksess', 5000)
+    await hentLagrede()
+  }
 
   // Aksepterer enten et helt prosjekt-objekt eller bare id (sistnevnte fra Dashboard-klikk).
   // Når bare id sendes, slår vi opp prosjektet i listen `lagrede`.
@@ -980,7 +1026,16 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       </div>
 
       {lagrede.length > 0 && (
-        <LagredeProsjekter prosjekter={lagrede} onLastInn={lastInn} onSlett={slettLagret} aktivId={lagretId} />
+        <LagredeProsjekter
+          prosjekter={lagrede}
+          onLastInn={lastInn}
+          onSlett={slettLagret}
+          aktivId={lagretId}
+          adminBrukere={adminBrukere}
+          aktivBruker={aktivBruker}
+          onOppdaterSkjult={oppdaterSkjultFor}
+          onMarkerSomKjopt={markerSomKjopt}
+        />
       )}
 
       {modus === 'bo' && (
@@ -1915,12 +1970,20 @@ function ScoreBoks({ lbl, val, score, farge, undertekst }: { lbl: string; val: s
   )
 }
 
-function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
-  prosjekter: Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null }>
+function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId, adminBrukere, aktivBruker, onOppdaterSkjult, onMarkerSomKjopt }: {
+  prosjekter: Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>
   onLastInn: (p: { id: string; norsk_kalkulator_data?: Record<string, unknown> | null }) => void
   onSlett: (id: string, navn: string) => void
   aktivId: string | null
+  adminBrukere: string[]
+  aktivBruker: string
+  onOppdaterSkjult: (prosjektId: string, skjultFor: string[]) => Promise<void>
+  onMarkerSomKjopt: (prosjektId: string, navn: string) => Promise<void>
 }) {
+  const [synligPopover, setSynligPopover] = useState<string | null>(null)
+  // Andre admin-brukere = alle utenom meg selv
+  const andreBrukere = adminBrukere.filter(b => b !== aktivBruker)
+
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 20, marginBottom: 24 }}>
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📂 Dine norske prosjekter</div>
@@ -1929,12 +1992,16 @@ function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
           const erAktiv = aktivId === p.id
           const beliggenhet = p.bolig_data?.beliggenhet || ''
           const dato = new Date(p.opprettet).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short' })
+          const skjultFor = p.skjult_for || []
+          const antallSkjult = skjultFor.filter(b => andreBrukere.includes(b)).length
+          const popoverApen = synligPopover === p.id
           return (
             <div key={p.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               padding: '10px 12px', borderRadius: RADIUS.sm,
               background: erAktiv ? FARGER.creamLys : 'transparent',
               border: erAktiv ? `1px solid ${FARGER.gull}` : `1px solid transparent`,
+              position: 'relative',
             }}>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: FARGER.mork }}>
@@ -1942,17 +2009,64 @@ function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId }: {
                 </div>
                 <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 2 }}>
                   {beliggenhet ? beliggenhet + ' · ' : ''}Lagret {dato}
+                  {antallSkjult > 0 && <span style={{ marginLeft: 8, color: FARGER.advarsel }}>· 🔒 skjult for {antallSkjult}</span>}
                 </div>
               </div>
               <button onClick={() => onLastInn(p)} disabled={erAktiv}
                 style={{ background: erAktiv ? FARGER.flateLys : FARGER.mork, color: erAktiv ? FARGER.tekstMid : 'white', border: 'none', borderRadius: RADIUS.sm, padding: '6px 14px', fontSize: 11, fontWeight: 600, cursor: erAktiv ? 'default' : 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 {erAktiv ? 'Aktiv' : 'Åpne'}
               </button>
+              <button onClick={() => onMarkerSomKjopt(p.id, p.navn)}
+                title="Marker som kjøpt og flytt til Min portefølje"
+                style={{ background: FARGER.suksessBg, color: FARGER.suksess, border: 'none', borderRadius: RADIUS.sm, padding: '6px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.06em' }}>
+                ✓ Kjøpt
+              </button>
+              {andreBrukere.length > 0 && (
+                <button onClick={() => setSynligPopover(popoverApen ? null : p.id)}
+                  title="Velg hvem som skal se prosjektet"
+                  style={{ background: antallSkjult > 0 ? FARGER.flateMid : 'transparent', border: 'none', color: antallSkjult > 0 ? FARGER.advarsel : FARGER.tekstLys, cursor: 'pointer', fontSize: 13, padding: '6px 10px', borderRadius: RADIUS.sm }}>
+                  {antallSkjult > 0 ? '🔒' : '👁️'}
+                </button>
+              )}
               <button onClick={() => onSlett(p.id, p.navn)}
                 title="Slett prosjekt"
                 style={{ background: 'transparent', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}>
                 🗑
               </button>
+
+              {popoverApen && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 12, marginTop: 4,
+                  background: '#fff', border: `1px solid ${FARGER.kantLys}`,
+                  borderRadius: RADIUS.sm, boxShadow: '0 6px 24px rgba(14,23,38,0.15)',
+                  padding: 12, minWidth: 240, zIndex: 10,
+                }}>
+                  <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Skjul for
+                  </div>
+                  {andreBrukere.map(b => {
+                    const erSkjult = skjultFor.includes(b)
+                    return (
+                      <label key={b} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer', fontSize: 13, color: FARGER.mork }}>
+                        <input type="checkbox" checked={erSkjult}
+                          onChange={() => {
+                            const ny = erSkjult ? skjultFor.filter(x => x !== b) : [...skjultFor, b]
+                            void onOppdaterSkjult(p.id, ny)
+                          }}
+                          style={{ accentColor: FARGER.advarsel }} />
+                        <span>{b.charAt(0).toUpperCase() + b.slice(1)}</span>
+                      </label>
+                    )
+                  })}
+                  <div style={{ fontSize: 10, color: FARGER.tekstLys, marginTop: 8, fontStyle: 'italic' }}>
+                    Skjuler kun i listene — alle admin-brukere har samme tilgang under panseret.
+                  </div>
+                  <button onClick={() => setSynligPopover(null)}
+                    style={{ width: '100%', marginTop: 8, background: FARGER.flateMid, border: 'none', padding: '6px 10px', borderRadius: RADIUS.sm, fontSize: 11, color: FARGER.tekstMid, cursor: 'pointer' }}>
+                    Lukk
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}

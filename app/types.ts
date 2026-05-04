@@ -121,6 +121,96 @@ export type Prosjekt = {
   // Salgsmål brukt i dashboard ROI-anbefaling
   salgsmaal_eur?: number | null
   salgsmaal_nok?: number | null
+  // UI-filter: brukernavn som ikke skal se prosjektet i sine lister
+  // (ren klient-skjuling, ikke ekte tilgangskontroll)
+  skjult_for?: string[] | null
+  // Min portefølje-felter (utvidelse 2026-05)
+  er_portefolje?: boolean
+  eieretappe?: 'analyse' | 'under_kjop' | 'eid' | 'salgsklar' | 'solgt'
+  portefolje_ai_data?: Record<string, unknown> | null
+  portefolje_ai_generert?: string | null
+  portefolje_ai_modell_versjon?: string | null
+}
+
+export type EiendomLaan = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  bank: string | null
+  laanetype: 'annuitet' | 'serie' | 'rammelaan' | 'annet' | null
+  hovedstol: number | null
+  restgjeld: number | null
+  rente_pst: number | null
+  rentetype: 'flytende' | 'fast' | null
+  bindingstid_aar: number | null
+  termin_belop: number | null
+  termin_frekvens: 'mnd' | 'kvartal' | 'aar'
+  nedbetalingstid_aar: number | null
+  startdato: string | null
+  notat: string | null
+}
+
+export type EiendomLeietaker = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  navn: string
+  epost: string | null
+  telefon: string | null
+  notat: string | null
+}
+
+export type EiendomInntekt = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  type: 'langtidsleie' | 'korttidsleie' | 'annet' | null
+  leietaker_id: string | null
+  belop_mnd: number | null
+  depositum: number | null
+  startdato: string | null
+  sluttdato: string | null
+  notat: string | null
+}
+
+export type EiendomKostnad = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  kategori: 'kommunale' | 'forsikring' | 'felleskostnader' | 'strom' | 'internett' | 'vedlikehold' | 'eiendomsskatt' | 'ibi' | 'comunidad' | 'annet' | null
+  beskrivelse: string | null
+  belop: number
+  frekvens: 'mnd' | 'aar' | 'engangs'
+  startdato: string | null
+  sluttdato: string | null
+  notat: string | null
+}
+
+export type EiendomVerdivurdering = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  dato: string
+  verdi: number
+  kilde: 'e_takst' | 'takstmann' | 'megler' | 'egen_vurdering' | 'salg' | 'annet' | null
+  utstedt_av: string | null
+  notat: string | null
+}
+
+export type EiendomCashflow = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+  maaned: string  // YYYY-MM
+  inntekt: number
+  kostnad: number
+  notat: string | null
 }
 
 export type UtleieForesporsel = {
