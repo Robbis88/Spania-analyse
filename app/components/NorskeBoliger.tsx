@@ -9,6 +9,10 @@ import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
 import { regnBankScore, regnLivsopphold, regnTotalScore } from '../lib/norskBankScore'
+import { Kvitteringer } from './Kvitteringer'
+import { Dokumenter } from './Dokumenter'
+import { Salgspakke } from './Salgspakke'
+import { Dashboard } from './Dashboard'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -233,6 +237,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [feil, setFeil] = useState('')
   const [lagrer, setLagrer] = useState(false)
   const [lagretId, setLagretId] = useState<string | null>(null)
+  const [lagretNavn, setLagretNavn] = useState<string>('')
+  const [salgspakkeApen, setSalgspakkeApen] = useState(false)
 
   const [eksisterende, setEksisterende] = useState<EksisterendeBolig>({
     modus: 'selg',
@@ -415,8 +421,28 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hentLagrede() }, [hentLagrede])
 
-  function lastInn(p: { id: string; norsk_kalkulator_data?: Record<string, unknown> | null }) {
-    const d = p.norsk_kalkulator_data
+  // Aksepterer enten et helt prosjekt-objekt eller bare id (sistnevnte fra Dashboard-klikk).
+  // Når bare id sendes, slår vi opp prosjektet i listen `lagrede`.
+  async function lastInn(p: string | { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null }) {
+    let prosjekt: { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null } | null = null
+    if (typeof p === 'string') {
+      prosjekt = lagrede.find(l => l.id === p) || null
+      if (!prosjekt) {
+        // Prosjektet kan være nyere enn cachet liste — hent direkte
+        const { data } = await supabase
+          .from('prosjekter')
+          .select('id, navn, norsk_kalkulator_data')
+          .eq('id', p).maybeSingle()
+        prosjekt = data as typeof prosjekt
+      }
+    } else {
+      prosjekt = p
+    }
+    if (!prosjekt) {
+      visToast('Fant ikke prosjektet', 'feil', 4000)
+      return
+    }
+    const d = prosjekt.norsk_kalkulator_data
     if (!d) {
       visToast('Mangler kalkulator-data — lagret før denne funksjonen ble lagt til', 'feil', 5000)
       return
@@ -431,7 +457,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     if (d.husholdning) setHusholdning(d.husholdning as Husholdning)
     if (d.meglerVurderinger) setMeglerVurderinger(d.meglerVurderinger as MeglerVurdering[])
     if (typeof d.finnUrl === 'string') setFinnUrl(d.finnUrl)
-    setLagretId(p.id)
+    setLagretId(prosjekt.id)
+    setLagretNavn(prosjekt.navn || 'Norsk prosjekt')
     setFeil(''); setFraCache(null)
     visToast('Prosjekt lastet inn', 'suksess')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -794,6 +821,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       } else {
         await loggAktivitet({ handling: 'lagret norsk flippe-prosjekt', tabell: 'prosjekter', rad_id: id, detaljer: { navn } })
         setLagretId(id)
+        setLagretNavn(navn)
         await hentLagrede()
         visToast('Lagret! Du kan komme tilbake og fortsette senere.', 'suksess', 4000)
       }
@@ -915,6 +943,12 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 10 }}>NORGE — FLIPP</div>
         <h2 style={{ fontSize: 28, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>Norske boliger</h2>
         <p style={{ color: FARGER.tekstMid, margin: '6px 0 0', fontSize: 14, fontWeight: 300 }}>Analyser en Finn-annonse og kjør flippe-kalkulator</p>
+      </div>
+
+      {/* Norge-spesifikt dashboard — separat fra Spania-dashboardet på admin/hjem */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>OVERSIKT — NORGE</div>
+        <Dashboard marked="norge" onApneProsjekt={(id) => { void lastInn(id) }} />
       </div>
 
       <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 14, marginBottom: 20 }}>
@@ -1047,13 +1081,37 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
                 <ProsjektBilder prosjektId={lagretId} />
               </div>
 
-              <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16 }}>
+              <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>💳 Kvitteringer og fakturaer</div>
+                <Kvitteringer prosjektId={lagretId} valuta="NOK" />
+              </div>
+
+              <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📁 Dokumenter</div>
+                <Dokumenter prosjektId={lagretId} />
+              </div>
+
+              <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button onClick={lastNedPdf} disabled={pdfLaster}
                   style={{ width: '100%', background: pdfLaster ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'wait' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
                   {pdfLaster ? 'Bygger PDF...' : '📄 Last ned komplett PDF-prospekt'}
                 </button>
-                <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Inkluderer score, kalkulator, oppussingsposter, sensitivitet, bud-strategi{modus === 'bo' ? ', salg/finansiering, utleie-del' : ''} og før/etter-bilder.</p>
+                <button onClick={() => setSalgspakkeApen(true)}
+                  style={{ width: '100%', background: FARGER.gull, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  📦 Bygg salgspakke
+                </button>
+                <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: 0 }}>
+                  PDF-prospektet inkluderer kalkulator, oppussingsposter, sensitivitet og før/etter-bilder.
+                  Salgspakken samler oppgraderinger, kvitteringer, dokumenter og bilder i én investor-rettet rapport.
+                </p>
               </div>
+
+              <Salgspakke
+                prosjektId={lagretId}
+                prosjektNavn={lagretNavn || 'Norsk prosjekt'}
+                apen={salgspakkeApen}
+                onLukk={() => setSalgspakkeApen(false)}
+              />
             </>
           )}
         </>

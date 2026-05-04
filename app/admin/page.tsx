@@ -269,8 +269,11 @@ export default function Home() {
           </section>
 
           <section style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 28px 16px' }}>
-            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>OVERSIKT</div>
-            <Dashboard onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>OVERSIKT — SPANIA</div>
+            <Dashboard marked="spania" onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
+            <p style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 12, fontStyle: 'italic' }}>
+              Norske prosjekter ligger i sin egen Norge-fane med eget dashboard.
+            </p>
           </section>
 
           <section style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 28px 80px' }}>

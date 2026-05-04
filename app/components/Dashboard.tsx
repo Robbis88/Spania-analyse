@@ -5,6 +5,7 @@ import type { DashboardData, DashboardProsjekt, DashboardVarsel } from '../api/d
 
 type Props = {
   onApneProsjekt: (prosjektId: string) => void
+  marked?: 'spania' | 'norge'  // hvis satt, viser dashboardet kun det markedet
 }
 
 const fmtEur = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
@@ -31,15 +32,16 @@ const VARSEL_IKON: Record<DashboardVarsel['type'], string> = {
   ocr_venter:        '⏳',
 }
 
-export function Dashboard({ onApneProsjekt }: Props) {
+export function Dashboard({ onApneProsjekt, marked }: Props) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'alle' | 'flipp' | 'utleie' | 'norge'>('alle')
+  const [filter, setFilter] = useState<'alle' | 'flipp' | 'utleie'>('alle')
 
   useEffect(() => {
     let avbrutt = false
-    fetch('/api/dashboard')
+    const url = marked ? `/api/dashboard?marked=${marked}` : '/api/dashboard'
+    fetch(url)
       .then(r => r.json())
       .then((d: DashboardData & { feil?: string }) => {
         if (avbrutt) return
@@ -53,12 +55,11 @@ export function Dashboard({ onApneProsjekt }: Props) {
         setLaster(false)
       })
     return () => { avbrutt = true }
-  }, [])
+  }, [marked])
 
   const filtrerte = useMemo(() => {
     if (!data) return []
     if (filter === 'alle') return data.prosjekter
-    if (filter === 'norge') return data.prosjekter.filter(p => p.marked === 'norge')
     return data.prosjekter.filter(p => p.kategori === filter)
   }, [data, filter])
 
@@ -80,14 +81,20 @@ export function Dashboard({ onApneProsjekt }: Props) {
     <div>
       {/* Topplinje med totaler */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
-        <KpiKort lbl="Prosjekter" stor={`${t.antall_prosjekter}`} liten={`${t.antall_flipp} flipp · ${t.antall_utleie} utleie · ${t.antall_norske} Norge`} />
-        {(t.kapital_eur > 0 || t.kapital_nok === 0) && (
-          <KpiKort lbl="Kapital bundet (Spania)" stor={fmtEur(t.kapital_eur)} liten={t.forventet_fortjeneste_eur > 0 ? `+ ${fmtEur(t.forventet_fortjeneste_eur)} forventet` : ''} />
+        <KpiKort
+          lbl="Prosjekter"
+          stor={`${t.antall_prosjekter}`}
+          liten={marked === 'norge' ? `${t.antall_prosjekter} norske` : `${t.antall_flipp} flipp · ${t.antall_utleie} utleie`}
+        />
+        {marked !== 'norge' && (t.kapital_eur > 0 || t.kapital_nok === 0) && (
+          <KpiKort lbl="Kapital bundet" stor={fmtEur(t.kapital_eur)} liten={t.forventet_fortjeneste_eur > 0 ? `+ ${fmtEur(t.forventet_fortjeneste_eur)} forventet` : ''} />
         )}
-        {t.kapital_nok > 0 && (
-          <KpiKort lbl="Kapital bundet (Norge)" stor={fmtNok(t.kapital_nok)} liten={t.forventet_fortjeneste_nok > 0 ? `+ ${fmtNok(t.forventet_fortjeneste_nok)} forventet` : ''} />
+        {marked !== 'spania' && t.kapital_nok > 0 && (
+          <KpiKort lbl="Kapital bundet" stor={fmtNok(t.kapital_nok)} liten={t.forventet_fortjeneste_nok > 0 ? `+ ${fmtNok(t.forventet_fortjeneste_nok)} forventet` : ''} />
         )}
-        <KpiKort lbl="Aktive utleier" stor={`${t.aktive_utleier}`} liten="med leieinntekt > 0" />
+        {marked !== 'norge' && (
+          <KpiKort lbl="Aktive utleier" stor={`${t.aktive_utleier}`} liten="med leieinntekt > 0" />
+        )}
       </div>
 
       {/* Varsler */}
@@ -125,25 +132,26 @@ export function Dashboard({ onApneProsjekt }: Props) {
         </div>
       )}
 
-      {/* Filter */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        {([
-          { id: 'alle' as const, lbl: `Alle (${data.prosjekter.length})` },
-          { id: 'flipp' as const, lbl: `Flipp (${t.antall_flipp})` },
-          { id: 'utleie' as const, lbl: `Utleie (${t.antall_utleie})` },
-          { id: 'norge' as const, lbl: `Norge (${t.antall_norske})` },
-        ]).map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
-            style={{
-              padding: '6px 14px', borderRadius: RADIUS.sm, border: 'none', cursor: 'pointer',
-              fontSize: 12, fontWeight: 600,
-              background: filter === f.id ? FARGER.mork : FARGER.flateMid,
-              color: filter === f.id ? '#fff' : FARGER.tekstMid,
-            }}>
-            {f.lbl}
-          </button>
-        ))}
-      </div>
+      {/* Filter — flipp/utleie kun relevant for Spania (norske er alltid flipp i denne flyten) */}
+      {marked !== 'norge' && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          {([
+            { id: 'alle' as const, lbl: `Alle (${data.prosjekter.length})` },
+            { id: 'flipp' as const, lbl: `Flipp (${t.antall_flipp})` },
+            { id: 'utleie' as const, lbl: `Utleie (${t.antall_utleie})` },
+          ]).map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              style={{
+                padding: '6px 14px', borderRadius: RADIUS.sm, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600,
+                background: filter === f.id ? FARGER.mork : FARGER.flateMid,
+                color: filter === f.id ? '#fff' : FARGER.tekstMid,
+              }}>
+              {f.lbl}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Prosjekt-kort */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>

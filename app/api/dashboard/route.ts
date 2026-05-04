@@ -93,13 +93,19 @@ export async function GET(req: NextRequest) {
   try {
     const admin = hentSupabaseAdmin()
 
-    // Hent alle prosjekter (Norge + Spania).
-    // Bruker '*' fordi Supabase sin type-parser sliter med æ/ø/å i select-strengen
-    // — kostnaden er noen ekstra kolonner over nett, men for dashboard er det
-    // typisk < 100 prosjekter så det er greit.
-    const { data: prosjekterRader } = await admin.from('prosjekter')
-      .select('*')
-      .order('opprettet', { ascending: false })
+    // Filter på marked: ?marked=spania | ?marked=norge | (default = begge)
+    // Norge og Spania holdes adskilt i UI-en — hver har sitt eget dashboard.
+    const url = new URL(req.url)
+    const markedFilter = url.searchParams.get('marked')
+
+    let q = admin.from('prosjekter').select('*').order('opprettet', { ascending: false })
+    if (markedFilter === 'spania') {
+      // marked = null tolkes som Spania for bakoverkompatibilitet
+      q = q.or('marked.is.null,marked.eq.spania')
+    } else if (markedFilter === 'norge') {
+      q = q.eq('marked', 'norge')
+    }
+    const { data: prosjekterRader } = await q
     const prosjekter = (prosjekterRader || []) as Prosjekt[]
     const prosjektIds = prosjekter.map(p => p.id)
     const navnPerId: Record<string, string> = {}
