@@ -17,7 +17,10 @@ export function Oppgaver() {
   useEffect(() => { hentOppgaver() }, [])
 
   async function hentOppgaver() {
-    const { data } = await supabase.from('oppgaver').select('*').order('opprettet', { ascending: false })
+    const { data } = await supabase
+      .from('oppgaver')
+      .select('id, tittel, ansvar, prioritet, status, frist, opprettet')
+      .order('opprettet', { ascending: false })
     if (data) {
       const sortert = [...data].sort((a, b) => {
         if (a.status === 'ferdig' && b.status !== 'ferdig') return 1

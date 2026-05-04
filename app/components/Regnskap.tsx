@@ -10,6 +10,9 @@ import { Utleieanalyse } from './Utleieanalyse'
 import { SendteEposter } from './SendteEposter'
 import { ProsjektBilder } from './ProsjektBilder'
 import { UtleiePortalAdmin } from './UtleiePortalAdmin'
+import { Kvitteringer } from './Kvitteringer'
+import { Dokumenter } from './Dokumenter'
+import { Salgspakke } from './Salgspakke'
 import { lastNedPDF, byggProsjektPdf } from '../lib/pdf'
 import { visToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
@@ -25,9 +28,10 @@ export function Regnskap({
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
   const [pdfFremdrift, setPdfFremdrift] = useState('')
+  const [salgspakkeApen, setSalgspakkeApen] = useState(false)
 
   async function leggTilProsjekt() {
     if (!nyttProsjekt.navn) return
@@ -66,7 +70,8 @@ export function Regnskap({
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      // Vent litt før vi revoker — Safari/Firefox starter nedlasting asynkront
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
       visToast(`PDF lastet ned: ${pdf.filnavn}`)
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
@@ -200,6 +205,12 @@ export function Regnskap({
                   style={{ background: pdfFremdrift ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: pdfFremdrift ? 'wait' : 'pointer' }}>
                   {pdfFremdrift ? `⏳ ${pdfFremdrift}` : '📄 Last ned PDF-analyse'}
                 </button>
+                <button
+                  onClick={() => setSalgspakkeApen(true)}
+                  title="Bygg salgspakke — oppgraderinger, kostnader, før/etter-bilder og dokumenter samlet i én PDF"
+                  style={{ background: '#b89a6f', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  📦 Salgspakke
+                </button>
                 <button onClick={() => setRedigerProsjekt(redigerer ? null : { ...p })} style={{ background: redigerer ? '#f0ede5' : '#0e1726', color: redigerer ? '#444' : 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {redigerer ? 'Avbryt' : '✏️ Rediger'}
                 </button>
@@ -236,6 +247,8 @@ export function Regnskap({
               {([
                 { id: 'oversikt' as const, lbl: '📊 Oversikt' },
                 { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
+                { id: 'kvitteringer' as const, lbl: '💳 Kvitteringer' },
+                { id: 'dokumenter' as const, lbl: '📁 Dokumenter' },
                 ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
                 ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
                 { id: 'portal' as const, lbl: '🌐 Portal (leie/salg)' },
@@ -246,6 +259,14 @@ export function Regnskap({
                 </button>
               ))}
             </div>
+
+            {aktivTab === 'kvitteringer' && (
+              <Kvitteringer prosjektId={p.id} valuta="EUR" />
+            )}
+
+            {aktivTab === 'dokumenter' && (
+              <Dokumenter prosjektId={p.id} />
+            )}
 
             {aktivTab === 'oppussing' && p.kategori === 'flipp' && (
               <Oppussingsbudsjett prosjekt={p} onProsjektOppdatert={hent} />
@@ -380,6 +401,12 @@ export function Regnskap({
               </div>
             )}
 
+            <Salgspakke
+              prosjektId={p.id}
+              prosjektNavn={p.navn}
+              apen={salgspakkeApen}
+              onLukk={() => setSalgspakkeApen(false)}
+            />
           </div>
         )
       })()}

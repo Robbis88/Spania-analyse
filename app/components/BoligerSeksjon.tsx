@@ -9,8 +9,8 @@ export function BoligerSeksjon({
   onTilbake: () => void
   onÅpneProsjekt: (id: string) => void
 }) {
-  const { prosjekter, laster, slett } = useProsjekter()
-  const liste = prosjekter.filter(p => p.kategori === kategori)
+  // Filtrerer kategori server-side så vi ikke laster ned alle Spania-prosjekter for så å kaste halvparten
+  const { prosjekter: liste, laster, slett } = useProsjekter(kategori)
 
   const meta = kategori === 'flipp'
     ? { emoji: '🔨', tittel: 'Boligflipp', farge: '#0e1726', tomTekst: 'Ingen flipp-prosjekter ennå', suffix: 'prosjekt' }

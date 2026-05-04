@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { PortalHeader } from './components/portal/PortalHeader'
 import { InteresseModal } from './components/portal/InteresseModal'
 import { plukkOversettelse, useSprak, useValuta } from './lib/i18n'
@@ -42,6 +42,8 @@ export default function Forside() {
   const [filter, setFilter] = useState<Filter>('alle')
   const [modalApen, setModalApen] = useState(false)
 
+  // Henter listen én gang. Feilmeldingen lokaliseres senere via t.feil_oppstod
+  // i render — å ha t.feil_oppstod i deps trigger refetch ved språkbytte.
   useEffect(() => {
     let avbrutt = false
     fetch('/api/utleie-portal')
@@ -54,11 +56,11 @@ export default function Forside() {
       })
       .catch(e => {
         if (avbrutt) return
-        setFeil(e instanceof Error ? e.message : t.feil_oppstod)
+        setFeil(e instanceof Error ? e.message : '__feil__')
         setLaster(false)
       })
     return () => { avbrutt = true }
-  }, [t.feil_oppstod])
+  }, [])
 
   // Lytter til ?type= i URL ved navigering fra header
   useEffect(() => {
@@ -74,11 +76,11 @@ export default function Forside() {
     return () => window.removeEventListener('popstate', lesUrl)
   }, [])
 
-  const filtrert = boliger.filter(b =>
+  const filtrert = useMemo(() => boliger.filter(b =>
     filter === 'leie' ? b.til_leie :
     filter === 'salgs' ? b.til_salgs :
     true
-  )
+  ), [boliger, filter])
 
   return (
     <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh', color: MØRK }}>
@@ -118,7 +120,7 @@ export default function Forside() {
         </div>
 
         {laster && <div style={{ textAlign: 'center', color: '#888', padding: 80, fontSize: 14 }}>{t.henter}</div>}
-        {feil && <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil}</div>}
+        {feil && <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>}
 
         {!laster && !feil && filtrert.length === 0 && (
           <div style={{ textAlign: 'center', padding: 80, color: '#888' }}>
@@ -212,11 +214,28 @@ const FADE_MS = 700
 
 function BildeSlideshow({ bilder, alt, offsetMs, children }: { bilder: string[]; alt: string; offsetMs: number; children?: React.ReactNode }) {
   const [aktiv, setAktiv] = useState(0)
+  const [synlig, setSynlig] = useState(false)
   const timer = useRef<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // Aktiverer slideshow kun når kortet er nær viewport — sparer preload-trafikk
+  // og interval-CPU på off-screen kort. Bruker rootMargin så vi rekker å laste
+  // før brukeren scroller dit.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setSynlig(true)
+      return
+    }
+    const obs = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { setSynlig(true); obs.disconnect(); break }
+    }, { rootMargin: '200px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
-    if (bilder.length <= 1) return
-    // Forhåndslast bilder slik at fade ikke avslører lasting
+    if (!synlig || bilder.length <= 1) return
     bilder.forEach(url => { const img = new Image(); img.src = url })
 
     const startDelay = window.setTimeout(() => {
@@ -229,16 +248,18 @@ function BildeSlideshow({ bilder, alt, offsetMs, children }: { bilder: string[];
       window.clearTimeout(startDelay)
       if (timer.current) window.clearInterval(timer.current)
     }
-  }, [bilder, offsetMs])
+  }, [bilder, offsetMs, synlig])
 
   return (
-    <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#e8e4d8', position: 'relative', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100%', aspectRatio: '4 / 3', background: '#e8e4d8', position: 'relative', overflow: 'hidden' }}>
       {bilder.length === 0 ? (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56, color: '#ccc8b8' }}>—</div>
       ) : (
         bilder.map((url, i) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img key={i} src={url} alt={alt}
+            loading={i === 0 ? 'eager' : 'lazy'}
+            decoding="async"
             style={{
               position: 'absolute', inset: 0,
               width: '100%', height: '100%', objectFit: 'cover',

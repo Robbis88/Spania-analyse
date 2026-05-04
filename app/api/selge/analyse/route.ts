@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import type { BoligData, Prosjekt } from '../../../types'
 
 const client = new Anthropic()
@@ -168,6 +169,8 @@ function byggBoligKontekst(p: Prosjekt): string {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { prosjekt_id } = await req.json()
     if (typeof prosjekt_id !== 'string' || !prosjekt_id) {
@@ -219,8 +222,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data, generert: naa })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Salgsanalyse feil:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Salgsanalyse feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Salgsanalyse feilet' }, { status: 500 })
   }
 }

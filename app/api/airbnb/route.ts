@@ -1,9 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '../../lib/requireAuth'
 
 const client = new Anthropic()
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const body = await req.json()
     const bolig = body.bolig || body
@@ -270,8 +273,7 @@ Retningslinjer:
     return NextResponse.json({ analyse: analyseTekst, score: scoreData, data: airbnbData })
 
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('Airbnb feil:', melding)
-    return NextResponse.json({ error: melding }, { status: 500 })
+    console.error('Airbnb feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: 'Airbnb-analyse feilet' }, { status: 500 })
   }
 }

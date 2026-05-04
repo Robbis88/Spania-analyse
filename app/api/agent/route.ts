@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../lib/supabase'
+import { requireAuth } from '../../lib/requireAuth'
 import type { BoligData, OppussingBudsjett, OppussingPost, Prosjekt, Utleieanalyse } from '../../types'
 
 const client = new Anthropic()
@@ -239,6 +240,8 @@ function fiksToolUseKjede(input: Melding[]): Melding[] {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { meldinger, relatert_prosjekt_id } = await req.json()
 
@@ -263,8 +266,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ content: response.content, stop_reason: response.stop_reason })
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('Agent feil:', melding)
-    return NextResponse.json({ error: melding }, { status: 500 })
+    console.error('Agent feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: 'Agent-respons feilet' }, { status: 500 })
   }
 }

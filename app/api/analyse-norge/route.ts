@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '../../lib/requireAuth'
 
 const client = new Anthropic()
 
@@ -22,6 +23,8 @@ async function hentNettside(url: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { propertyText } = await req.json()
 
@@ -154,8 +157,7 @@ Sett tall til 0 og strenger til "" hvis ikke oppgitt. Hvis prisantydning ikke st
     const data = JSON.parse(clean)
     return NextResponse.json(data)
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('Norsk analyse-feil:', melding)
-    return NextResponse.json({ error: melding }, { status: 500 })
+    console.error('Norsk analyse-feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: 'Analyse feilet' }, { status: 500 })
   }
 }

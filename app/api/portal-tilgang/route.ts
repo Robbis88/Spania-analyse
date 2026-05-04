@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sjekkRateLimit } from '../../lib/rateLimit'
+import { portalToken } from '../../lib/portalAuth'
 
 const COOKIE = 'portal-tilgang'
 const TRETTI_DAGER = 60 * 60 * 24 * 30
 
 // Mottar passord, validerer mot PORTAL_PASSORD og setter cookie
-// så middleware slipper brukeren videre. HTTPOnly = ikke lesbart fra JS.
+// med en utledet token (ikke selve passordet) så cookien ikke avslører
+// hemmeligheten selv hvis den lekkes ut av HTTPOnly-rammen.
 export async function POST(req: NextRequest) {
+  const rl = sjekkRateLimit(req, 'portal-tilgang', { maks: 10, vinduMs: 60_000 })
+  if (!rl.ok) return rl.respons
   try {
     const passordForventet = process.env.PORTAL_PASSORD
     if (!passordForventet) {
@@ -19,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const res = NextResponse.json({ suksess: true })
-    res.cookies.set(COOKIE, passordForventet, {
+    res.cookies.set(COOKIE, await portalToken(passordForventet), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
     })
     return res
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Portal-tilgang feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Tilgang feilet' }, { status: 500 })
   }
 }

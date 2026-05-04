@@ -118,6 +118,9 @@ export type Prosjekt = {
   // Komplett kalkulator-state for norske prosjekter — lagres som JSONB
   // slik at hele flyten kan lastes inn igjen senere uten datatap.
   norsk_kalkulator_data?: Record<string, unknown> | null
+  // Salgsmål brukt i dashboard ROI-anbefaling
+  salgsmaal_eur?: number | null
+  salgsmaal_nok?: number | null
 }
 
 export type UtleieForesporsel = {
@@ -224,6 +227,73 @@ export type OppussingPost = {
   notat: string | null
   rekkefolge: number
   kilde_bilde_id?: string | null
+  // Status- og fremdriftsfelt (utvidelse 2026-05)
+  status?: 'ikke_startet' | 'pagar' | 'ferdig'
+  faktisk_kostnad?: number | null
+  frist?: string | null
+  ferdig_dato?: string | null
+  ansvarlig?: string | null
+}
+
+export type Dokument = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+
+  tittel: string
+  type: string
+  storage_sti: string
+  filnavn: string | null
+  mime_type: string | null
+
+  utstedt_dato: string | null
+  gyldig_til: string | null
+  notat: string | null
+  tagger: string[]
+}
+
+export type DokumentSjekkpunkt = {
+  id: string
+  prosjekt_id: string
+  dokument_type: string
+  status: 'mangler' | 'i_prosess' | 'ok' | 'ikke_relevant'
+  ansvarlig: string | null
+  frist: string | null
+  notat: string | null
+  oppdatert: string
+}
+
+export type Kvittering = {
+  id: string
+  prosjekt_id: string
+  bruker: string
+  opprettet: string
+
+  storage_sti: string
+  filnavn: string | null
+  mime_type: string | null
+
+  ocr_status: 'venter' | 'analysert' | 'feilet'
+  ocr_kjort: string | null
+  ocr_radata: Record<string, unknown> | null
+  ocr_feilmelding: string | null
+
+  dato: string | null
+  belop_eks_mva: number | null
+  mva: number | null
+  belop_inkl_mva: number | null
+  valuta: 'NOK' | 'EUR' | null
+  leverandor: string | null
+  leverandor_orgnr: string | null
+  dokument_nr: string | null
+
+  kategori: string | null
+  rom: string | null
+  oppussing_post_id: string | null
+
+  tagger: string[]
+  notat: string | null
 }
 
 export type AirbnbVurdering = 'sterk' | 'middels' | 'middels_svak' | 'svak'

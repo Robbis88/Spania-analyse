@@ -42,9 +42,12 @@ export function SendteEposter({ prosjektId }: { prosjektId: string }) {
   const [utvidetRad, setUtvidetRad] = useState<string | null>(null)
 
   const hent = useCallback(async () => {
-    const { data } = await supabase.from('eposter').select('*')
+    const { data } = await supabase
+      .from('eposter')
+      .select('id, til, mottaker_navn, formaal, emne, innhold_sendt, status, feilmelding, har_vedlegg, vedlegg_filnavn, sendt_av, sendt_tidspunkt, opprettet')
       .eq('relatert_prosjekt_id', prosjektId)
       .order('opprettet', { ascending: false })
+      .limit(50)
     if (data) setRader(data as EpostRad[])
     setLaster(false)
   }, [prosjektId])

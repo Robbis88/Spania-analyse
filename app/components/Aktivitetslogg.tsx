@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type LoggRad = {
@@ -53,7 +53,7 @@ export function Aktivitetslogg({ onTilbake }: { onTilbake: () => void }) {
     setLaster(true)
     const { data } = await supabase
       .from('aktivitetslogg')
-      .select('*')
+      .select('id, tidspunkt, bruker, handling, tabell, rad_id, detaljer')
       .order('tidspunkt', { ascending: false })
       .limit(200)
     if (data) setRader(data as LoggRad[])
@@ -65,8 +65,11 @@ export function Aktivitetslogg({ onTilbake }: { onTilbake: () => void }) {
     void hent()
   }, [hent])
 
-  const brukere = Array.from(new Set(rader.map(r => r.bruker))).sort()
-  const synlige = filterBruker === 'alle' ? rader : rader.filter(r => r.bruker === filterBruker)
+  const brukere = useMemo(() => Array.from(new Set(rader.map(r => r.bruker))).sort(), [rader])
+  const synlige = useMemo(
+    () => filterBruker === 'alle' ? rader : rader.filter(r => r.bruker === filterBruker),
+    [rader, filterBruker],
+  )
 
   return (
     <div>

@@ -1,6 +1,7 @@
 import Replicate from 'replicate'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../../lib/requireAuth'
 import { BUCKET_BILDER, lagStorageSti } from '../../../../lib/bilder'
 
 const replicate = new Replicate()
@@ -20,6 +21,8 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { id } = await ctx.params
     const url = new URL(req.url)
@@ -111,8 +114,7 @@ export async function GET(
 
     return NextResponse.json({ status: 'ferdig', bilde_id: bildeId })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Polling feilet:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Polling feilet:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Polling feilet' }, { status: 500 })
   }
 }

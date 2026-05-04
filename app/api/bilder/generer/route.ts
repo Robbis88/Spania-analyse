@@ -1,6 +1,7 @@
 import Replicate from 'replicate'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import { BUCKET_BILDER, STILER, TILLEGG_ETIKETT } from '../../../lib/bilder'
 import type { TilleggType } from '../../../lib/bilder'
 
@@ -91,6 +92,8 @@ function utledVisualiseringType(antallPoster: number, antallTillegg: number): 'o
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { original_bilde_id, generert_av, stil, egen_prompt } = await req.json()
 
@@ -164,8 +167,7 @@ export async function POST(req: NextRequest) {
       prompt,
     })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Generering start feilet:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Generering start feilet:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Bilde-generering feilet' }, { status: 500 })
   }
 }

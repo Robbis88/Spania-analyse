@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { requireAuth } from '../../../lib/requireAuth'
 import {
   FRA_ADRESSE, SVAR_ADRESSE, byggHtmlFraTekst, byggInnholdMedSignatur,
   erGyldigFormaal, erGyldigMottakerType, hentResendKlient, validerEpostadresse,
@@ -9,6 +10,8 @@ const nyId = () => Date.now().toString()
 const nyLoggId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const body = await req.json()
     const {
@@ -130,8 +133,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ suksess: false, feil: feilmelding, id: epostId }, { status: 502 })
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('E-post send feil:', melding)
-    return NextResponse.json({ suksess: false, feil: melding }, { status: 500 })
+    console.error('E-post send feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ suksess: false, feil: 'Sending feilet' }, { status: 500 })
   }
 }

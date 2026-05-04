@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import { BUCKET_BILDER } from '../../../lib/bilder'
 
 const VARIGHET_SEKUNDER = 60 * 60 // 1 time
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const body = await req.json()
     const ids: string[] = Array.isArray(body?.bilde_ids)
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ urler })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Signert-url feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Kunne ikke generere signert URL' }, { status: 500 })
   }
 }

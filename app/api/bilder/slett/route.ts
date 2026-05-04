@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import { BUCKET_BILDER } from '../../../lib/bilder'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { bilde_id, slettet_av } = await req.json()
     if (typeof bilde_id !== 'string' || !bilde_id) {
@@ -42,8 +45,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ suksess: true })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Slett-feil:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Slett-feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Slett feilet' }, { status: 500 })
   }
 }

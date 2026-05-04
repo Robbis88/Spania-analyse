@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { sjekkRateLimit } from '../../../lib/rateLimit'
 import { FRA_ADRESSE, byggHtmlFraTekst, hentResendKlient, validerEpostadresse } from '../../../lib/epost'
 
 const MOTTAKER_INTERN = process.env.UTLEIE_FORESPORSEL_EPOST || 'post@loeiendom.com'
@@ -9,6 +10,8 @@ const GYLDIG_INTERESSE = ['kjop', 'leie', 'begge'] as const
 // Skiller seg fra /foresporsel ved at den ikke er knyttet til en bestemt
 // dato eller spesifikk bolig (selv om prosjekt_id kan være med).
 export async function POST(req: NextRequest) {
+  const rl = sjekkRateLimit(req, 'interesse', { maks: 5, vinduMs: 60_000 })
+  if (!rl.ok) return rl.respons
   try {
     const body = await req.json()
     const navn = String(body?.navn || '').trim()
@@ -86,7 +89,7 @@ export async function POST(req: NextRequest) {
     if (feilmelding) return NextResponse.json({ feil: feilmelding }, { status: 502 })
     return NextResponse.json({ suksess: true })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Interesse feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Kunne ikke registrere interesse' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '../../lib/requireAuth'
 
 const client = new Anthropic()
 
@@ -83,6 +84,8 @@ function beregnVFT(type: string, beliggenhet: string): number {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { propertyText } = await req.json()
 
@@ -170,8 +173,7 @@ Sett tall til 0 hvis ikke oppgitt. Sett strenger til "" hvis ikke oppgitt. Sett 
     return NextResponse.json(data)
 
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('Feil:', melding)
-    return NextResponse.json({ error: melding }, { status: 500 })
+    console.error('Feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: 'Analyse feilet' }, { status: 500 })
   }
 }

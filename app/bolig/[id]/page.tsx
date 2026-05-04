@@ -60,6 +60,8 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
     return () => window.removeEventListener('resize', sjekk)
   }, [])
 
+  // Henter boligen når id endres. Feilteksten lokaliseres senere via t.feil_oppstod
+  // i render — å ha t.feil_oppstod i deps trigger refetch ved språkbytte.
   useEffect(() => {
     let avbrutt = false
     fetch(`/api/utleie-portal/${id}`)
@@ -72,11 +74,11 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
       })
       .catch(e => {
         if (avbrutt) return
-        setFeil(e instanceof Error ? e.message : t.feil_oppstod)
+        setFeil(e instanceof Error ? e.message : '__feil__')
         setLaster(false)
       })
     return () => { avbrutt = true }
-  }, [id, t.feil_oppstod])
+  }, [id])
 
   return (
     <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh', color: MØRK }}>
@@ -86,7 +88,7 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
         {laster && <div style={{ textAlign: 'center', color: '#888', padding: 120 }}>{t.henter}</div>}
         {feil && (
           <div style={{ maxWidth: 900, margin: '40px auto', padding: '0 28px' }}>
-            <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil}</div>
+            <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>
             <Link href="/" style={{ display: 'inline-block', marginTop: 20, fontSize: 13, color: '#666', textDecoration: 'none' }}>{t.tilbake_til_boliger}</Link>
           </div>
         )}
@@ -280,7 +282,7 @@ function BildeGalleri({ bilder, aktiv, onVelg }: { bilder: { id: string; url: st
       <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e8e4d8', overflow: 'hidden', marginBottom: 14 }}>
         {aktivBilde.url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={aktivBilde.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={aktivBilde.url} alt="" loading="eager" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         )}
       </div>
       {bilder.length > 1 && (
@@ -297,7 +299,7 @@ function BildeGalleri({ bilder, aktiv, onVelg }: { bilder: { id: string; url: st
               }}>
               {b.url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={b.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <img src={b.url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               )}
             </button>
           ))}

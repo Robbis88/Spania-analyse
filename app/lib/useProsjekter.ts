@@ -5,7 +5,7 @@ import type { Prosjekt } from '../types'
 import { hentAktivBruker } from './aktivBruker'
 import { loggAktivitet } from './logg'
 
-export function useProsjekter() {
+export function useProsjekter(kategori?: 'flipp' | 'utleie') {
   const [prosjekter, setProsjekter] = useState<Prosjekt[]>([])
   const [laster, setLaster] = useState(true)
 
@@ -13,14 +13,16 @@ export function useProsjekter() {
     // Hent kun Spania-prosjekter — norske har egen fane med egen visning
     // (NOK-format, egen kalkulator). marked = null tolkes som Spania for
     // bakoverkompatibilitet med rader fra før marked-feltet ble innført.
-    const { data } = await supabase
+    let q = supabase
       .from('prosjekter')
       .select('*')
       .or('marked.is.null,marked.eq.spania')
       .order('opprettet', { ascending: false })
+    if (kategori) q = q.eq('kategori', kategori)
+    const { data } = await q
     if (data) setProsjekter(data as Prosjekt[])
     setLaster(false)
-  }, [])
+  }, [kategori])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

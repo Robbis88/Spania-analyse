@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 
 const klient = new Anthropic()
 
@@ -85,6 +86,8 @@ function robustParseJson(raw: string): unknown {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { prosjekt_id } = await req.json()
     if (!prosjekt_id) return NextResponse.json({ feil: 'prosjekt_id mangler' }, { status: 400 })
@@ -134,8 +137,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ suksess: true, oversettelser_oppdatert: oppdatering.oversettelser_oppdatert })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Oversett-feil:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Oversett-feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Oversettelse feilet' }, { status: 500 })
   }
 }

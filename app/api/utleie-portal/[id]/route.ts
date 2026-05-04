@@ -30,10 +30,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       .eq('er_marketing', true)
       .order('marketing_rekkefolge', { ascending: true, nullsFirst: false })
 
-    const bildeUrler = await Promise.all((bilder || []).map(async b => {
-      const { data: signert } = await admin.storage.from(BUCKET_BILDER).createSignedUrl(b.storage_sti, VARIGHET_SEKUNDER)
-      return { id: b.id, url: signert?.signedUrl || null }
-    }))
+    // Én batch-signering for alle marketing-bildene
+    const stier = (bilder || []).map(b => b.storage_sti)
+    const urlPerSti = new Map<string, string>()
+    if (stier.length > 0) {
+      const { data: signerte } = await admin.storage.from(BUCKET_BILDER).createSignedUrls(stier, VARIGHET_SEKUNDER)
+      for (const s of signerte || []) {
+        if (s.path && s.signedUrl) urlPerSti.set(s.path, s.signedUrl)
+      }
+    }
+    const bildeUrler = (bilder || []).map(b => ({ id: b.id, url: urlPerSti.get(b.storage_sti) || null }))
 
     return NextResponse.json({
       bolig: {
@@ -69,7 +75,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       },
     })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Utleie-portal detalj feilet:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Kunne ikke hente bolig' }, { status: 500 })
   }
 }

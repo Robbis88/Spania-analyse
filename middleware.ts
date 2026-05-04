@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { portalToken } from './app/lib/portalAuth'
 
 // Låser den offentlige portalen bak et passord under testing.
 // Admin (/admin) har egen innlogging — vi rører ikke den.
@@ -6,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const COOKIE = 'portal-tilgang'
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const passord = process.env.PORTAL_PASSORD
 
@@ -32,9 +33,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Sjekk cookie
+  // Sjekk cookie mot utledet token (vi lagrer ikke selve passordet)
   const tilgang = req.cookies.get(COOKIE)?.value
-  if (tilgang === passord) return NextResponse.next()
+  if (tilgang && tilgang === await portalToken(passord)) return NextResponse.next()
 
   // Send til låst-siden — bevar redirect
   const url = req.nextUrl.clone()

@@ -25,7 +25,10 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
 
   const hentBilder = useCallback(async () => {
     setLasterBilder(true)
-    const { data } = await supabase.from('prosjekt_bilder').select('*')
+    // Henter bare feltene UI faktisk bruker — ingen tunge AI-JSON-felt
+    const { data } = await supabase
+      .from('prosjekt_bilder')
+      .select('id, prosjekt_id, type, kategori, storage_sti, er_marketing, marketing_rekkefolge')
       .eq('prosjekt_id', prosjekt.id)
       .eq('type', 'original')
       .order('opprettet', { ascending: false })

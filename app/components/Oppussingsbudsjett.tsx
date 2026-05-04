@@ -1,9 +1,9 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { AIForslagOppussing, AIForslagTillegg, LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt, Prosjektbilde } from '../types'
-import { inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
+import { FARGER, RADIUS, inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
 import {
   LOPENDE_FELTER, POSTE_FORSLAG, STANDARD_LABEL,
   bruttoFortjeneste, erEstimatUtdatert, lopendePerManed, lopendeTotal,
@@ -13,6 +13,26 @@ import { REGULERING_ETIKETT, REGULERING_FARGE, TILLEGG_ETIKETT, type ReguleringV
 import { visToast } from '../lib/toast'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
+
+type PostStatus = 'ikke_startet' | 'pagar' | 'ferdig'
+
+const STATUS_VALG: Array<{ id: PostStatus; lbl: string; bg: string; tekst: string }> = [
+  { id: 'ikke_startet', lbl: '○ Ikke startet', bg: '#f0ede5', tekst: '#5a6171' },
+  { id: 'pagar',        lbl: '◐ Pågår',       bg: '#fff8e1', tekst: '#7a4a08' },
+  { id: 'ferdig',       lbl: '● Ferdig',      bg: '#e8f5ed', tekst: '#1a4d2b' },
+]
+
+// Effektiv faktisk-kostnad: brukerens manuelle verdi om satt, ellers summen
+// fra koblede kvitteringer. Brukes i overskridelse- og total-beregning.
+function effektivFaktisk(p: OppussingPost, kvitteringSum: number): number {
+  if (typeof p.faktisk_kostnad === 'number' && Number.isFinite(p.faktisk_kostnad)) {
+    return p.faktisk_kostnad
+  }
+  return kvitteringSum
+}
+
+// 10% over budsjett = varsel. Kan justeres senere.
+const OVERSKRIDELSE_TERSKEL = 1.10
 
 function tomtBudsjett(boligId: string): OppussingBudsjett {
   return {
@@ -34,12 +54,28 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
   const boligId = prosjekt.id
   const [budsjett, setBudsjett] = useState<OppussingBudsjett | null>(null)
   const [poster, setPoster] = useState<OppussingPost[]>([])
+  const [kvitteringSum, setKvitteringSum] = useState<Record<string, number>>({})
   const [laster, setLaster] = useState(true)
   const [estimerer, setEstimerer] = useState(false)
   const [feil, setFeil] = useState('')
   const [egenPost, setEgenPost] = useState('')
   const [forslagOppussing, setForslagOppussing] = useState<Array<{ bildeId: string; index: number; data: AIForslagOppussing }>>([])
   const [forslagTillegg, setForslagTillegg] = useState<Array<{ bildeId: string; index: number; data: AIForslagTillegg }>>([])
+
+  const hentKvitteringSum = useCallback(async () => {
+    const { data } = await supabase
+      .from('kvitteringer')
+      .select('belop_inkl_mva, oppussing_post_id')
+      .eq('prosjekt_id', boligId)
+      .not('oppussing_post_id', 'is', null)
+    const map: Record<string, number> = {}
+    for (const k of (data || []) as Array<{ belop_inkl_mva: number | null; oppussing_post_id: string }>) {
+      if (k.belop_inkl_mva && k.oppussing_post_id) {
+        map[k.oppussing_post_id] = (map[k.oppussing_post_id] || 0) + k.belop_inkl_mva
+      }
+    }
+    setKvitteringSum(map)
+  }, [boligId])
 
   // Synker sum av poster til prosjekt.oppussing_faktisk så totalberegningene (ROI etc) stemmer.
   async function synkOppussingFaktisk(nyePosters: OppussingPost[]) {
@@ -81,7 +117,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
       .from('oppussing_poster').select('*').eq('budsjett_id', b.id).order('rekkefolge')
     const lastedePosters = (pRader || []) as OppussingPost[]
     setPoster(lastedePosters)
-    await hentAIForslag()
+    await Promise.all([hentAIForslag(), hentKvitteringSum()])
 
     // Retroaktiv synk: hvis sum ikke matcher lagret oppussing_faktisk, fiks det.
     const sum = lastedePosters.reduce((s, p) => s + (p.kostnad || 0), 0)
@@ -91,7 +127,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
     }
 
     setLaster(false)
-  }, [boligId, hentAIForslag, prosjekt.oppussing_faktisk, onProsjektOppdatert])
+  }, [boligId, hentAIForslag, hentKvitteringSum, prosjekt.oppussing_faktisk, onProsjektOppdatert])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -233,6 +269,18 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
     setEstimerer(false)
   }
 
+  // Status- og fremdrifts-aggregat — må være før early return for hooks-regelen
+  const fremdrift = useMemo(() => {
+    const ferdig = poster.filter(p => p.status === 'ferdig').length
+    const pagar  = poster.filter(p => p.status === 'pagar').length
+    const sumFaktisk = poster.reduce((s, p) => s + effektivFaktisk(p, kvitteringSum[p.id] || 0), 0)
+    const overskridelser = poster.filter(p => {
+      const fk = effektivFaktisk(p, kvitteringSum[p.id] || 0)
+      return p.kostnad > 0 && fk > p.kostnad * OVERSKRIDELSE_TERSKEL
+    }).length
+    return { ferdig, pagar, totalt: poster.length, sumFaktisk, overskridelser }
+  }, [poster, kvitteringSum])
+
   if (laster || !budsjett) {
     return <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>
   }
@@ -283,26 +331,138 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
       )}
 
       <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>🧱 Oppussingsposter</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>🧱 Oppussingsposter</div>
+          {poster.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                {fremdrift.ferdig}/{fremdrift.totalt} ferdig
+              </span>
+              {fremdrift.pagar > 0 && (
+                <span style={{ background: '#fff8e1', color: '#7a4a08', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                  {fremdrift.pagar} pågår
+                </span>
+              )}
+              {fremdrift.overskridelser > 0 && (
+                <span style={{ background: '#fde8ec', color: '#7a0c1e', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                  ⚠️ {fremdrift.overskridelser} over budsjett
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {poster.length === 0 && (
           <div style={{ fontSize: 13, color: '#888', marginBottom: 12, fontStyle: 'italic' }}>Ingen poster ennå – legg til under.</div>
         )}
 
-        {poster.map(p => (
-          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-            <input style={inputStyle} value={p.navn} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, navn: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { navn: e.target.value })} placeholder="Navn" />
-            <input style={inputStyle} type="number" value={p.kostnad || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, kostnad: Number(e.target.value) } : pp))} onBlur={e => oppdaterPost(p.id, { kostnad: Number(e.target.value) || 0 })} placeholder="€" />
-            <input style={inputStyle} value={p.notat || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, notat: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { notat: e.target.value || null })} placeholder="Notat (valgfritt)" />
-            <button onClick={() => slettPost(p.id)} style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✕</button>
-          </div>
-        ))}
+        {poster.map(p => {
+          const status = (p.status || 'ikke_startet') as PostStatus
+          const statusVal = STATUS_VALG.find(s => s.id === status) || STATUS_VALG[0]
+          const kvSum = kvitteringSum[p.id] || 0
+          const harManuell = typeof p.faktisk_kostnad === 'number' && Number.isFinite(p.faktisk_kostnad)
+          const fk = effektivFaktisk(p, kvSum)
+          const overskredet = p.kostnad > 0 && fk > p.kostnad * OVERSKRIDELSE_TERSKEL
+          const diff = fk - p.kostnad
+          return (
+            <div key={p.id} style={{
+              border: `1px solid ${overskredet ? '#C8102E66' : FARGER.kantLys}`,
+              borderRadius: RADIUS.md, padding: 12, marginBottom: 8,
+              background: overskredet ? '#fff8f8' : '#fff',
+            }}>
+              {/* Linje 1: navn / budsjett / notat / slett */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                <input style={inputStyle} value={p.navn} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, navn: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { navn: e.target.value })} placeholder="Navn" />
+                <input style={inputStyle} type="number" value={p.kostnad || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, kostnad: Number(e.target.value) } : pp))} onBlur={e => oppdaterPost(p.id, { kostnad: Number(e.target.value) || 0 })} placeholder="Budsjett €" />
+                <input style={inputStyle} value={p.notat || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, notat: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { notat: e.target.value || null })} placeholder="Notat (valgfritt)" />
+                <button onClick={() => slettPost(p.id)} style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✕</button>
+              </div>
+
+              {/* Linje 2: status / faktisk / frist / ansvarlig */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1.5fr 1fr 1fr', gap: 8, alignItems: 'center' }}>
+                <select
+                  value={status}
+                  onChange={e => oppdaterPost(p.id, {
+                    status: e.target.value as PostStatus,
+                    // Sett ferdig_dato når posten markeres ferdig (om ikke allerede satt)
+                    ...(e.target.value === 'ferdig' && !p.ferdig_dato ? { ferdig_dato: new Date().toISOString().slice(0, 10) } : {}),
+                  })}
+                  style={{ padding: '6px 10px', fontSize: 12, fontWeight: 600, borderRadius: RADIUS.sm, border: 'none', background: statusVal.bg, color: statusVal.tekst, cursor: 'pointer' }}>
+                  {STATUS_VALG.map(s => <option key={s.id} value={s.id}>{s.lbl}</option>)}
+                </select>
+
+                {/* Faktisk kostnad — manuell verdi eller auto fra kvitteringer */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    style={{ ...inputStyle, color: overskredet ? '#7a0c1e' : '#0e1726', fontWeight: harManuell ? 600 : 400 }}
+                    type="number"
+                    placeholder={kvSum > 0 ? `Auto: €${Math.round(kvSum).toLocaleString('nb-NO')}` : 'Faktisk €'}
+                    defaultValue={p.faktisk_kostnad ?? ''}
+                    key={`fk-${p.id}-${p.faktisk_kostnad ?? 'null'}`}
+                    onBlur={e => {
+                      const v = e.target.value.trim()
+                      oppdaterPost(p.id, { faktisk_kostnad: v === '' ? null : Number(v) })
+                    }}
+                  />
+                  {kvSum > 0 && !harManuell && (
+                    <span title={`Sum av ${Object.keys(kvitteringSum).length > 0 ? 'koblede ' : ''}kvitteringer`} style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>📎 auto</span>
+                  )}
+                  {kvSum > 0 && harManuell && Math.abs(kvSum - (p.faktisk_kostnad || 0)) > 1 && (
+                    <button
+                      onClick={() => oppdaterPost(p.id, { faktisk_kostnad: null })}
+                      title={`Bytt til kvittering-sum: €${Math.round(kvSum).toLocaleString('nb-NO')}`}
+                      style={{ background: 'none', border: 'none', fontSize: 11, color: FARGER.gull, cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}>
+                      ↺ kvitt.
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  style={inputStyle} type="date"
+                  defaultValue={p.frist || ''}
+                  key={`frist-${p.id}-${p.frist ?? 'null'}`}
+                  onBlur={e => oppdaterPost(p.id, { frist: e.target.value || null })}
+                />
+
+                <input
+                  style={inputStyle} placeholder="Ansvarlig"
+                  defaultValue={p.ansvarlig || ''}
+                  key={`ans-${p.id}-${p.ansvarlig ?? 'null'}`}
+                  onBlur={e => oppdaterPost(p.id, { ansvarlig: e.target.value || null })}
+                />
+              </div>
+
+              {/* Diff-stripe (vises bare hvis det er en faktisk-verdi) */}
+              {fk > 0 && p.kostnad > 0 && (
+                <div style={{ marginTop: 8, fontSize: 11, color: overskredet ? '#7a0c1e' : diff > 0 ? '#7a4a08' : '#1a4d2b', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>
+                    Faktisk: <strong>€{Math.round(fk).toLocaleString('nb-NO')}</strong> {' '}
+                    vs budsjett €{Math.round(p.kostnad).toLocaleString('nb-NO')}
+                  </span>
+                  <span style={{ fontWeight: 600 }}>
+                    {diff > 0 ? '+' : ''}€{Math.round(diff).toLocaleString('nb-NO')} ({p.kostnad > 0 ? ((diff / p.kostnad) * 100).toFixed(0) : 0}%)
+                    {overskredet && ' ⚠️'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )
+        })}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', marginTop: 6, fontSize: 14, fontWeight: 700 }}>
-          <span title="Oppdaterer automatisk 'Oppussing faktisk' på prosjektet">Sum poster</span><span>{fmt(posterSum)}</span>
+          <span title="Oppdaterer automatisk 'Oppussing faktisk' på prosjektet">Sum budsjett</span><span>{fmt(posterSum)}</span>
         </div>
-        <div style={{ fontSize: 11, color: '#888', textAlign: 'right', marginTop: -6, marginBottom: 4 }}>
-          Synkes automatisk til &quot;Oppussing faktisk&quot; i oversikten
+        {fremdrift.sumFaktisk > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
+            <span style={{ color: '#666' }}>Sum faktisk så langt</span>
+            <span style={{ fontWeight: 600, color: fremdrift.sumFaktisk > posterSum ? '#7a0c1e' : '#1a4d2b' }}>
+              {fmt(fremdrift.sumFaktisk)}
+              {posterSum > 0 && <span style={{ fontSize: 11, color: '#888', marginLeft: 6 }}>({Math.round((fremdrift.sumFaktisk / posterSum) * 100)}% av budsjett)</span>}
+            </span>
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: '#888', textAlign: 'right', marginTop: 4, marginBottom: 4 }}>
+          Sum budsjett synkes automatisk til &quot;Oppussing faktisk&quot; i oversikten
         </div>
 
         <div style={{ marginTop: 16, fontSize: 12, color: '#666', marginBottom: 6 }}>Legg til forhåndsdefinert post:</div>
@@ -400,7 +560,8 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         {[
           { lbl: 'Kjøpesum', val: fmt(prosjekt.kjøpesum) },
           { lbl: 'Kjøpskostnader', val: fmt(prosjekt.kjøpskostnader) },
-          { lbl: 'Sum oppussingsposter', val: fmt(posterSum) },
+          { lbl: 'Sum oppussingsposter (budsjett)', val: fmt(posterSum) },
+          ...(fremdrift.sumFaktisk > 0 ? [{ lbl: '↳ Faktisk så langt', val: fmt(fremdrift.sumFaktisk) }] : []),
           { lbl: `Løpende kostnader (${budsjett.antall_maneder} mnd)`, val: fmt(lopendeSum) },
         ].map((r, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>

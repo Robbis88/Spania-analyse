@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { requireAuth } from '../../../lib/requireAuth'
 import type { BoligData, OppussingBudsjett, OppussingPost, Prosjekt, AirbnbScore } from '../../../types'
 
 const client = new Anthropic()
@@ -12,6 +13,8 @@ const STANDARD_TEKST: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { boligId } = await req.json()
     if (!boligId) {
@@ -125,8 +128,7 @@ Når du estimerer salgspris etter oppussing:
     return NextResponse.json(estimat)
 
   } catch (error) {
-    const melding = error instanceof Error ? error.message : String(error)
-    console.error('Salgsestimat feil:', melding)
-    return NextResponse.json({ error: melding }, { status: 500 })
+    console.error('Salgsestimat feil:', error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: 'Salgsestimat feilet' }, { status: 500 })
   }
 }

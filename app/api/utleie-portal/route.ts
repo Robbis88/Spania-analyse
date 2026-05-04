@@ -36,17 +36,24 @@ export async function GET(req: NextRequest) {
       .order('marketing_rekkefolge', { ascending: true, nullsFirst: false })
 
     const bilderPerProsjekt: Record<string, Array<{ id: string; sti: string }>> = {}
+    const alleStier: string[] = []
     for (const b of bilder || []) {
       (bilderPerProsjekt[b.prosjekt_id] ||= []).push({ id: b.id, sti: b.storage_sti })
+      alleStier.push(b.storage_sti)
     }
 
-    const boliger = await Promise.all((prosjekter || []).map(async p => {
-      const liste = bilderPerProsjekt[p.id] || []
-      const bilde_urler: string[] = []
-      for (const b of liste) {
-        const { data: signert } = await admin.storage.from(BUCKET_BILDER).createSignedUrl(b.sti, VARIGHET_SEKUNDER)
-        if (signert?.signedUrl) bilde_urler.push(signert.signedUrl)
+    // Én batch-signering for alle bildene — fjerner N×M round-trips mot Storage
+    const urlPerSti = new Map<string, string>()
+    if (alleStier.length > 0) {
+      const { data: signerte } = await admin.storage.from(BUCKET_BILDER).createSignedUrls(alleStier, VARIGHET_SEKUNDER)
+      for (const s of signerte || []) {
+        if (s.path && s.signedUrl) urlPerSti.set(s.path, s.signedUrl)
       }
+    }
+
+    const boliger = (prosjekter || []).map(p => {
+      const liste = bilderPerProsjekt[p.id] || []
+      const bilde_urler = liste.map(b => urlPerSti.get(b.sti)).filter((u): u is string => !!u)
       return {
         id: p.id,
         navn: p.navn,
@@ -67,11 +74,11 @@ export async function GET(req: NextRequest) {
         bilde_url: bilde_urler[0] || null,
         bilde_urler,
       }
-    }))
+    })
 
     return NextResponse.json({ boliger })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Utleie-portal listing feilet:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Kunne ikke hente boliger' }, { status: 500 })
   }
 }

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import { BUCKET_BILDER, MAKS_BREDDE_PIKSLER, MAKS_STORRELSE_BYTES, TILLATTE_MIME, lagStorageSti } from '../../../lib/bilder'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const form = await req.formData()
     const prosjekt_id = form.get('prosjekt_id')
@@ -85,8 +88,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ suksess: true, bilde_id: bildeId })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Opplasting feil:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Opplasting feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Opplasting feilet' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { requireAuth } from '../../../lib/requireAuth'
 import { AI_MODELL_VERSJON, BUCKET_BILDER, KATEGORIER, TILLEGG_TYPER } from '../../../lib/bilder'
 import type { BoligData, Prosjekt } from '../../../types'
 
@@ -170,6 +171,8 @@ function byggBoligKontekst(p: Prosjekt | null): string {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
   try {
     const { bilde_ids, analysert_av } = await req.json()
     if (!Array.isArray(bilde_ids) || bilde_ids.length === 0) {
@@ -218,8 +221,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ suksess, feilet, detaljer: resultater })
   } catch (e) {
-    const melding = e instanceof Error ? e.message : String(e)
-    console.error('Analyse feil:', melding)
-    return NextResponse.json({ feil: melding }, { status: 500 })
+    console.error('Analyse feil:', e instanceof Error ? e.message : String(e))
+    return NextResponse.json({ feil: 'Bilde-analyse feilet' }, { status: 500 })
   }
 }

@@ -1,19 +1,25 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { Innlogging } from '../components/Innlogging'
-import { Oppgaver } from '../components/Oppgaver'
-import { AgentChat } from '../components/AgentChat'
-import { Boliganalyse } from '../components/Boliganalyse'
-import { BoligerSeksjon } from '../components/BoligerSeksjon'
-import { Selge } from '../components/Selge'
-import { Regnskap } from '../components/Regnskap'
-import { Aktivitetslogg } from '../components/Aktivitetslogg'
-import { NorskeBoliger } from '../components/NorskeBoliger'
 import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from '../lib/aktivBruker'
 import { supabase } from '../lib/supabase'
 import { BREAKPOINT, FARGER } from '../lib/styles'
+
+// Lazy-loadede seksjoner — bare den brukeren åpner havner i nedlastet JS.
+// Bytter ut ~3000+ linjer fra initial admin-bundle.
+const laster = () => <div style={{ textAlign: 'center', padding: 60, color: FARGER.tekstLys }}>Laster…</div>
+const Oppgaver = dynamic(() => import('../components/Oppgaver').then(m => m.Oppgaver), { ssr: false, loading: laster })
+const AgentChat = dynamic(() => import('../components/AgentChat').then(m => m.AgentChat), { ssr: false, loading: laster })
+const Boliganalyse = dynamic(() => import('../components/Boliganalyse').then(m => m.Boliganalyse), { ssr: false, loading: laster })
+const BoligerSeksjon = dynamic(() => import('../components/BoligerSeksjon').then(m => m.BoligerSeksjon), { ssr: false, loading: laster })
+const Selge = dynamic(() => import('../components/Selge').then(m => m.Selge), { ssr: false, loading: laster })
+const Regnskap = dynamic(() => import('../components/Regnskap').then(m => m.Regnskap), { ssr: false, loading: laster })
+const Aktivitetslogg = dynamic(() => import('../components/Aktivitetslogg').then(m => m.Aktivitetslogg), { ssr: false, loading: laster })
+const NorskeBoliger = dynamic(() => import('../components/NorskeBoliger').then(m => m.NorskeBoliger), { ssr: false, loading: laster })
+const Dashboard = dynamic(() => import('../components/Dashboard').then(m => m.Dashboard), { ssr: false, loading: laster })
 
 type Seksjon = 'analyse' | 'norge' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'logg' | null
 
@@ -123,6 +129,7 @@ export default function Home() {
 
   function loggUt() {
     fjernAktivBruker()
+    fetch('/api/auth', { method: 'DELETE' }).catch(() => {})
     setBruker(null)
     setAktivSeksjon(null)
     setVisProsjekt(null)
@@ -253,7 +260,12 @@ export default function Home() {
             </div>
           </section>
 
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 28px 80px' }}>
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 28px 16px' }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>OVERSIKT</div>
+            <Dashboard onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
+          </section>
+
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 28px 80px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: 48 }}>
               <div>
                 <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>SNARVEIER</div>
