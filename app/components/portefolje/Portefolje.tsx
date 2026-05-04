@@ -5,7 +5,7 @@ import { hentAktivBruker } from '../../lib/aktivBruker'
 import { visToast } from '../../lib/toast'
 import { FARGER, RADIUS } from '../../lib/styles'
 import {
-  cashflowMnd, gjeldendeLeieMnd, sisteVerdi, sumKostnaderPerMnd,
+  bruttoYield, cashflowMnd, gjeldendeLeieMnd, sisteVerdi, sumKostnaderPerMnd,
   totalLaanKostnadMnd, totalRestgjeld,
 } from '../../lib/portefolje'
 import type {
@@ -13,6 +13,7 @@ import type {
 } from '../../types'
 import { EiendomKort, type EiendomKortData } from './EiendomKort'
 import { EiendomDetalj } from './EiendomDetalj'
+import { PortefoljeDashboard } from './PortefoljeDashboard'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
@@ -72,6 +73,18 @@ export function Portefolje({ onTilbake }: Props) {
       const leieMnd = gjeldendeLeieMnd(pInnt) || (p.leieinntekt_mnd || 0)
       const kostnaderM = sumKostnaderPerMnd(pKost)
       const laanM = totalLaanKostnadMnd(pLaan)
+
+      // Verdiøkning basert på vurderingshistorikk (krever min. 2 vurderinger)
+      let verdiokningKr: number | null = null
+      let verdiokningPct: number | null = null
+      if (pVurd.length >= 2) {
+        const sortert = [...pVurd].sort((a, b) => (a.dato || '').localeCompare(b.dato || ''))
+        const eldst = sortert[0]
+        const nyest = sortert[sortert.length - 1]
+        verdiokningKr = nyest.verdi - eldst.verdi
+        verdiokningPct = eldst.verdi > 0 ? (verdiokningKr / eldst.verdi) * 100 : 0
+      }
+
       return {
         ...p,
         total_verdi: verdi,
@@ -80,6 +93,9 @@ export function Portefolje({ onTilbake }: Props) {
         kostnader_mnd: kostnaderM,
         laan_mnd: laanM,
         cashflow_mnd: cashflowMnd({ leieMnd, kostnaderMnd: kostnaderM, laanMnd: laanM }),
+        verdiokning_kr: verdiokningKr,
+        verdiokning_pct: verdiokningPct,
+        yield_pct: bruttoYield(leieMnd, verdi),
       }
     })
     setEiendommer(data)
@@ -213,11 +229,17 @@ export function Portefolje({ onTilbake }: Props) {
       )}
 
       {!laster && eiendommer.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
-          {eiendommer.map(e => (
-            <EiendomKort key={e.id} e={e} onApne={() => setValgt(e.id)} />
-          ))}
-        </div>
+        <>
+          <PortefoljeDashboard eiendommer={eiendommer} onApne={id => setValgt(id)} />
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12 }}>
+            EIENDOMMER
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+            {eiendommer.map(e => (
+              <EiendomKort key={e.id} e={e} onApne={() => setValgt(e.id)} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

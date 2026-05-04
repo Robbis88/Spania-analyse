@@ -10,11 +10,12 @@ import {
 } from '../../../lib/portefolje'
 import type { EiendomLaan } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
+import {
+  Felt, SumKort, fmtNok, numOrNull, inputStil,
+  knappStilPrimaer, knappStilSekundaer, knappStilSlett,
+} from './faneUi'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
-
-const fmtNok = (n: number | null | undefined) =>
-  (n === null || n === undefined || !Number.isFinite(n) || n === 0) ? '–' : Math.round(n).toLocaleString('nb-NO') + ' kr'
 
 const fmtPct = (n: number | null | undefined) =>
   (n === null || n === undefined || !Number.isFinite(n)) ? '–' : n.toFixed(2) + '%'
@@ -238,24 +239,6 @@ function Skjema({ redigert, setRedigert, onLagre, onAvbryt }: {
   )
 }
 
-function Felt({ lbl, full, children }: { lbl: string; full?: boolean; children: React.ReactNode }) {
-  return (
-    <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
-      <label style={{ fontSize: 10, color: FARGER.tekstMid, marginBottom: 4, display: 'block', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</label>
-      {children}
-    </div>
-  )
-}
-
-function SumKort({ lbl, verdi }: { lbl: string; verdi: string }) {
-  return (
-    <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14 }}>
-      <div style={{ fontSize: 11, color: FARGER.tekstLys, marginBottom: 4 }}>{lbl}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork }}>{verdi}</div>
-    </div>
-  )
-}
-
 function Stress({ lbl, mnd, basis }: { lbl: string; mnd: number; basis?: number }) {
   const diff = basis !== undefined ? mnd - basis : 0
   return (
@@ -269,29 +252,3 @@ function Stress({ lbl, mnd, basis }: { lbl: string; mnd: number; basis?: number 
   )
 }
 
-function numOrNull(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null
-  const n = Number(v)
-  return Number.isFinite(n) ? n : null
-}
-
-const inputStil: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', fontSize: 13,
-  border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, background: '#fff',
-  boxSizing: 'border-box', fontFamily: 'inherit',
-}
-
-const knappStilPrimaer: React.CSSProperties = {
-  background: FARGER.mork, color: '#fff', border: 'none', padding: '8px 16px',
-  borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-}
-
-const knappStilSekundaer: React.CSSProperties = {
-  background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '8px 14px',
-  borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-}
-
-const knappStilSlett: React.CSSProperties = {
-  background: FARGER.feilBg, color: FARGER.feil, border: 'none', padding: '8px 12px',
-  borderRadius: RADIUS.sm, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-}

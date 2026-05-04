@@ -5,13 +5,24 @@ import { EIERETAPPE_ETIKETT } from '../../lib/portefolje'
 import { useEiendomData } from './useEiendomData'
 import { EiendomOversikt } from './faner/EiendomOversikt'
 import { EiendomLaan } from './faner/EiendomLaan'
+import { EiendomInntekter } from './faner/EiendomInntekter'
+import { EiendomLeietakere } from './faner/EiendomLeietakere'
+import { EiendomKostnader } from './faner/EiendomKostnader'
+import { EiendomVerdi } from './faner/EiendomVerdi'
+import { EiendomCashflow } from './faner/EiendomCashflow'
+import { EiendomDokumenter } from './faner/EiendomDokumenter'
+import { EiendomBilder } from './faner/EiendomBilder'
+import { EiendomKvitteringer } from './faner/EiendomKvitteringer'
+import { EiendomOppussing } from './faner/EiendomOppussing'
+import { EiendomAi } from './faner/EiendomAi'
 
-type Fane = 'oversikt' | 'laan' | 'inntekter' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'ai'
+type Fane = 'oversikt' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'ai'
 
 const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'oversikt',     lbl: 'Oversikt',     ikon: '📊' },
   { id: 'laan',         lbl: 'Lån',          ikon: '🏦' },
   { id: 'inntekter',    lbl: 'Inntekter',    ikon: '💰' },
+  { id: 'leietakere',   lbl: 'Leietakere',   ikon: '👥' },
   { id: 'kostnader',    lbl: 'Kostnader',    ikon: '💸' },
   { id: 'verdi',        lbl: 'Verdi',        ikon: '📈' },
   { id: 'cashflow',     lbl: 'Cashflow',     ikon: '💼' },
@@ -81,27 +92,18 @@ export function EiendomDetalj({ prosjektId, onTilbake }: Props) {
       </div>
 
       {/* Fane-innhold */}
-      {aktivFane === 'oversikt'  && <EiendomOversikt data={data} />}
-      {aktivFane === 'laan'      && <EiendomLaan data={data} onEndret={refresh} />}
-      {aktivFane === 'inntekter' && <FanePlaceholder navn="Inntekter" steg={4} />}
-      {aktivFane === 'kostnader' && <FanePlaceholder navn="Kostnader" steg={4} />}
-      {aktivFane === 'verdi'     && <FanePlaceholder navn="Verdivurderinger" steg={5} />}
-      {aktivFane === 'cashflow'  && <FanePlaceholder navn="Cashflow" steg={5} />}
-      {aktivFane === 'dokumenter'   && <FanePlaceholder navn="Dokumenter" steg={6} />}
-      {aktivFane === 'bilder'       && <FanePlaceholder navn="Bilder" steg={6} />}
-      {aktivFane === 'kvitteringer' && <FanePlaceholder navn="Kvitteringer" steg={6} />}
-      {aktivFane === 'oppussing'    && <FanePlaceholder navn="Oppussing" steg={6} />}
-      {aktivFane === 'ai'           && <FanePlaceholder navn="AI-forslag" steg={8} />}
-    </div>
-  )
-}
-
-function FanePlaceholder({ navn, steg }: { navn: string; steg: number }) {
-  return (
-    <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys }}>
-      <div style={{ fontSize: 32, marginBottom: 6 }}>🚧</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork }}>{navn}</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>Bygges i steg {steg}</div>
+      {aktivFane === 'oversikt'   && <EiendomOversikt data={data} />}
+      {aktivFane === 'laan'       && <EiendomLaan data={data} onEndret={refresh} />}
+      {aktivFane === 'inntekter'  && <EiendomInntekter data={data} onEndret={refresh} />}
+      {aktivFane === 'leietakere' && <EiendomLeietakere data={data} onEndret={refresh} />}
+      {aktivFane === 'kostnader'  && <EiendomKostnader data={data} onEndret={refresh} />}
+      {aktivFane === 'verdi'      && <EiendomVerdi data={data} onEndret={refresh} />}
+      {aktivFane === 'cashflow'   && <EiendomCashflow data={data} onEndret={refresh} />}
+      {aktivFane === 'dokumenter'   && <EiendomDokumenter data={data} />}
+      {aktivFane === 'bilder'       && <EiendomBilder data={data} />}
+      {aktivFane === 'kvitteringer' && <EiendomKvitteringer data={data} />}
+      {aktivFane === 'oppussing'    && <EiendomOppussing data={data} onEndret={refresh} />}
+      {aktivFane === 'ai'           && <EiendomAi data={data} onEndret={refresh} />}
     </div>
   )
 }

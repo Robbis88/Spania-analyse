@@ -11,6 +11,9 @@ export type EiendomKortData = Prosjekt & {
   kostnader_mnd: number
   laan_mnd: number
   cashflow_mnd: number
+  verdiokning_kr: number | null    // siste verdi - eldste verdi (null hvis < 2 vurderinger)
+  verdiokning_pct: number | null   // prosent
+  yield_pct: number                 // brutto yield (årlig leie / verdi)
 }
 
 const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'

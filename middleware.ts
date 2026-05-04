@@ -30,6 +30,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/dokument') ||  // dekker både /api/dokument/* og /api/dokument-sjekkpunkt
     pathname.startsWith('/api/salgspakke') ||
     pathname.startsWith('/api/dashboard') ||
+    pathname.startsWith('/api/portefolje') ||
     pathname.startsWith('/_next') ||
     pathname === '/logo.png' ||
     pathname === '/favicon.ico'
