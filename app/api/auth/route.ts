@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fjernSesjonsCookie, settSesjonsCookie } from '../../lib/requireAuth'
+import { fjernSesjonsCookie, requireAuth, settSesjonsCookie } from '../../lib/requireAuth'
 import { sjekkRateLimit } from '../../lib/rateLimit'
 
 function parseBrukere(): Record<string, string> | null {
@@ -61,4 +61,13 @@ export async function DELETE() {
   const res = NextResponse.json({ ok: true })
   fjernSesjonsCookie(res)
   return res
+}
+
+// Lett endepunkt for å sjekke om sesjons-cookien er gyldig.
+// Brukes av admin-frontenden ved oppstart for å verifisere at klient-state
+// (localStorage) faktisk matcher en levende server-sesjon.
+export async function GET(req: NextRequest) {
+  const auth = requireAuth(req)
+  if (!auth.ok) return auth.respons
+  return NextResponse.json({ ok: true, bruker: auth.bruker })
 }

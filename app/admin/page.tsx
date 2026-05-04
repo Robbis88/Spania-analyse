@@ -102,8 +102,16 @@ export default function Home() {
 
   useEffect(() => {
     const lagret = hentAktivBruker()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (lagret) setBruker(lagret)
+    if (!lagret) return
+    // Verifiser at server-sesjonen faktisk er gyldig før vi viser admin-UI.
+    // Hindrer at innlogget-i-localStorage + ingen-cookie viser en tom admin
+    // hvor alle API-kall returnerer 401.
+    fetch('/api/auth')
+      .then(r => {
+        if (r.ok) setBruker(lagret)
+        else fjernAktivBruker()
+      })
+      .catch(() => { /* nettverksfeil — vi lar bruker prøve å logge inn på nytt */ })
   }, [])
 
   useEffect(() => {
