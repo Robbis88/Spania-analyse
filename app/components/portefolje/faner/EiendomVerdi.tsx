@@ -71,11 +71,58 @@ export function EiendomVerdi({ data, onEndret }: Props) {
   }
 
   async function slett(id: string) {
-    if (!confirm('Slette denne verdivurderingen?')) return
+    const harFil = data.verdivurderinger.find(v => v.id === id)?.storage_sti
+    const tekst = harFil
+      ? 'Slette denne verdivurderingen? Vedlagt fil fjernes også permanent.'
+      : 'Slette denne verdivurderingen?'
+    if (!confirm(tekst)) return
+    // Rydd storage først (best-effort), så DB
+    if (harFil) {
+      await fetch('/api/portefolje/verdivurdering-fil', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vurdering_id: id }),
+      }).catch(() => { /* ignorer — sletter raden uansett */ })
+    }
     const { error } = await supabase.from('eiendom_verdivurderinger').delete().eq('id', id)
     if (error) { visToast('Kunne ikke slette: ' + error.message, 'feil', 4000); return }
     visToast('Slettet', 'suksess', 2000)
     await onEndret()
+  }
+
+  async function lastOppFil(vurderingId: string, fil: File) {
+    const form = new FormData()
+    form.append('vurdering_id', vurderingId)
+    form.append('fil', fil)
+    const res = await fetch('/api/portefolje/verdivurdering-fil', { method: 'POST', body: form })
+    const resp = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      visToast(resp?.feil || 'Opplasting feilet', 'feil', 4000); return
+    }
+    visToast('Fil lastet opp', 'suksess', 2500)
+    await onEndret()
+  }
+
+  async function fjernFil(vurderingId: string) {
+    if (!confirm('Fjerne vedlagt fil? Vurderingsraden beholdes.')) return
+    const res = await fetch('/api/portefolje/verdivurdering-fil', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vurdering_id: vurderingId }),
+    })
+    if (!res.ok) {
+      const resp = await res.json().catch(() => ({}))
+      visToast(resp?.feil || 'Sletting feilet', 'feil', 4000); return
+    }
+    visToast('Fil fjernet', 'suksess', 2000)
+    await onEndret()
+  }
+
+  async function apneFil(vurderingId: string) {
+    const res = await fetch(`/api/portefolje/verdivurdering-fil?vurdering_id=${vurderingId}`)
+    const resp = await res.json().catch(() => ({}))
+    if (!res.ok || !resp.url) {
+      visToast(resp?.feil || 'Kunne ikke åpne fil', 'feil', 3500); return
+    }
+    window.open(resp.url, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -117,6 +164,13 @@ export function EiendomVerdi({ data, onEndret }: Props) {
                   {v.utstedt_av && <span>· {v.utstedt_av}</span>}
                 </div>
                 {v.notat && <div style={{ fontSize: 12, color: FARGER.tekstMid, marginTop: 6, fontStyle: 'italic' }}>{v.notat}</div>}
+                <FilRad
+                  vurderingId={v.id}
+                  filnavn={v.filnavn}
+                  mimeType={v.mime_type}
+                  onLastOpp={f => lastOppFil(v.id, f)}
+                  onApne={() => apneFil(v.id)}
+                  onFjern={() => fjernFil(v.id)} />
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork }}>{fmtNok(v.verdi)}</div>
@@ -176,6 +230,48 @@ function Skjema({ redigert, setRedigert, onLagre, onAvbryt }: {
         <button onClick={onLagre} style={knappStilPrimaer}>💾 Lagre</button>
         <button onClick={onAvbryt} style={knappStilSekundaer}>Avbryt</button>
       </div>
+    </div>
+  )
+}
+
+// Liten rad som viser vedlagt fil (PDF/bilde) eller en opplast-knapp
+function FilRad({ vurderingId, filnavn, mimeType, onLastOpp, onApne, onFjern }: {
+  vurderingId: string
+  filnavn: string | null
+  mimeType: string | null
+  onLastOpp: (fil: File) => Promise<void>
+  onApne: () => void
+  onFjern: () => void
+}) {
+  const ikon = mimeType === 'application/pdf' ? '📄' : mimeType?.startsWith('image/') ? '🖼️' : '📎'
+  if (filnavn) {
+    return (
+      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={onApne}
+          style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: 4, padding: '4px 10px', fontSize: 12, color: FARGER.mork, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {ikon} {filnavn} <span style={{ color: FARGER.gull, fontSize: 10 }}>↗</span>
+        </button>
+        <button onClick={onFjern} title="Fjern fil"
+          style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 11, padding: '4px 6px' }}>
+          fjern
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ marginTop: 8 }}>
+      <label htmlFor={`fil-${vurderingId}`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', fontSize: 11, color: FARGER.tekstMid, background: FARGER.flateMid, borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>
+        📎 Last opp PDF / bilde
+      </label>
+      <input id={`fil-${vurderingId}`} type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) void onLastOpp(f)
+          if (e.target) e.target.value = ''
+        }}
+        style={{ display: 'none' }} />
     </div>
   )
 }

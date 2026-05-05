@@ -200,6 +200,10 @@ export type EiendomVerdivurdering = {
   kilde: 'e_takst' | 'takstmann' | 'megler' | 'egen_vurdering' | 'salg' | 'annet' | null
   utstedt_av: string | null
   notat: string | null
+  // Vedlegg — PDF, bilde eller annen dokumentasjon. NULL = ingen fil.
+  storage_sti: string | null
+  filnavn: string | null
+  mime_type: string | null
 }
 
 export type EiendomCashflow = {
