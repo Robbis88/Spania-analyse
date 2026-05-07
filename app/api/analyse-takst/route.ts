@@ -207,15 +207,19 @@ export async function POST(req: NextRequest) {
 
     let svar
     try {
-      svar = await klient.messages.create({
+      // Bruker streaming så HTTP-forbindelsen holdes varm under hele
+      // generering. Et vanlig non-stream-kall kan ta 60+ sekunder for
+      // store takstrapporter — over default proxy-timeout på Vercel/Next.
+      const stream = klient.messages.stream({
         model: MODELL,
-        max_tokens: 6000,  // utvidet tool-output med 8 nye felter — trenger mer plass
+        max_tokens: 6000,  // utvidet tool-output — trenger plass
         temperature: 0,
         system: SYSTEM,
         tools: [takstTool],
         tool_choice: { type: 'tool', name: 'les_takstrapport' },
         messages: [{ role: 'user', content: innhold }],
       })
+      svar = await stream.finalMessage()
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
       console.error('Takst Anthropic-kall feilet:', m)
