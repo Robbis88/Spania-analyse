@@ -2,8 +2,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '../../lib/requireAuth'
 
-const klient = new Anthropic()
-
 const TILLATTE_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const
 const MAKS_BYTES = 25 * 1024 * 1024
 const MODELL = 'claude-sonnet-4-5'
@@ -175,6 +173,11 @@ export const maxDuration = 60
 export async function POST(req: NextRequest) {
   const auth = requireAuth(req)
   if (!auth.ok) return auth.respons
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('Takst-analyse: ANTHROPIC_API_KEY mangler i miljøet')
+    return NextResponse.json({ feil: 'AI-tjenesten er ikke konfigurert (ANTHROPIC_API_KEY mangler)' }, { status: 500 })
+  }
+  const klient = new Anthropic()
   try {
     const form = await req.formData()
     const fil = form.get('fil')

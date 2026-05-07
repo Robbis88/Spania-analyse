@@ -77,16 +77,23 @@ export function TakstAnalyse({ data, filnavn, onData, onFilnavn, onBrukMarkedsve
       const form = new FormData()
       form.append('fil', fil)
       const res = await fetch('/api/analyse-takst', { method: 'POST', body: form })
-      const resp = await res.json().catch(() => ({}))
+      // Prøv JSON først; hvis serveren har returnert HTML (500-feilside) får vi rå tekst
+      let resp: { feil?: string; data?: TakstData } = {}
+      const tekst = await res.text()
+      try { resp = JSON.parse(tekst) } catch { /* ikke JSON */ }
       if (!res.ok || !resp.data) {
-        visToast(resp?.feil || 'Takst-analyse feilet', 'feil', 4000)
+        const beskrivelse = resp.feil || `HTTP ${res.status} — serveren svarte ikke med JSON: ${tekst.slice(0, 120)}`
+        console.error('Takst-analyse feilet:', { status: res.status, resp, raTekst: tekst.slice(0, 500) })
+        visToast(beskrivelse, 'feil', 6000)
         onFilnavn(null)
         return
       }
-      onData(resp.data as TakstData)
+      onData(resp.data)
       visToast('Takstrapport lest', 'suksess', 2500)
     } catch (e) {
-      visToast(e instanceof Error ? e.message : 'Ukjent feil', 'feil', 4000)
+      const m = e instanceof Error ? e.message : 'Ukjent feil'
+      console.error('Takst-analyse exception:', e)
+      visToast('Nettverksfeil: ' + m, 'feil', 5000)
       onFilnavn(null)
     } finally {
       setAnalyserer(false)
