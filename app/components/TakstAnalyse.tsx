@@ -34,24 +34,27 @@ const ALVOR_FARGE: Record<string, { bg: string; tekst: string; ramme: string; ik
 }
 
 type Props = {
+  /** Kontrollert: data og filnavn ligger i parent slik at de kan lagres i prosjektet */
+  data: TakstData | null
+  filnavn: string | null
+  onData: (data: TakstData | null) => void
+  onFilnavn: (navn: string | null) => void
   /** Når brukeren trykker "Bruk markedsverdi" — kalkulator-state oppdateres */
   onBrukMarkedsverdi: (nok: number) => void
   /** Når brukeren trykker "Legg til alle" — oppussingsposter legges til kalkulator-listen */
   onLeggTilOppussingsposter: (poster: Array<{ navn: string; kostnad: number; notat: string }>) => void
 }
 
-export function TakstAnalyse({ onBrukMarkedsverdi, onLeggTilOppussingsposter }: Props) {
-  const [data, setData] = useState<TakstData | null>(null)
+export function TakstAnalyse({ data, filnavn, onData, onFilnavn, onBrukMarkedsverdi, onLeggTilOppussingsposter }: Props) {
   const [analyserer, setAnalyserer] = useState(false)
-  const [filnavn, setFilnavn] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const filInputRef = useRef<HTMLInputElement>(null)
 
   async function analyser(fil: File) {
     if (analyserer) return
     setAnalyserer(true)
-    setData(null)
-    setFilnavn(fil.name)
+    onData(null)
+    onFilnavn(fil.name)
     try {
       const form = new FormData()
       form.append('fil', fil)
@@ -59,14 +62,14 @@ export function TakstAnalyse({ onBrukMarkedsverdi, onLeggTilOppussingsposter }: 
       const resp = await res.json().catch(() => ({}))
       if (!res.ok || !resp.data) {
         visToast(resp?.feil || 'Takst-analyse feilet', 'feil', 4000)
-        setFilnavn(null)
+        onFilnavn(null)
         return
       }
-      setData(resp.data as TakstData)
+      onData(resp.data as TakstData)
       visToast('Takstrapport lest', 'suksess', 2500)
     } catch (e) {
       visToast(e instanceof Error ? e.message : 'Ukjent feil', 'feil', 4000)
-      setFilnavn(null)
+      onFilnavn(null)
     } finally {
       setAnalyserer(false)
     }
@@ -90,7 +93,7 @@ export function TakstAnalyse({ onBrukMarkedsverdi, onLeggTilOppussingsposter }: 
   }
 
   function fjern() {
-    setData(null); setFilnavn(null)
+    onData(null); onFilnavn(null)
     if (filInputRef.current) filInputRef.current.value = ''
   }
 

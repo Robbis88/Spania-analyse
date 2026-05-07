@@ -13,7 +13,7 @@ import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
 import { Dashboard } from './Dashboard'
-import { TakstAnalyse } from './TakstAnalyse'
+import { TakstAnalyse, type TakstData } from './TakstAnalyse'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -306,6 +306,9 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>>([])
   const [adminBrukere, setAdminBrukere] = useState<string[]>([])
   const [portefoljeListe, setPortefoljeListe] = useState<Array<{ id: string; navn: string; bolig_data?: { beliggenhet?: string } | null }>>([])
+  // Takst-analyse — lagres sammen med prosjektet og lastes inn igjen
+  const [takstData, setTakstData] = useState<TakstData | null>(null)
+  const [takstFilnavn, setTakstFilnavn] = useState<string | null>(null)
   const aktivBruker = (typeof window !== 'undefined' ? hentAktivBruker() : null) || ''
 
   function fyllFraAnalyse(a: Analyse) {
@@ -370,6 +373,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   async function analyser(opts: { tvingNy?: boolean } = {}) {
     if (!input.trim() || laster) return
     setLaster(true); setFeil(''); setAnalyse(null); setLagretId(null); setFraCache(null)
+    setTakstData(null); setTakstFilnavn(null)
     // Hvis input er en URL, husk den så den blir med på prosjektet og PDF-en
     const trimmet = input.trim()
     setFinnUrl(trimmet.startsWith('http') ? trimmet : '')
@@ -594,6 +598,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     if (d.husholdning) setHusholdning(d.husholdning as Husholdning)
     if (d.meglerVurderinger) setMeglerVurderinger(d.meglerVurderinger as MeglerVurdering[])
     if (typeof d.finnUrl === 'string') setFinnUrl(d.finnUrl)
+    setTakstData((d.takstData as TakstData) || null)
+    setTakstFilnavn((d.takstFilnavn as string) || null)
     setLagretId(prosjekt.id)
     setLagretNavn(prosjekt.navn || 'Norsk prosjekt')
     setFeil(''); setFraCache(null)
@@ -971,6 +977,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         norsk_kalkulator_data: {
           analyse, kalk, modus, eksisterende, boPlan, utleieDel, oppussingsposter, husholdning, meglerVurderinger,
           finnUrl,
+          takstData, takstFilnavn,
           lagret_tidspunkt: new Date().toISOString(),
         },
       }
@@ -1080,6 +1087,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
   function nullstill() {
     setInput(''); setFinnUrl(''); setAnalyse(null); setFeil(''); setLagretId(null); setFraCache(null)
+    setTakstData(null); setTakstFilnavn(null)
     setKalk({
       kjopesum: 0, fellesgjeld: 0,
       dokumentavgift_pst: 2.5, tinglysing: 1140,
@@ -1198,6 +1206,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         <>
           <AnalyseSammendrag a={analyse} finnUrl={finnUrl} />
           <TakstAnalyse
+            data={takstData}
+            filnavn={takstFilnavn}
+            onData={setTakstData}
+            onFilnavn={setTakstFilnavn}
             onBrukMarkedsverdi={nok => setKalk(k => ({ ...k, salgspris: nok }))}
             onLeggTilOppussingsposter={poster => setOppussingsposter(eks => [...eks, ...poster])}
           />
