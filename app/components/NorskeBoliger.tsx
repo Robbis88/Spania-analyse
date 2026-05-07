@@ -858,11 +858,31 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const nedbetalingstid_aar = kalk.nedbetalingstid_aar > 0 ? kalk.nedbetalingstid_aar : 25
     const renteMnd = kalk.rente_pst / 100 / 12
     const antMnd = nedbetalingstid_aar * 12
-    const mndBetaling = lanebehov > 0 && renteMnd > 0
-      ? (lanebehov * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd))
-      : 0
-    return { totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling }
-  }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.rente_pst, kalk.nedbetalingstid_aar])
+    const annuitet = (laan: number) =>
+      laan > 0 && renteMnd > 0 ? (laan * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd)) : 0
+    const mndBetaling = annuitet(lanebehov)
+
+    // Bank-vurdering nå (kun kjøp + omkostninger)
+    const ekBruktPaaKjop = Math.min(tilgjengeligEK, beregning.totalKjop)
+    const kjopslan = Math.max(0, beregning.totalKjop - ekBruktPaaKjop)
+    const restEk = Math.max(0, tilgjengeligEK - beregning.totalKjop)
+    const ek_brukt_paa_oppussing = Math.min(restEk, beregning.oppussingTotal)
+    const egenfin_oppussing = Math.max(0, beregning.oppussingTotal - ek_brukt_paa_oppussing)
+    const belaningsgrad_kjop = kalk.kjopesum > 0 ? (kjopslan / kalk.kjopesum) * 100 : 0
+    const mndBetaling_kjop = annuitet(kjopslan)
+
+    // Etter oppussing (refinansiering mot ny markedsverdi)
+    const total_lan_etter_oppussing = kjopslan + beregning.oppussingTotal
+    const belaningsgrad_etter_oppussing = kalk.salgspris > 0 ? (total_lan_etter_oppussing / kalk.salgspris) * 100 : 0
+    const mndBetaling_etter_oppussing = annuitet(total_lan_etter_oppussing)
+
+    return {
+      totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling,
+      kjopslan, belaningsgrad_kjop, mndBetaling_kjop,
+      egenfin_oppussing, ek_brukt_paa_oppussing,
+      total_lan_etter_oppussing, belaningsgrad_etter_oppussing, mndBetaling_etter_oppussing,
+    }
+  }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.salgspris, kalk.rente_pst, kalk.nedbetalingstid_aar])
 
   // === BANK-SCORE — gjenbruker pure-funksjon fra lib (samme logikk som i PDF-bygger) ===
   const bankScore = useMemo(() => {
@@ -2638,70 +2658,133 @@ function UtleieDelPanel({ utleieDel, setUtleieDel, boTidMnd, beregning, aiForsla
 }
 
 function Finansiering({ f, salgssum, utleieMnd = 0 }: {
-  f: { totalUtlegg: number; tilgjengeligEK: number; lanebehov: number; overskudd: number; belaningsgrad: number; mndBetaling: number }
+  f: {
+    totalUtlegg: number; tilgjengeligEK: number; lanebehov: number; overskudd: number
+    belaningsgrad: number; mndBetaling: number
+    kjopslan: number; belaningsgrad_kjop: number; mndBetaling_kjop: number
+    egenfin_oppussing: number; ek_brukt_paa_oppussing: number
+    total_lan_etter_oppussing: number; belaningsgrad_etter_oppussing: number; mndBetaling_etter_oppussing: number
+  }
   eks: { nettoTilDisposisjon: number }
   salgssum: number
   utleieMnd?: number
 }) {
-  const sunnBelaning = f.belaningsgrad <= 75
-  const farge = sunnBelaning ? '#1a4d2b' : f.belaningsgrad <= 85 ? '#6b3a0a' : '#7a0c1e'
-  const bgFarge = sunnBelaning ? '#e8f5ed' : f.belaningsgrad <= 85 ? '#fff8e1' : '#fde8ec'
-  const nettoMndKost = f.mndBetaling - utleieMnd
+  const farger = (pct: number) => {
+    const sunn = pct <= 75
+    return {
+      farge: sunn ? '#1a4d2b' : pct <= 85 ? '#6b3a0a' : '#7a0c1e',
+      bg: sunn ? '#e8f5ed' : pct <= 85 ? '#fff8e1' : '#fde8ec',
+      tekst: sunn ? 'Sunn (under 75 %)' : pct <= 85 ? 'Høy — krever dialog' : 'For høy — godkjennes normalt ikke',
+    }
+  }
+  const bankF = farger(f.belaningsgrad_kjop)
+  const etterF = farger(f.belaningsgrad_etter_oppussing)
+  const nettoMndKostKjop = f.mndBetaling_kjop - utleieMnd
 
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>💰 Finansiering & lånebehov</div>
       <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', fontWeight: 300 }}>
-        Hvor mye må du faktisk låne — og hva blir mnd-betalingen mens du bor i flippen.
+        Banken finansierer kjøpet — ikke oppussingen. Vi deler dette opp i to scenarioer:
+        det banken vurderer i dag, og refinansieringsbildet etter at oppussingen er ferdig.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13, marginBottom: 14 }}>
+      {/* Splitt-tabell */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, fontSize: 13, marginBottom: 18 }}>
         <span style={{ color: FARGER.tekstMid }}>Totalt utlegg (kjøp + dokavg + tinglysing + oppussing + møblering)</span>
         <span style={{ textAlign: 'right' }}>{fmtNok(f.totalUtlegg)}</span>
         <span style={{ color: FARGER.tekstMid }}>− Tilgjengelig EK fra salg av eget hjem</span>
         <span style={{ textAlign: 'right' }}>− {fmtNok(f.tilgjengeligEK)}</span>
+        {f.ek_brukt_paa_oppussing > 0 && (
+          <>
+            <span style={{ color: FARGER.tekstLys, fontStyle: 'italic', paddingLeft: 14 }}>↳ herav brukt på oppussing</span>
+            <span style={{ textAlign: 'right', color: FARGER.tekstLys, fontStyle: 'italic' }}>{fmtNok(f.ek_brukt_paa_oppussing)}</span>
+          </>
+        )}
         <span style={{ color: FARGER.mork, fontWeight: 700, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
-          = Lånebehov
+          = Totalt lånebehov over tid
         </span>
         <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, marginTop: 4 }}>
           {fmtNok(f.lanebehov)}
         </span>
-        {f.overskudd > 0 && (
-          <>
-            <span style={{ color: FARGER.suksess, fontWeight: 600 }}>+ Overskudd EK (gjenstår fri kapital)</span>
-            <span style={{ textAlign: 'right', color: FARGER.suksess, fontWeight: 600 }}>{fmtNok(f.overskudd)}</span>
-          </>
+      </div>
+
+      {/* Scenario 1: BANK-VURDERING NÅ */}
+      <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 16, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, letterSpacing: '0.16em', textTransform: 'uppercase' }}>🏦 Scenario 1 — Bank-vurdering nå</span>
+          <span style={{ fontSize: 11, color: FARGER.tekstLys }}>Det banken faktisk låner ut til kjøpet</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 4, fontSize: 13, marginBottom: 12 }}>
+          <span style={{ color: FARGER.tekstMid }}>Kjøpslån (kjøp + omkostninger − EK brukt på kjøp)</span>
+          <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.kjopslan)}</span>
+          {f.egenfin_oppussing > 0 && (
+            <>
+              <span style={{ color: FARGER.advarsel }}>⚠️ Egenfinansieres (oppussing + møbler)</span>
+              <span style={{ textAlign: 'right', color: FARGER.advarsel, fontWeight: 600 }}>{fmtNok(f.egenfin_oppussing)}</span>
+            </>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+          <div style={{ background: bankF.bg, padding: 12, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Belåningsgrad mot kjøpesum</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: bankF.farge }}>{fmtPct(f.belaningsgrad_kjop)}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{bankF.tekst}</div>
+          </div>
+          <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, padding: 12, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Mnd-betaling (kjøpslån)</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling_kjop)}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag</div>
+          </div>
+          {utleieMnd > 0 && (
+            <div style={{ background: '#e8f5ed', padding: 12, borderRadius: RADIUS.sm, border: '1px solid #2D7D4644' }}>
+              <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Netto bo-kostnad / mnd</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1a4d2b' }}>{fmtNok(nettoMndKostKjop)}</div>
+              <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Etter {fmtNok(utleieMnd)} netto leieinntekt</div>
+            </div>
+          )}
+        </div>
+        {f.egenfin_oppussing > 0 && (
+          <div style={{ marginTop: 10, fontSize: 12, color: FARGER.tekstMid, fontStyle: 'italic', lineHeight: 1.5, padding: 10, background: 'white', borderRadius: RADIUS.sm }}>
+            💡 De {fmtNok(f.egenfin_oppussing)} til oppussing/møbler dekker du via rammelån, forbrukslån
+            eller egne midler — banken inkluderer ikke dette i kjøpslånet. Etter ferdigstilt oppussing
+            kan dette refinansieres inn i boliglånet (se Scenario 2).
+          </div>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-        <div style={{ background: bgFarge, padding: 14, borderRadius: RADIUS.sm }}>
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Belåningsgrad</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: farge }}>{fmtPct(f.belaningsgrad)}</div>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-            {sunnBelaning ? 'Sunn belåning (under 75 %)' : f.belaningsgrad <= 85 ? 'Høy — banken kan stille krav' : 'For høy — vil normalt ikke godkjennes'}
+      {/* Scenario 2: ETTER OPPUSSING */}
+      {salgssum > 0 && (
+        <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 16, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, letterSpacing: '0.16em', textTransform: 'uppercase' }}>📈 Scenario 2 — Etter oppussing (refinansiering)</span>
+            <span style={{ fontSize: 11, color: FARGER.tekstLys }}>Hva LTV blir når oppgraderingen er reflektert i ny verdi</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 4, fontSize: 13, marginBottom: 12 }}>
+            <span style={{ color: FARGER.tekstMid }}>Totalt lån (kjøpslån + refinansiert oppussing)</span>
+            <span style={{ textAlign: 'right', fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.total_lan_etter_oppussing)}</span>
+            <span style={{ color: FARGER.tekstMid }}>Forventet markedsverdi etter oppussing</span>
+            <span style={{ textAlign: 'right' }}>{fmtNok(salgssum)}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            <div style={{ background: etterF.bg, padding: 12, borderRadius: RADIUS.sm }}>
+              <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Belåningsgrad mot ny verdi</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: etterF.farge }}>{fmtPct(f.belaningsgrad_etter_oppussing)}</div>
+              <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{etterF.tekst}</div>
+            </div>
+            <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, padding: 12, borderRadius: RADIUS.sm }}>
+              <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Mnd-betaling totalt</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling_etter_oppussing)}</div>
+              <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag etter refinansiering</div>
+            </div>
+            <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, padding: 12, borderRadius: RADIUS.sm }}>
+              <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Frigjøring ved salg</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(salgssum - f.total_lan_etter_oppussing)}</div>
+              <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Salgssum − total gjeld</div>
+            </div>
           </div>
         </div>
-        <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Mnd-betaling (annuitet 25 år)</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling)}</div>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag</div>
-        </div>
-        {utleieMnd > 0 && (
-          <div style={{ background: '#e8f5ed', padding: 14, borderRadius: RADIUS.sm, border: '1px solid #2D7D4644' }}>
-            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Netto bo-kostnad / mnd</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#1a4d2b' }}>{fmtNok(nettoMndKost)}</div>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Etter {fmtNok(utleieMnd)} netto leieinntekt</div>
-          </div>
-        )}
-        {salgssum > 0 && (
-          <div style={{ background: FARGER.creamLys, padding: 14, borderRadius: RADIUS.sm }}>
-            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Frigjøring ved salg</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(salgssum - f.lanebehov)}</div>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Salgssum − lånebehov</div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

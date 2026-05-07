@@ -80,6 +80,20 @@ export type Finansiering = {
   overskudd: number
   belaningsgrad: number
   mndBetaling: number
+
+  // Bank-vurdering nå (kun kjøp + omkostninger — det banken faktisk vurderer)
+  kjopslan: number               // det banken låner ut til selve kjøpet
+  belaningsgrad_kjop: number     // mot kjøpesum
+  mndBetaling_kjop: number       // termin på kun kjøpslånet
+
+  // Egenfinansiering for oppussing + møbler (banken finansierer ikke dette)
+  egenfin_oppussing: number      // oppussing + møbler etter at evt. rest-EK er brukt
+  ek_brukt_paa_oppussing: number // hvor mye av rest-EK som dekker oppussing
+
+  // Etter oppussing: refinansiering mot ny markedsverdi
+  total_lan_etter_oppussing: number   // kjøpslån + oppussing (refinansiert)
+  belaningsgrad_etter_oppussing: number  // mot forventet salgspris (markedsverdi etter oppussing)
+  mndBetaling_etter_oppussing: number    // termin på det totale refinansierte lånet
 }
 
 export function regnEffektivKalk(kalk: Kalk, modus: Modus, boPlan: BoPlan): Kalk {
@@ -164,10 +178,36 @@ export function regnFinansiering(modus: Modus, beregning: Beregning, eksisterend
   const lanebehov = Math.max(0, totalUtlegg - tilgjengeligEK)
   const overskudd = Math.max(0, tilgjengeligEK - totalUtlegg)
   const belaningsgrad = kalk.kjopesum > 0 ? (lanebehov / kalk.kjopesum) * 100 : 0
+
   const renteMnd = kalk.rente_pst / 100 / 12
   const antMnd = (kalk.nedbetalingstid_aar && kalk.nedbetalingstid_aar > 0 ? kalk.nedbetalingstid_aar : 25) * 12
-  const mndBetaling = lanebehov > 0 && renteMnd > 0
-    ? (lanebehov * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd))
-    : 0
-  return { totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling }
+  const annuitet = (laan: number) =>
+    laan > 0 && renteMnd > 0 ? (laan * renteMnd) / (1 - Math.pow(1 + renteMnd, -antMnd)) : 0
+
+  const mndBetaling = annuitet(lanebehov)
+
+  // === BANK-VURDERING NÅ (kun kjøp + omkostninger) ===
+  // Banken finansierer ikke oppussing/møbler. EK brukes først til å dekke kjøp;
+  // resten av EK dekker oppussing.
+  const ekBruktPaaKjop = Math.min(tilgjengeligEK, beregning.totalKjop)
+  const kjopslan = Math.max(0, beregning.totalKjop - ekBruktPaaKjop)
+  const restEk = Math.max(0, tilgjengeligEK - beregning.totalKjop)
+  const ekBruktPaaOppussing = Math.min(restEk, beregning.oppussingTotal)
+  const egenfinOppussing = Math.max(0, beregning.oppussingTotal - ekBruktPaaOppussing)
+  const belaningsgradKjop = kalk.kjopesum > 0 ? (kjopslan / kalk.kjopesum) * 100 : 0
+  const mndBetalingKjop = annuitet(kjopslan)
+
+  // === ETTER OPPUSSING (refinansiering mot ny markedsverdi) ===
+  const totalLanEtter = kjopslan + beregning.oppussingTotal
+  const belaningsgradEtter = kalk.salgspris > 0 ? (totalLanEtter / kalk.salgspris) * 100 : 0
+  const mndBetalingEtter = annuitet(totalLanEtter)
+
+  return {
+    totalUtlegg, tilgjengeligEK, lanebehov, overskudd, belaningsgrad, mndBetaling,
+    kjopslan, belaningsgrad_kjop: belaningsgradKjop, mndBetaling_kjop: mndBetalingKjop,
+    egenfin_oppussing: egenfinOppussing, ek_brukt_paa_oppussing: ekBruktPaaOppussing,
+    total_lan_etter_oppussing: totalLanEtter,
+    belaningsgrad_etter_oppussing: belaningsgradEtter,
+    mndBetaling_etter_oppussing: mndBetalingEtter,
+  }
 }
