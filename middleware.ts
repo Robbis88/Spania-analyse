@@ -31,6 +31,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/salgspakke') ||
     pathname.startsWith('/api/dashboard') ||
     pathname.startsWith('/api/portefolje') ||
+    pathname.startsWith('/api/husholdning-default') ||
     pathname.startsWith('/_next') ||
     pathname === '/logo.png' ||
     pathname === '/favicon.ico'

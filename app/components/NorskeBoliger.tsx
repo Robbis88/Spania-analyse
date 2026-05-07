@@ -442,6 +442,24 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       .catch(() => { /* ikke kritisk */ })
   }, [])
 
+  // Auto-last brukerens husholdnings-default ved første mount.
+  // Hopper over hvis brukeren allerede har fylt inn (f.eks. lastet et prosjekt).
+  useEffect(() => {
+    let avbrutt = false
+    fetch('/api/husholdning-default')
+      .then(r => r.json())
+      .then((d: { data?: Husholdning | null }) => {
+        if (avbrutt || !d?.data) return
+        // Bare auto-fyll hvis husholdningen er "fersk" (ingen inntekter, ingen lån)
+        setHusholdning(h => {
+          const harData = h.inntekter.length > 0 || h.andre_lan.length > 0
+          return harData ? h : (d.data as Husholdning)
+        })
+      })
+      .catch(() => { /* ikke kritisk */ })
+    return () => { avbrutt = true }
+  }, [])
+
   // Hent norske portefølje-eiendommer slik at brukeren kan auto-fylle
   // Steg 1 (eksisterende bolig) fra en eid eiendom uten å måtte taste alt på nytt.
   const hentPortefolje = useCallback(async () => {
@@ -1210,7 +1228,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           {modus === 'bo' && finansiering && (
             <Finansiering f={finansiering} eks={eksisterendeBeregning} salgssum={effektivKalk.salgspris} utleieMnd={utleieBeregning.netto_mnd} />
           )}
-          <HusholdningPanel husholdning={husholdning} setHusholdning={setHusholdning} />
+          <HusholdningPanel
+            husholdning={husholdning}
+            setHusholdning={setHusholdning}
+            harLagretProsjekt={!!lagretId}
+          />
           <BankScore s={bankScore} />
           <Sensitivitet kalk={effektivKalk} basis={beregning} utleieBidrag={utleieBeregning.netto_total - utleieBeregning.etableringskost} />
           <TotalProsjektScore s={totalScore} />
@@ -1736,10 +1758,48 @@ function MeglerFeltDato({ lbl, val, onChange }: { lbl: string; val: string; onCh
   )
 }
 
-function HusholdningPanel({ husholdning, setHusholdning }: {
+function HusholdningPanel({ husholdning, setHusholdning, harLagretProsjekt }: {
   husholdning: Husholdning
-  setHusholdning: (h: Husholdning) => void
+  setHusholdning: React.Dispatch<React.SetStateAction<Husholdning>>
+  harLagretProsjekt: boolean
 }) {
+  const [lagretDefaultDato, setLagretDefaultDato] = useState<string | null>(null)
+  const [lagrer, setLagrer] = useState(false)
+
+  // Sjekk om bruker har en standard lagret (for å vise dato + "Hent standard"-knapp)
+  useEffect(() => {
+    fetch('/api/husholdning-default')
+      .then(r => r.json())
+      .then((d: { oppdatert?: string }) => { if (d?.oppdatert) setLagretDefaultDato(d.oppdatert) })
+      .catch(() => { /* ikke kritisk */ })
+  }, [])
+
+  async function lagreSomStandard() {
+    setLagrer(true)
+    const res = await fetch('/api/husholdning-default', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: husholdning }),
+    })
+    setLagrer(false)
+    if (res.ok) {
+      setLagretDefaultDato(new Date().toISOString())
+      visToast('Husholdning lagret som din standard', 'suksess', 3000)
+    } else {
+      visToast('Kunne ikke lagre', 'feil', 4000)
+    }
+  }
+
+  async function hentStandard() {
+    if (harLagretProsjekt && !confirm('Du jobber på et lagret prosjekt — overskrive husholdningen med din standard?')) return
+    const res = await fetch('/api/husholdning-default')
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok || !d?.data) {
+      visToast('Ingen standard lagret ennå', 'feil', 3000); return
+    }
+    setHusholdning(d.data as Husholdning)
+    visToast('Hentet din standard husholdning', 'suksess', 2500)
+  }
+
   const sumInntekt = husholdning.inntekter.reduce((s, i) => s + (i.belop_mnd || 0), 0)
   const livsopphold = regnLivsopphold(husholdning.antall_voksne, husholdning.antall_barn)
   const sumAndreLanMnd = husholdning.andre_lan.reduce((s, l) => s + (l.mnd_betaling || 0), 0)
@@ -1774,7 +1834,28 @@ function HusholdningPanel({ husholdning, setHusholdning }: {
 
   return (
     <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>👨‍👩‍👧 Steg 4 — Husholdning og sikkerhet</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, textTransform: 'uppercase' }}>👨‍👩‍👧 Steg 4 — Husholdning og sikkerhet</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {lagretDefaultDato && (
+            <button onClick={hentStandard}
+              title="Henter inntekter, lån og skattesats fra din lagrede standard"
+              style={{ background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '6px 12px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              📂 Hent min standard
+            </button>
+          )}
+          <button onClick={lagreSomStandard} disabled={lagrer}
+            title="Lagrer dagens utfylling som din personlige standard for fremtidige analyser"
+            style={{ background: lagrer ? FARGER.tekstLys : FARGER.mork, color: '#fff', border: 'none', padding: '6px 12px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: lagrer ? 'wait' : 'pointer' }}>
+            {lagrer ? '⏳' : '💾 Lagre som standard'}
+          </button>
+        </div>
+      </div>
+      {lagretDefaultDato && (
+        <div style={{ fontSize: 10, color: FARGER.tekstLys, marginBottom: 8 }}>
+          Din standard ble sist oppdatert {new Date(lagretDefaultDato).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </div>
+      )}
       <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 18px', fontWeight: 300 }}>
         Inntekter, husholdningssammensetning, andre lån og evt. ekstra sikkerhet. Brukes til bank-vurdering nedenfor.
       </p>
