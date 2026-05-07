@@ -13,6 +13,7 @@ import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
 import { Dashboard } from './Dashboard'
+import { TakstAnalyse } from './TakstAnalyse'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -1196,6 +1197,10 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       {analyse && (
         <>
           <AnalyseSammendrag a={analyse} finnUrl={finnUrl} />
+          <TakstAnalyse
+            onBrukMarkedsverdi={nok => setKalk(k => ({ ...k, salgspris: nok }))}
+            onLeggTilOppussingsposter={poster => setOppussingsposter(eks => [...eks, ...poster])}
+          />
           {analyse.score && <FlippeScore s={analyse.score} />}
           {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
           <OppussingsPoster
