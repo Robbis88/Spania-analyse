@@ -304,6 +304,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [fraCache, setFraCache] = useState<number | null>(null)
   const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>>([])
   const [adminBrukere, setAdminBrukere] = useState<string[]>([])
+  const [portefoljeListe, setPortefoljeListe] = useState<Array<{ id: string; navn: string; bolig_data?: { beliggenhet?: string } | null }>>([])
   const aktivBruker = (typeof window !== 'undefined' ? hentAktivBruker() : null) || ''
 
   function fyllFraAnalyse(a: Analyse) {
@@ -440,6 +441,77 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       .then((d: { brukere?: string[] }) => { if (d.brukere) setAdminBrukere(d.brukere) })
       .catch(() => { /* ikke kritisk */ })
   }, [])
+
+  // Hent norske portefølje-eiendommer slik at brukeren kan auto-fylle
+  // Steg 1 (eksisterende bolig) fra en eid eiendom uten å måtte taste alt på nytt.
+  const hentPortefolje = useCallback(async () => {
+    const { data } = await supabase
+      .from('prosjekter')
+      .select('id, navn, bolig_data')
+      .eq('marked', 'norge')
+      .eq('er_portefolje', true)
+      .order('opprettet', { ascending: false })
+    if (data) setPortefoljeListe(data as typeof portefoljeListe)
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void hentPortefolje()
+  }, [hentPortefolje])
+
+  // Henter alle relevante data fra en portefølje-eiendom og populerer
+  // eksisterende-bolig-feltene i Steg 1 — uten å overskrive bruker-overstyrte
+  // ikke-portefølje-felter (meglerhonorar %, markedsføring, modus, skattefri).
+  async function autofyllFraPortefolje(prosjektId: string) {
+    if (!prosjektId) return
+    const [pRes, laanRes, vurdRes] = await Promise.all([
+      supabase.from('prosjekter').select('*').eq('id', prosjektId).single(),
+      supabase.from('eiendom_laan').select('*').eq('prosjekt_id', prosjektId),
+      supabase.from('eiendom_verdivurderinger').select('*').eq('prosjekt_id', prosjektId),
+    ])
+    const p = pRes.data as Prosjekt | null
+    if (!p) { visToast('Fant ikke eiendommen', 'feil', 3500); return }
+    const laan = (laanRes.data || []) as Array<{ restgjeld: number | null; rente_pst: number | null; nedbetalingstid_aar: number | null; termin_belop: number | null; termin_frekvens: 'mnd' | 'kvartal' | 'aar' }>
+    const vurderinger = (vurdRes.data || []) as Array<{ dato: string; verdi: number }>
+
+    // Sum restgjeld
+    const restgjeld = laan.reduce((s, l) => s + (l.restgjeld || 0), 0)
+    // Sum termin per måned (normalisert)
+    const mndBetaling = laan.reduce((s, l) => {
+      const t = l.termin_belop || 0
+      if (l.termin_frekvens === 'kvartal') return s + t / 3
+      if (l.termin_frekvens === 'aar') return s + t / 12
+      return s + t
+    }, 0)
+    // Vektet snittrente etter restgjeld
+    const totRest = laan.reduce((s, l) => s + (l.restgjeld || 0), 0)
+    const snittRente = totRest > 0
+      ? laan.reduce((s, l) => s + (l.restgjeld || 0) * (l.rente_pst || 0), 0) / totRest
+      : 0
+    // Snitt nedbetalingstid (av lån som har det)
+    const medNedbet = laan.filter(l => l.nedbetalingstid_aar)
+    const snittNedbet = medNedbet.length > 0
+      ? medNedbet.reduce((s, l) => s + (l.nedbetalingstid_aar || 0), 0) / medNedbet.length
+      : 0
+    // Siste verdivurdering (eller fall til forventet_salgsverdi)
+    const sortertVurd = [...vurderinger].sort((a, b) => (b.dato || '').localeCompare(a.dato || ''))
+    const verdi = sortertVurd[0]?.verdi || (typeof p.forventet_salgsverdi === 'number' ? p.forventet_salgsverdi : 0)
+    const opprinneligKjop = (p.kjøpesum || 0) + (p.kjøpskostnader || 0)
+
+    setEksisterende(e => ({
+      ...e,
+      // SELG-modus
+      salgssum: verdi || e.salgssum,
+      restgjeld: restgjeld || e.restgjeld,
+      // BEHOLD-modus
+      verdi_naa: verdi || e.verdi_naa,
+      opprinnelig_kjopspris: opprinneligKjop || e.opprinnelig_kjopspris,
+      mnd_lan_betaling: mndBetaling || e.mnd_lan_betaling,
+      rente_pst_gammel: snittRente || e.rente_pst_gammel,
+      restlopetid_aar_gammel: snittNedbet || e.restlopetid_aar_gammel,
+    }))
+    visToast(`Hentet fra «${p.navn}»`, 'suksess', 3000)
+  }
 
   async function oppdaterSkjultFor(prosjektId: string, skjultFor: string[]) {
     const { error } = await supabase.from('prosjekter').update({ skjult_for: skjultFor }).eq('id', prosjektId)
@@ -1039,7 +1111,15 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       )}
 
       {modus === 'bo' && (
-        <SalgEgenBolig eks={eksisterende} setEks={setEksisterende} netto={eksisterendeBeregning} sammenligning={sammenligning} botidAar={boPlan.bo_tid_mnd / 12} />
+        <SalgEgenBolig
+          eks={eksisterende}
+          setEks={setEksisterende}
+          netto={eksisterendeBeregning}
+          sammenligning={sammenligning}
+          botidAar={boPlan.bo_tid_mnd / 12}
+          portefoljeListe={portefoljeListe}
+          onAutofyllFraPortefolje={autofyllFraPortefolje}
+        />
       )}
 
       <div style={{ background: FARGER.creamLys, borderRadius: RADIUS.sm, padding: 20, marginBottom: 24, border: `1px solid ${FARGER.gullSvak}` }}>
@@ -2089,9 +2169,9 @@ type Sammenligning = {
   aar: number
 }
 
-function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
+function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar, portefoljeListe, onAutofyllFraPortefolje }: {
   eks: EksisterendeBolig
-  setEks: (e: EksisterendeBolig) => void
+  setEks: React.Dispatch<React.SetStateAction<EksisterendeBolig>>
   netto: ReturnType<typeof Object.assign> & {
     meglerhonorar: number; salgskostnader: number; skatt: number; nettoTilDisposisjon: number
     brutto_leie_mnd: number; drift_mnd: number; skatt_leie_mnd: number; netto_leie_mnd: number
@@ -2104,6 +2184,8 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
   }
   sammenligning: Sammenligning | null
   botidAar: number
+  portefoljeListe: Array<{ id: string; navn: string; bolig_data?: { beliggenhet?: string } | null }>
+  onAutofyllFraPortefolje: (prosjektId: string) => Promise<void>
 }) {
   void botidAar
   function leggTilPaakost() {
@@ -2121,6 +2203,32 @@ function SalgEgenBolig({ eks, setEks, netto, sammenligning, botidAar }: {
       <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 14px', fontWeight: 300 }}>
         Velg om du vil selge eller beholde og leie ut. Sammenligningen viser hva som lønner seg over bo-tiden.
       </p>
+
+      {/* Auto-utfylling fra Min portefølje — slipper å taste samme bolig om og om igjen */}
+      {portefoljeListe.length > 0 && (
+        <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 12, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: FARGER.tekstMid, fontWeight: 600 }}>📂 Hent fra Min portefølje:</span>
+          <select
+            defaultValue=""
+            onChange={e => {
+              const id = e.target.value
+              if (!id) return
+              void onAutofyllFraPortefolje(id)
+              e.target.value = ''  // tilbakestill så samme valg kan brukes igjen
+            }}
+            style={{ flex: 1, minWidth: 200, padding: '8px 10px', fontSize: 13, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, background: '#fff', cursor: 'pointer' }}>
+            <option value="">— Velg eiet eiendom —</option>
+            {portefoljeListe.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.navn}{p.bolig_data?.beliggenhet ? ` · ${p.bolig_data.beliggenhet}` : ''}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: 11, color: FARGER.tekstLys, fontStyle: 'italic' }}>
+            Fyller verdi, restgjeld, lånebetaling og kjøpspris automatisk
+          </span>
+        </div>
+      )}
 
       {/* MODUS-TOGGLE */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginBottom: 18 }}>
