@@ -77,13 +77,23 @@ export function TakstAnalyse({ data, filnavn, onData, onFilnavn, onBrukMarkedsve
       const form = new FormData()
       form.append('fil', fil)
       const res = await fetch('/api/analyse-takst', { method: 'POST', body: form })
-      // Prøv JSON først; hvis serveren har returnert HTML (500-feilside) får vi rå tekst
-      let resp: { feil?: string; data?: TakstData } = {}
+
+      // Server sender NDJSON: ping-linjer ({}) underveis, sluttsvar som siste linje.
+      // Les hele responsen, splitt på newline, ignorer ping og parse siste meningsfulle linje.
       const tekst = await res.text()
-      try { resp = JSON.parse(tekst) } catch { /* ikke JSON */ }
+      const linjer = tekst.split('\n').map(l => l.trim()).filter(Boolean)
+      let resp: { feil?: string; data?: TakstData } = {}
+      // Gå bakover og finn siste linje som er noe annet enn en ping
+      for (let i = linjer.length - 1; i >= 0; i--) {
+        try {
+          const obj = JSON.parse(linjer[i]) as Record<string, unknown>
+          if (obj && (obj.data || obj.feil)) { resp = obj as typeof resp; break }
+        } catch { /* fortsett */ }
+      }
+
       if (!res.ok || !resp.data) {
-        const beskrivelse = resp.feil || `HTTP ${res.status} — serveren svarte ikke med JSON: ${tekst.slice(0, 120)}`
-        console.error('Takst-analyse feilet:', { status: res.status, resp, raTekst: tekst.slice(0, 500) })
+        const beskrivelse = resp.feil || `HTTP ${res.status} — uleselig respons: ${tekst.slice(0, 120)}`
+        console.error('Takst-analyse feilet:', { status: res.status, resp, raTekstStart: tekst.slice(0, 500) })
         visToast(beskrivelse, 'feil', 6000)
         onFilnavn(null)
         return

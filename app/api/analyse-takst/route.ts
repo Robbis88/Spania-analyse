@@ -205,48 +205,69 @@ export async function POST(req: NextRequest) {
           { type: 'text' as const, text: 'Les denne takstrapporten / tilstandsrapporten og fyll inn strukturen via verktøyet.' },
         ]
 
-    let svar
-    try {
-      // Bruker streaming så HTTP-forbindelsen holdes varm under hele
-      // generering. Et vanlig non-stream-kall kan ta 60+ sekunder for
-      // store takstrapporter — over default proxy-timeout på Vercel/Next.
-      const stream = klient.messages.stream({
-        model: MODELL,
-        max_tokens: 6000,  // utvidet tool-output — trenger plass
-        temperature: 0,
-        system: SYSTEM,
-        tools: [takstTool],
-        tool_choice: { type: 'tool', name: 'les_takstrapport' },
-        messages: [{ role: 'user', content: innhold }],
-      })
-      svar = await stream.finalMessage()
-    } catch (e) {
-      const m = e instanceof Error ? e.message : String(e)
-      console.error('Takst Anthropic-kall feilet:', m)
-      // Send mer informativ melding til klient så brukeren forstår hva som skjer
-      const klientMelding = m.includes('overloaded') ? 'AI-tjenesten er overbelastet — prøv igjen om noen sekunder'
-        : m.includes('rate_limit') ? 'For mange forespørsler — vent et minutt og prøv igjen'
-        : m.includes('too large') || m.includes('too long') ? 'PDF-en er for stor eller har for mange sider for AI-en'
-        : m.includes('cannot read') || m.includes('decode') ? 'Kunne ikke lese PDF — er den skannet uten tekst?'
-        : 'AI-tjenesten feilet: ' + m.slice(0, 150)
-      return NextResponse.json({ feil: klientMelding }, { status: 502 })
-    }
+    // NDJSON-streaming: vi sender en ping ({}) hver 3. sek mens Claude jobber,
+    // og legger på sluttsvaret som siste linje. Det holder proxy-er fra å gi opp
+    // (de ser data flyte) selv om generering tar 60+ sekunder.
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        let pingInterval: ReturnType<typeof setInterval> | null = null
+        const send = (obj: Record<string, unknown>) => {
+          try { controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n')) }
+          catch { /* ignorer hvis stream er lukket */ }
+        }
+        try {
+          pingInterval = setInterval(() => send({ ping: 1 }), 3000)
+          const stream = klient.messages.stream({
+            model: MODELL,
+            max_tokens: 6000,
+            temperature: 0,
+            system: SYSTEM,
+            tools: [takstTool],
+            tool_choice: { type: 'tool', name: 'les_takstrapport' },
+            messages: [{ role: 'user', content: innhold }],
+          })
+          const svar = await stream.finalMessage()
+          clearInterval(pingInterval); pingInterval = null
 
-    const tool = svar.content.find(b => b.type === 'tool_use')
-    if (!tool || tool.type !== 'tool_use') {
-      const stop = svar.stop_reason
-      console.error('Takst: ingen tool_use. stop_reason:', stop, 'usage:', svar.usage)
-      const melding = stop === 'max_tokens'
-        ? 'AI-svaret ble kuttet (for stor rapport for ett kall). Prøv en mindre PDF eller del opp.'
-        : stop === 'refusal'
-        ? 'AI-en avviste å analysere innholdet'
-        : 'AI ga ikke strukturert svar (stop_reason: ' + stop + ')'
-      return NextResponse.json({ feil: melding }, { status: 502 })
-    }
+          const tool = svar.content.find(b => b.type === 'tool_use')
+          if (!tool || tool.type !== 'tool_use') {
+            const stop = svar.stop_reason
+            console.error('Takst: ingen tool_use. stop_reason:', stop)
+            const melding = stop === 'max_tokens'
+              ? 'AI-svaret ble kuttet (for stor rapport). Prøv en mindre PDF.'
+              : stop === 'refusal'
+              ? 'AI-en avviste å analysere innholdet'
+              : 'AI ga ikke strukturert svar (stop_reason: ' + stop + ')'
+            send({ feil: melding })
+          } else {
+            send({ data: tool.input, modell: MODELL, generert: new Date().toISOString() })
+          }
+        } catch (e) {
+          if (pingInterval) clearInterval(pingInterval)
+          const m = e instanceof Error ? e.message : String(e)
+          console.error('Takst-analyse feilet:', m)
+          const klientMelding = m.includes('overloaded') ? 'AI-tjenesten er overbelastet — prøv igjen om noen sekunder'
+            : m.includes('rate_limit') ? 'For mange forespørsler — vent et minutt og prøv igjen'
+            : m.includes('too large') || m.includes('too long') ? 'PDF-en er for stor eller har for mange sider for AI-en'
+            : m.includes('cannot read') || m.includes('decode') ? 'Kunne ikke lese PDF — er den skannet uten tekst?'
+            : 'AI-tjenesten feilet: ' + m.slice(0, 150)
+          send({ feil: klientMelding })
+        } finally {
+          try { controller.close() } catch { /* allerede lukket */ }
+        }
+      },
+    })
 
-    return NextResponse.json({ data: tool.input, modell: MODELL, generert: new Date().toISOString() })
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',  // hindre buffering hos reverse-proxy
+      },
+    })
   } catch (e) {
-    console.error('Takst-analyse feil:', e instanceof Error ? e.message : String(e))
+    console.error('Takst-analyse pre-stream feil:', e instanceof Error ? e.message : String(e))
     const m = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ feil: 'Uventet feil: ' + m.slice(0, 150) }, { status: 500 })
   }
