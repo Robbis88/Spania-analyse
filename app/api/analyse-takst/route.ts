@@ -137,38 +137,29 @@ const takstTool = {
   },
 }
 
-const SYSTEM = `Du er en kritisk og erfaren boligkjøper-rådgiver med dyp teknisk forståelse av norske boliger. Du leser takstrapporter ikke for å gjenta dem, men for å vurdere hva de betyr for kjøperen — inkludert det de IKKE sier.
+const SYSTEM = `Du er en kritisk boligkjøper-rådgiver. Les takstrapporten og vurder hva den betyr for kjøperen — inkludert det den IKKE sier.
 
-Tenk som en kjøper som har hatt vondt for mye en gang før: Ikke stol blindt på takstmann. Vær spesifikt skeptisk til:
-- Generiske kommentarer ("god stand for alderen") som ikke er underbygget
-- Manglende undersøkelse av loft, kryperom, røropplegg, elektrisk anlegg
-- Sprik mellom annonse og takst
-- TG1 som egentlig burde vært TG2 (takstmann er ofte konservative for å beskytte selger)
+Aldersregler (bruk når byggeår er kjent):
+- <1999: el-anlegg uten jordfeilbryter (30-80k utbedring)
+- 1960-80: asbest/PCB-risiko (sanering 100-300k)
+- 1970-90: kobberrør fluss-fasen (rør-bytte 150-400k)
+- <1960: råte-risiko bærekonstruksjon
 
-Aldersrelaterte risikoer du ALLTID skal sjekke når byggeår er kjent:
-- Bygg < 1999: el-anlegg uten jordfeilbryter, gammelt sikringsskap (utbedring 30-80k)
-- Bygg 1960-1980: asbest i tak/vegger/rør-isolasjon, PCB i vinduer (sanering kan koste 100-300k)
-- Bygg 1970-1990: kobberrør i fluss-fasen — pinhole-lekkasjer (totalt rør-bytte 150-400k)
-- Bygg < 1960: råte i bærekonstruksjon, manglende fundament-isolasjon
-- Alle bygg: radon (måling 1k, utbedring 30-100k)
+Forhandlingsregler:
+- TG3 = 100% av estimat som spak
+- TG2 vesentlige = 50-80% spak
+- Manglende dokumentasjon = 200-500k usikkerhet
 
-Forhandlingsvurdering — typiske grunnregler:
-- TG3-funn = 100% av estimert utbedring som forhandlingsspak
-- TG2 vesentlige funn = 50-80% som spak
-- Mange små TG2 sammen = totalvurdering kan trekke 5-10% av prisantydning
-- Manglende dokumentasjon (omsøkt rom, ferdigattest) = 200-500k usikkerhet
+Realistiske priser (NOK 2025):
+- Bad: 250-450k · Kjøkken: 150-350k · Drenering: 80-300k
+- Vinduer 10-15 stk: 150-300k · El-anlegg: 50-150k · Tak: 200-500k
 
-Bruk takstmannens estimater når de finnes. Når de mangler, bruk realistiske håndverkerpriser i NOK 2025:
-- Bad-renovering komplett: 250-450k
-- Kjøkken-renovering: 150-350k
-- Drenering: 80-300k avhengig av sokkel
-- Vinduer (10-15 stk): 150-300k
-- El-anlegg-oppgradering: 50-150k
-- Tak-skifte: 200-500k
+Skriv på norsk. Vær direkte og konkret. Bruk takstmannens estimater når de finnes.`
 
-Skriv på norsk. Vær direkte og konkret — ikke vag. Hvis rapporten er overfladisk, si det.`
-
-export const maxDuration = 60
+// Krever Vercel Pro for å ha effekt over 60s. På Hobby capped på 10s.
+// Localhost dev-server respekterer dette ikke. For å unngå timeout-problemer
+// holder vi prompt og max_tokens lav nok til å fullføres innenfor 50-60s.
+export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   const auth = requireAuth(req)
@@ -220,7 +211,8 @@ export async function POST(req: NextRequest) {
           pingInterval = setInterval(() => send({ ping: 1 }), 3000)
           const stream = klient.messages.stream({
             model: MODELL,
-            max_tokens: 6000,
+            // Holdes lavt nok til å fullføre under 60s for typisk 30-siders rapport
+            max_tokens: 4000,
             temperature: 0,
             system: SYSTEM,
             tools: [takstTool],
