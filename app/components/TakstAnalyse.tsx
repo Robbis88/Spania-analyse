@@ -15,6 +15,24 @@ export type TakstData = {
   tilstandsgrader?: Array<{ del: string; tg: 0 | 1 | 2 | 3; kommentar?: string; estimat_nok?: number }>
   rode_flagg?: Array<{ alvorlighet: 'kritisk' | 'advarsel' | 'info'; tittel: string; beskrivelse: string }>
   anbefalte_oppussingsposter?: Array<{ navn: string; kostnad_estimat_nok: number; begrunnelse: string; prioritet?: 'hast' | 'normal' | 'lav' }>
+  forhandlingsvurdering?: {
+    anbefalt_avvik_pst?: number
+    anbefalt_avvik_kr?: number
+    begrunnelse?: string
+    forhandlingsspaker?: string[]
+  }
+  mangler_i_rapporten?: Array<{ punkt: string; hvorfor_viktig: string }>
+  aldersrelaterte_risikoer?: Array<{ risiko: string; hvordan_sjekke: string; estimat_om_funnet_nok?: number }>
+  sporsmal_til_megler?: string[]
+  takst_kvalitet?: {
+    grundighet?: 'overfladisk' | 'normal' | 'grundig'
+    kommentar?: string
+  }
+  samlet_oppussingsbehov?: {
+    minimum_nok?: number
+    realistisk_nok?: number
+    maksimum_nok?: number
+  }
   ai_oppsummering?: string
 }
 
@@ -231,9 +249,49 @@ export function TakstAnalyse({ data, filnavn, onData, onFilnavn, onBrukMarkedsve
             </div>
           )}
 
+          {/* Forhandlingsvurdering */}
+          {data.forhandlingsvurdering && (data.forhandlingsvurdering.anbefalt_avvik_kr || data.forhandlingsvurdering.begrunnelse) && (
+            <div style={{ background: '#fff8e1', border: `1.5px solid ${FARGER.advarsel}66`, borderRadius: RADIUS.md, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#7a4a08', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                🤝 Forhandlingsposisjon
+              </div>
+              {(typeof data.forhandlingsvurdering.anbefalt_avvik_pst === 'number' || typeof data.forhandlingsvurdering.anbefalt_avvik_kr === 'number') && (
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {typeof data.forhandlingsvurdering.anbefalt_avvik_pst === 'number' && (
+                    <div>
+                      <div style={{ fontSize: 10, color: FARGER.tekstLys, marginBottom: 2 }}>Anbefalt avvik fra prisantydning</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: data.forhandlingsvurdering.anbefalt_avvik_pst < 0 ? FARGER.suksess : FARGER.feil }}>
+                        {data.forhandlingsvurdering.anbefalt_avvik_pst > 0 ? '+' : ''}{data.forhandlingsvurdering.anbefalt_avvik_pst.toFixed(1)} %
+                      </div>
+                    </div>
+                  )}
+                  {typeof data.forhandlingsvurdering.anbefalt_avvik_kr === 'number' && (
+                    <div>
+                      <div style={{ fontSize: 10, color: FARGER.tekstLys, marginBottom: 2 }}>I kroner</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: data.forhandlingsvurdering.anbefalt_avvik_kr < 0 ? FARGER.suksess : FARGER.feil }}>
+                        {data.forhandlingsvurdering.anbefalt_avvik_kr > 0 ? '+' : ''}{Math.round(data.forhandlingsvurdering.anbefalt_avvik_kr).toLocaleString('nb-NO')} kr
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {data.forhandlingsvurdering.begrunnelse && (
+                <p style={{ fontSize: 13, color: '#7a4a08', lineHeight: 1.6, margin: '0 0 10px' }}>{data.forhandlingsvurdering.begrunnelse}</p>
+              )}
+              {data.forhandlingsvurdering.forhandlingsspaker && data.forhandlingsvurdering.forhandlingsspaker.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#7a4a08', fontWeight: 600, marginBottom: 6 }}>Konkrete forhandlingsspaker:</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: FARGER.mork, lineHeight: 1.7 }}>
+                    {data.forhandlingsvurdering.forhandlingsspaker.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Anbefalte oppussingsposter */}
           {data.anbefalte_oppussingsposter && data.anbefalte_oppussingsposter.length > 0 && (
-            <div>
+            <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                   🔨 Anbefalte oppussingsposter ({data.anbefalte_oppussingsposter.length})
@@ -257,11 +315,109 @@ export function TakstAnalyse({ data, filnavn, onData, onFilnavn, onBrukMarkedsve
                   </div>
                 </div>
               ))}
-              <div style={{ fontSize: 10, color: FARGER.tekstLys, fontStyle: 'italic', marginTop: 8, textAlign: 'center' }}>
-                Estimater er basert på takstmannens anbefalinger og typiske håndverkerpriser i NOK 2025. Verifiser med konkrete tilbud før budgivning.
+            </div>
+          )}
+
+          {/* Samlet oppussingsbehov — totalbudsjett */}
+          {data.samlet_oppussingsbehov && (data.samlet_oppussingsbehov.minimum_nok || data.samlet_oppussingsbehov.realistisk_nok) && (
+            <div style={{ background: FARGER.creamLys, borderRadius: RADIUS.sm, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                💰 Samlet oppussingsbehov
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, fontSize: 13 }}>
+                {typeof data.samlet_oppussingsbehov.minimum_nok === 'number' && (
+                  <div>
+                    <div style={{ fontSize: 10, color: FARGER.tekstLys }}>Minimum (kun kritisk)</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: FARGER.suksess }}>{fmtNok(data.samlet_oppussingsbehov.minimum_nok)}</div>
+                  </div>
+                )}
+                {typeof data.samlet_oppussingsbehov.realistisk_nok === 'number' && (
+                  <div>
+                    <div style={{ fontSize: 10, color: FARGER.tekstLys }}>Realistisk (+ buffer)</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: FARGER.advarsel }}>{fmtNok(data.samlet_oppussingsbehov.realistisk_nok)}</div>
+                  </div>
+                )}
+                {typeof data.samlet_oppussingsbehov.maksimum_nok === 'number' && (
+                  <div>
+                    <div style={{ fontSize: 10, color: FARGER.tekstLys }}>Maks (worst case)</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: FARGER.feil }}>{fmtNok(data.samlet_oppussingsbehov.maksimum_nok)}</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
+
+          {/* Mangler i rapporten */}
+          {data.mangler_i_rapporten && data.mangler_i_rapporten.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                🕳️ Det rapporten IKKE sier ({data.mangler_i_rapporten.length})
+              </div>
+              {data.mangler_i_rapporten.map((m, i) => (
+                <div key={i} style={{ borderTop: i > 0 ? `1px solid ${FARGER.flateLys}` : 'none', padding: '8px 0' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>{m.punkt}</div>
+                  <div style={{ fontSize: 12, color: FARGER.tekstMid, marginTop: 3, lineHeight: 1.5 }}>{m.hvorfor_viktig}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Aldersrelaterte risikoer */}
+          {data.aldersrelaterte_risikoer && data.aldersrelaterte_risikoer.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                ⏳ Aldersrelaterte risikoer{data.byggear ? ` (bygg ${data.byggear})` : ''}
+              </div>
+              {data.aldersrelaterte_risikoer.map((r, i) => (
+                <div key={i} style={{ borderTop: i > 0 ? `1px solid ${FARGER.flateLys}` : 'none', padding: '8px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>{r.risiko}</div>
+                    {typeof r.estimat_om_funnet_nok === 'number' && r.estimat_om_funnet_nok > 0 && (
+                      <span style={{ fontSize: 11, color: FARGER.feil, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        +{fmtNok(r.estimat_om_funnet_nok)} hvis funnet
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: FARGER.tekstMid, marginTop: 3, lineHeight: 1.5 }}>{r.hvordan_sjekke}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Spørsmål til megler */}
+          {data.sporsmal_til_megler && data.sporsmal_til_megler.length > 0 && (
+            <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                📝 Spørsmål å stille megler / selger ({data.sporsmal_til_megler.length})
+              </div>
+              <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: FARGER.mork, lineHeight: 1.8 }}>
+                {data.sporsmal_til_megler.map((s, i) => <li key={i}>{s}</li>)}
+              </ol>
+            </div>
+          )}
+
+          {/* Takst-kvalitet */}
+          {data.takst_kvalitet?.kommentar && (
+            <div style={{ background: '#fff', border: `1px dashed ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 12, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Vurdering av takstrapporten
+                </span>
+                {data.takst_kvalitet.grundighet && (
+                  <span style={{
+                    background: data.takst_kvalitet.grundighet === 'grundig' ? '#e8f5ed' : data.takst_kvalitet.grundighet === 'normal' ? '#faf7ee' : '#fff8e1',
+                    color: data.takst_kvalitet.grundighet === 'grundig' ? FARGER.suksess : data.takst_kvalitet.grundighet === 'normal' ? FARGER.tekstMid : FARGER.advarsel,
+                    padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700, textTransform: 'capitalize',
+                  }}>{data.takst_kvalitet.grundighet}</span>
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: 0, lineHeight: 1.5 }}>{data.takst_kvalitet.kommentar}</p>
+            </div>
+          )}
+
+          <div style={{ fontSize: 10, color: FARGER.tekstLys, fontStyle: 'italic', marginTop: 8, textAlign: 'center' }}>
+            AI-vurdering basert på rapportens innhold + bransjekunnskap. Estimatene er veiledende — verifiser alltid med konkrete tilbud og fagkyndig før budgivning.
+          </div>
         </div>
       )}
     </div>
