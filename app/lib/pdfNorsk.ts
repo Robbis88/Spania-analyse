@@ -170,6 +170,32 @@ type BankVurdering = {
 const NOK = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '-'
 const PCT = (n: number) => n.toFixed(1) + ' %'
 
+// Strukturert takst-analyse fra Claude — speiler TakstData-typen i UI
+export type TakstPdfData = {
+  vurdert_markedsverdi_nok?: number
+  laneverdi_nok?: number
+  byggear?: number
+  areal_bra_m2?: number
+  energimerke?: string
+  eierform?: string
+  tilstandsgrader?: Array<{ del: string; tg: 0 | 1 | 2 | 3; kommentar?: string; estimat_nok?: number }>
+  rode_flagg?: Array<{ alvorlighet: 'kritisk' | 'advarsel' | 'info'; tittel: string; beskrivelse: string }>
+  anbefalte_oppussingsposter?: Array<{ navn: string; kostnad_estimat_nok: number; begrunnelse: string; prioritet?: 'hast' | 'normal' | 'lav' }>
+  forhandlingsvurdering?: {
+    anbefalt_avvik_pst?: number
+    anbefalt_avvik_kr?: number
+    begrunnelse?: string
+    forhandlingsspaker?: string[]
+  }
+  mangler_i_rapporten?: Array<{ punkt: string; hvorfor_viktig: string }>
+  aldersrelaterte_risikoer?: Array<{ risiko: string; hvordan_sjekke: string; estimat_om_funnet_nok?: number }>
+  sporsmal_til_megler?: string[]
+  takst_kvalitet?: { grundighet?: string; kommentar?: string }
+  samlet_oppussingsbehov?: { minimum_nok?: number; realistisk_nok?: number; maksimum_nok?: number }
+  ai_oppsummering?: string
+  filnavn?: string
+}
+
 export async function byggNorskFlippePdf(args: {
   analyse: AnalyseLite
   kalk: Kalk
@@ -179,6 +205,7 @@ export async function byggNorskFlippePdf(args: {
   bankVurdering?: BankVurdering | null
   meglerVurderinger?: MeglerVurdering[]
   totalScore?: TotalScore | null
+  takst?: TakstPdfData | null          // strukturert takst-analyse (PDF dropper egen seksjon)
   finnUrl?: string                     // Finn-lenke til annonsen
   prosjektId?: string                  // hvis satt: hent bilder fra Supabase
   supabaseKlient?: SupabaseKlient      // valgfri — kun nødvendig hvis prosjektId er satt
@@ -304,6 +331,206 @@ export async function byggNorskFlippePdf(args: {
     if (a.markedspris_bra_m2_nok) rad('Bra standard (per m²)', NOK(a.markedspris_bra_m2_nok), 1)
     if (a.markedspris_topp_m2_nok) rad('Toppstand (per m²)', NOK(a.markedspris_topp_m2_nok), 2)
     y += 4
+  }
+
+  // === TAKSTRAPPORT-ANALYSE ===
+  // Vises hvis brukeren har lastet opp en takst og kjørt AI-analyse på den.
+  // Tar med oppsummering, nøkkeltall, røde flagg, TG-funn, forhandlingsspak,
+  // anbefalte oppussingsposter, mangler i rapporten, aldersrisikoer og
+  // spørsmål til megler — alt i kompakt form for bank/kjøperdokumentasjon.
+  if (args.takst && (args.takst.ai_oppsummering || args.takst.tilstandsgrader?.length || args.takst.rode_flagg?.length)) {
+    const t = args.takst
+    sjekk(20)
+    seksjon('TAKSTRAPPORT-ANALYSE' + (t.filnavn ? ` (${t.filnavn})` : ''))
+
+    if (t.ai_oppsummering) {
+      avsnitt(t.ai_oppsummering)
+      y += 2
+    }
+
+    // Nøkkelfakta-rad
+    let i = 0
+    if (typeof t.vurdert_markedsverdi_nok === 'number' && t.vurdert_markedsverdi_nok > 0) {
+      rad('Vurdert markedsverdi (takst)', NOK(t.vurdert_markedsverdi_nok), i++, true)
+    }
+    if (typeof t.laneverdi_nok === 'number' && t.laneverdi_nok > 0) {
+      rad('Låneverdi', NOK(t.laneverdi_nok), i++)
+    }
+    if (t.byggear) rad('Byggeår', String(t.byggear), i++)
+    if (t.areal_bra_m2) rad('Bruksareal', `${t.areal_bra_m2} m²`, i++)
+    if (t.energimerke) rad('Energimerke', t.energimerke, i++)
+    if (t.eierform) rad('Eierform', t.eierform, i++)
+    if (i > 0) y += 4
+
+    // Forhandlingsvurdering
+    if (t.forhandlingsvurdering && (t.forhandlingsvurdering.anbefalt_avvik_kr || t.forhandlingsvurdering.begrunnelse)) {
+      const fv = t.forhandlingsvurdering
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(122, 74, 8)
+      doc.text('FORHANDLINGSPOSISJON', 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60)
+      if (typeof fv.anbefalt_avvik_pst === 'number' || typeof fv.anbefalt_avvik_kr === 'number') {
+        const deler: string[] = []
+        if (typeof fv.anbefalt_avvik_pst === 'number') deler.push(`${fv.anbefalt_avvik_pst > 0 ? '+' : ''}${fv.anbefalt_avvik_pst.toFixed(1)}%`)
+        if (typeof fv.anbefalt_avvik_kr === 'number') deler.push(NOK(fv.anbefalt_avvik_kr))
+        rad('Anbefalt avvik fra prisantydning', deler.join('  /  '), 0, true)
+      }
+      if (fv.begrunnelse) avsnitt(fv.begrunnelse)
+      if (fv.forhandlingsspaker && fv.forhandlingsspaker.length > 0) {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+        sjekk(6)
+        doc.text('Forhandlingsspaker:', 20, y); y += 5
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+        for (const s of fv.forhandlingsspaker) {
+          const linjer = doc.splitTextToSize('• ' + s, 170)
+          for (const l of linjer as string[]) { sjekk(5); doc.text(l, 22, y); y += 4.5 }
+        }
+        y += 3
+      }
+    }
+
+    // Røde flagg
+    if (t.rode_flagg && t.rode_flagg.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(122, 12, 30)
+      doc.text(`VIKTIGE FORHOLD (${t.rode_flagg.length})`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      for (const rf of t.rode_flagg) {
+        sjekk(10)
+        const merke = rf.alvorlighet === 'kritisk' ? '[KRITISK]' : rf.alvorlighet === 'advarsel' ? '[ADVARSEL]' : '[INFO]'
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${merke} ${rf.tittel}`, 20, y); y += 5
+        doc.setFont('helvetica', 'normal')
+        const linjer = doc.splitTextToSize(rf.beskrivelse, 170)
+        for (const l of linjer as string[]) { sjekk(4.5); doc.text(l, 22, y); y += 4.5 }
+        y += 2
+      }
+    }
+
+    // Tilstandsgrader
+    if (t.tilstandsgrader && t.tilstandsgrader.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text(`TILSTANDSGRADER (${t.tilstandsgrader.length})`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      t.tilstandsgrader.forEach((tg, idx) => {
+        sjekk(7)
+        if (idx % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 6.5, 'F') }
+        doc.setFont('helvetica', 'bold')
+        doc.text(`TG${tg.tg}`, 20, y + 1.5)
+        doc.setFont('helvetica', 'normal')
+        doc.text(tg.del, 36, y + 1.5)
+        if (typeof tg.estimat_nok === 'number' && tg.estimat_nok > 0) {
+          doc.text(NOK(tg.estimat_nok), 188, y + 1.5, { align: 'right' })
+        }
+        y += 6.5
+        if (tg.kommentar) {
+          doc.setTextColor(110, 110, 110)
+          const linjer = doc.splitTextToSize(tg.kommentar, 165)
+          for (const l of linjer as string[]) { sjekk(4); doc.text(l, 36, y); y += 4 }
+          doc.setTextColor(60, 60, 60)
+        }
+      })
+      y += 4
+    }
+
+    // Samlet oppussingsbehov
+    if (t.samlet_oppussingsbehov && (t.samlet_oppussingsbehov.minimum_nok || t.samlet_oppussingsbehov.realistisk_nok)) {
+      const sob = t.samlet_oppussingsbehov
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text('SAMLET OPPUSSINGSBEHOV', 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60)
+      if (typeof sob.minimum_nok === 'number') rad('Minimum (kun kritisk)', NOK(sob.minimum_nok), 0)
+      if (typeof sob.realistisk_nok === 'number') rad('Realistisk (+ buffer)', NOK(sob.realistisk_nok), 1, true)
+      if (typeof sob.maksimum_nok === 'number') rad('Maks (worst case)', NOK(sob.maksimum_nok), 2)
+      y += 4
+    }
+
+    // Anbefalte oppussingsposter (fra takst — separat fra kalkulator)
+    if (t.anbefalte_oppussingsposter && t.anbefalte_oppussingsposter.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text(`ANBEFALTE OPPUSSINGSPOSTER FRA TAKST (${t.anbefalte_oppussingsposter.length})`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      t.anbefalte_oppussingsposter.forEach((p, idx) => {
+        sjekk(7)
+        if (idx % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3, 180, 6.5, 'F') }
+        doc.setFont('helvetica', 'bold')
+        const navn = p.prioritet === 'hast' ? `[HAST] ${p.navn}` : p.navn
+        doc.text(navn, 20, y + 1.5)
+        doc.text(NOK(p.kostnad_estimat_nok), 188, y + 1.5, { align: 'right' })
+        y += 6.5
+        if (p.begrunnelse) {
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(110, 110, 110)
+          const linjer = doc.splitTextToSize(p.begrunnelse, 165)
+          for (const l of linjer as string[]) { sjekk(4); doc.text(l, 22, y); y += 4 }
+          doc.setTextColor(60, 60, 60)
+        }
+      })
+      y += 4
+    }
+
+    // Mangler i rapporten
+    if (t.mangler_i_rapporten && t.mangler_i_rapporten.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text(`MANGLER I RAPPORTEN (${t.mangler_i_rapporten.length})`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      for (const m of t.mangler_i_rapporten) {
+        sjekk(8)
+        doc.setFont('helvetica', 'bold'); doc.text(m.punkt, 20, y); y += 4.5
+        doc.setFont('helvetica', 'normal')
+        const linjer = doc.splitTextToSize(m.hvorfor_viktig, 170)
+        for (const l of linjer as string[]) { sjekk(4); doc.text(l, 22, y); y += 4 }
+        y += 2
+      }
+    }
+
+    // Aldersrelaterte risikoer
+    if (t.aldersrelaterte_risikoer && t.aldersrelaterte_risikoer.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text(`ALDERSRELATERTE RISIKOER${t.byggear ? ` (bygg ${t.byggear})` : ''}`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      for (const r of t.aldersrelaterte_risikoer) {
+        sjekk(8)
+        doc.setFont('helvetica', 'bold')
+        const ekstra = typeof r.estimat_om_funnet_nok === 'number' && r.estimat_om_funnet_nok > 0 ? `  (+${NOK(r.estimat_om_funnet_nok)} hvis funnet)` : ''
+        doc.text(r.risiko + ekstra, 20, y); y += 4.5
+        doc.setFont('helvetica', 'normal')
+        const linjer = doc.splitTextToSize(r.hvordan_sjekke, 170)
+        for (const l of linjer as string[]) { sjekk(4); doc.text(l, 22, y); y += 4 }
+        y += 2
+      }
+    }
+
+    // Spørsmål til megler
+    if (t.sporsmal_til_megler && t.sporsmal_til_megler.length > 0) {
+      sjekk(16)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(14, 23, 38)
+      doc.text(`SPØRSMÅL TIL MEGLER / SELGER (${t.sporsmal_til_megler.length})`, 20, y); y += 6
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 60, 60)
+      t.sporsmal_til_megler.forEach((s, idx) => {
+        const linjer = doc.splitTextToSize(`${idx + 1}. ${s}`, 170)
+        for (const l of linjer as string[]) { sjekk(4.5); doc.text(l, 20, y); y += 4.5 }
+        y += 1
+      })
+      y += 3
+    }
+
+    // Vurdering av takstrapporten
+    if (t.takst_kvalitet?.kommentar) {
+      sjekk(10)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120, 120, 120)
+      const grad = t.takst_kvalitet.grundighet ? ` [${t.takst_kvalitet.grundighet}]` : ''
+      doc.text(`VURDERING AV TAKSTRAPPORTEN${grad}`, 20, y); y += 5
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110, 110, 110)
+      const linjer = doc.splitTextToSize(t.takst_kvalitet.kommentar, 170)
+      for (const l of linjer as string[]) { sjekk(4); doc.text(l, 20, y); y += 4 }
+      y += 4
+      doc.setTextColor(60, 60, 60)
+    }
   }
 
   // === SCORE ===
@@ -812,6 +1039,9 @@ export async function byggNorskPdfFraProsjekt(
   const husholdning = (d.husholdning as Husholdning) || null
   const meglerVurderinger = (d.meglerVurderinger as MeglerVurdering[]) || []
   const finnUrl = (typeof d.finnUrl === 'string' ? d.finnUrl : '') || ''
+  const takstRaw = d.takstData as TakstPdfData | null | undefined
+  const takstFilnavn = typeof d.takstFilnavn === 'string' ? d.takstFilnavn : null
+  const takst: TakstPdfData | null = takstRaw ? { ...takstRaw, filnavn: takstFilnavn || takstRaw.filnavn } : null
 
   const effektivKalk = regnEffektivKalk(kalk, modus, boPlan)
   const utleieBeregning = utleieDel
@@ -840,6 +1070,7 @@ export async function byggNorskPdfFraProsjekt(
     kalk: effektivKalk,
     beregning,
     oppussingsposter,
+    takst,
     boFlipp: modus === 'bo' && finansiering && eksisterende ? {
       eksisterende: {
         modus: eksisterende.modus,

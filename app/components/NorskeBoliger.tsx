@@ -1010,6 +1010,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         oppussingsposter,
         meglerVurderinger,
         totalScore,
+        takst: takstData ? { ...takstData, filnavn: takstFilnavn || undefined } : null,
         finnUrl: finnUrl || undefined,
         bankVurdering: bankScore.sumInntektMnd > 0 ? {
           inntekter: husholdning.inntekter,
