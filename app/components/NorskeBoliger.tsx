@@ -889,9 +889,12 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     const belaningsgrad_kjop = kalk.kjopesum > 0 ? (kjopslan / kalk.kjopesum) * 100 : 0
     const mndBetaling_kjop = annuitet(kjopslan)
 
-    // Etter oppussing (refinansiering mot ny markedsverdi)
+    // Etter oppussing (refinansiering mot ny markedsverdi).
+    // Bruker effektivKalk.salgspris så LTV-prosenten matcher verdien som vises i UI
+    // (kalk.salgspris × prisvekst-faktor over bo-tiden).
+    const ny_verdi = effektivKalk.salgspris
     const total_lan_etter_oppussing = kjopslan + beregning.oppussingTotal
-    const belaningsgrad_etter_oppussing = kalk.salgspris > 0 ? (total_lan_etter_oppussing / kalk.salgspris) * 100 : 0
+    const belaningsgrad_etter_oppussing = ny_verdi > 0 ? (total_lan_etter_oppussing / ny_verdi) * 100 : 0
     const mndBetaling_etter_oppussing = annuitet(total_lan_etter_oppussing)
 
     return {
@@ -900,7 +903,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       egenfin_oppussing, ek_brukt_paa_oppussing,
       total_lan_etter_oppussing, belaningsgrad_etter_oppussing, mndBetaling_etter_oppussing,
     }
-  }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, kalk.salgspris, kalk.rente_pst, kalk.nedbetalingstid_aar])
+  }, [modus, beregning.totalKjop, beregning.oppussingTotal, eksisterendeBeregning.nettoTilDisposisjon, kalk.kjopesum, effektivKalk.salgspris, kalk.rente_pst, kalk.nedbetalingstid_aar])
 
   // === BANK-SCORE — gjenbruker pure-funksjon fra lib (samme logikk som i PDF-bygger) ===
   const bankScore = useMemo(() => {
@@ -2858,6 +2861,13 @@ function Finansiering({ f, salgssum, utleieMnd = 0 }: {
               <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(f.mndBetaling_etter_oppussing)}</div>
               <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Renter + avdrag etter refinansiering</div>
             </div>
+            {utleieMnd > 0 && (
+              <div style={{ background: '#e8f5ed', padding: 12, borderRadius: RADIUS.sm, border: '1px solid #2D7D4644' }}>
+                <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Netto bo-kostnad / mnd</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#1a4d2b' }}>{fmtNok(f.mndBetaling_etter_oppussing - utleieMnd)}</div>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Etter {fmtNok(utleieMnd)} netto leieinntekt</div>
+              </div>
+            )}
             <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, padding: 12, borderRadius: RADIUS.sm }}>
               <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Frigjøring ved salg</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: FARGER.mork }}>{fmtNok(salgssum - f.total_lan_etter_oppussing)}</div>

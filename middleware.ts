@@ -21,7 +21,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/portal-tilgang') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/agent') ||
-    pathname.startsWith('/api/analyse') ||
+    pathname.startsWith('/api/analyse') ||  // dekker /api/analyse, /api/analyse-norge, /api/analyse-takst
     pathname.startsWith('/api/airbnb') ||
     pathname.startsWith('/api/bilder') ||
     pathname.startsWith('/api/epost') ||
