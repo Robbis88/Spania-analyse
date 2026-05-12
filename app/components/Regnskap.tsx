@@ -251,7 +251,7 @@ export function Regnskap({
                 { id: 'kvitteringer' as const, lbl: '💳 Kvitteringer' },
                 { id: 'dokumenter' as const, lbl: '📁 Dokumenter' },
                 { id: 'forespørsler' as const, lbl: '📤 Forespørsler' },
-                ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
+                { id: 'oppussing' as const, lbl: '🔨 Oppussing' },
                 ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
                 { id: 'portal' as const, lbl: '🌐 Portal (leie/salg)' },
               ]).map(t => (
@@ -274,7 +274,7 @@ export function Regnskap({
               <TilbudHistorikk prosjektId={p.id} />
             )}
 
-            {aktivTab === 'oppussing' && p.kategori === 'flipp' && (
+            {aktivTab === 'oppussing' && (
               <Oppussingsbudsjett prosjekt={p} onProsjektOppdatert={hent} />
             )}
 
