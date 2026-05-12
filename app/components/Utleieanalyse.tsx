@@ -91,13 +91,42 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     if (!analyse) return
     const n = faktiskNokkel(ar, maned)
     const neste = { ...(analyse.faktiske_inntekter || {}) }
-    const handling = belop === null || belop === 0 || Number.isNaN(belop) ? 'fjernet faktisk leieinntekt' : 'oppdaterte faktisk leieinntekt'
-    if (belop === null || belop === 0 || Number.isNaN(belop)) {
+    const slett = belop === null || belop === 0 || Number.isNaN(belop)
+    const handling = slett ? 'fjernet faktisk leieinntekt' : 'oppdaterte faktisk leieinntekt'
+    if (slett) {
       delete neste[n]
     } else {
-      neste[n] = belop
+      neste[n] = belop as number
     }
     await oppdater({ faktiske_inntekter: neste })
+
+    // Synk til prosjekt.måneder så Årsrapport og Oversikt viser samme tall.
+    // måneder-arrayen brukes av Oversikt for cashflow-beregning og Årsrapport for år-aggregat.
+    const eksMåneder = prosjekt.måneder || []
+    const eksRad = eksMåneder.find(m => m.måned === n)
+    let nyMåneder = eksMåneder
+    if (slett) {
+      if (eksRad) {
+        // Behold rad hvis kostnad/notat finnes; ellers fjern
+        nyMåneder = (eksRad.kostnad || eksRad.notat) ? eksMåneder.map(m => m.måned === n ? { ...m, inntekt: 0 } : m) : eksMåneder.filter(m => m.måned !== n)
+      }
+    } else if (eksRad) {
+      nyMåneder = eksMåneder.map(m => m.måned === n ? { ...m, inntekt: belop as number } : m)
+    } else {
+      nyMåneder = [...eksMåneder, { måned: n, inntekt: belop as number, kostnad: 0, notat: '' }].sort((a, b) => a.måned.localeCompare(b.måned))
+    }
+    await supabase.from('prosjekter').update({ måneder: nyMåneder }).eq('id', prosjekt.id)
+
+    // Hvis dette er inneværende eller fremtidig måned, oppdater også
+    // "Leieinntekt/mnd" på Oversikt — det er den nyeste forventede.
+    if (!slett && typeof belop === 'number') {
+      const naa = new Date()
+      const aktiv = ar > naa.getFullYear() || (ar === naa.getFullYear() && maned >= naa.getMonth() + 1)
+      if (aktiv && Math.round(belop) !== (prosjekt.leieinntekt_mnd || 0)) {
+        await supabase.from('prosjekter').update({ leieinntekt_mnd: Math.round(belop) }).eq('id', prosjekt.id)
+      }
+    }
+
     await loggAktivitet({ handling, tabell: 'utleieanalyse', rad_id: analyse.id, detaljer: { bolig: prosjekt.navn, periode: n, belop } })
   }
 
