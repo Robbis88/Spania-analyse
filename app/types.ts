@@ -206,6 +206,16 @@ export type EiendomVerdivurdering = {
   mime_type: string | null
 }
 
+export type Timeloggning = {
+  id: string
+  bruker: string
+  dato: string
+  timer: number
+  beskrivelse: string | null
+  prosjekt_id: string | null
+  opprettet: string
+}
+
 export type EiendomCashflow = {
   id: string
   prosjekt_id: string
