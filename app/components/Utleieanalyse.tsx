@@ -8,6 +8,7 @@ import {
   KOSTNAD_LABEL, MANED_NAVN, aarligYield, beregnAar, estimertManedligInntekt,
   faktiskNokkel, manedligLaanebetaling, sumKostnaderAr,
 } from '../lib/utleie'
+import { harUtleieEndringer, prosjektFraUtleieanalyse } from '../lib/prosjektSync'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
@@ -69,6 +70,15 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     const neste = { ...analyse, ...endring }
     setAnalyse(neste)
     await supabase.from('utleieanalyse').update(endring).eq('id', analyse.id)
+
+    // Bidirectional sync: oppdater også prosjekter-tabellen hvis økonomi-felt
+    // har endret seg. Holder Oversikt/Årsrapport oppdatert.
+    if (harUtleieEndringer(analyse, neste)) {
+      const oppd = prosjektFraUtleieanalyse(neste)
+      if (Object.keys(oppd).length > 0) {
+        await supabase.from('prosjekter').update(oppd).eq('id', prosjekt.id)
+      }
+    }
   }
 
   async function oppdaterLan(endring: Partial<LanInfo>) {

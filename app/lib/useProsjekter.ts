@@ -1,9 +1,10 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import type { Prosjekt } from '../types'
+import type { Prosjekt, Utleieanalyse } from '../types'
 import { hentAktivBruker } from './aktivBruker'
 import { loggAktivitet } from './logg'
+import { harProsjektEndringer, utleieanalyseFraProsjekt } from './prosjektSync'
 
 export function useProsjekter(kategori?: 'flipp' | 'utleie') {
   const [prosjekter, setProsjekter] = useState<Prosjekt[]>([])
@@ -38,7 +39,21 @@ export function useProsjekter(kategori?: 'flipp' | 'utleie') {
   }
 
   async function oppdater(p: Prosjekt) {
+    const forrige = prosjekter.find(x => x.id === p.id)
     await supabase.from('prosjekter').update(p).eq('id', p.id)
+
+    // Synk til utleieanalyse hvis økonomi-felt har endret seg
+    if (forrige && harProsjektEndringer(forrige, p)) {
+      const { data: analyseRad } = await supabase.from('utleieanalyse').select('*').eq('bolig_id', p.id).maybeSingle()
+      if (analyseRad) {
+        const analyse = analyseRad as Utleieanalyse
+        const oppd = utleieanalyseFraProsjekt(p, analyse)
+        if (Object.keys(oppd).length > 0) {
+          await supabase.from('utleieanalyse').update(oppd).eq('id', analyse.id)
+        }
+      }
+    }
+
     await loggAktivitet({ handling: 'redigerte prosjekt', tabell: 'prosjekter', rad_id: p.id, detaljer: { navn: p.navn } })
     await hent()
   }
