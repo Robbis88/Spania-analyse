@@ -2,11 +2,17 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '../../lib/requireAuth'
 
-const client = new Anthropic()
+// Tre Anthropic-kall (analysetekst + score + strukturert data) kan ta over 60s.
+// Krever Vercel Pro for å gå over 60s. Lokalt har dette ingen effekt.
+export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   const auth = requireAuth(req)
   if (!auth.ok) return auth.respons
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'AI-tjenesten er ikke konfigurert' }, { status: 500 })
+  }
+  const client = new Anthropic()
   try {
     const body = await req.json()
     const bolig = body.bolig || body
@@ -27,8 +33,11 @@ export async function POST(req: NextRequest) {
 - Oppussingsbudsjett: €${bolig.oppbudsjett || 'ikke oppgitt'}
 - Ekstra info: ${bolig.ekstra || 'ingen'}`
 
-    // API-kall 1: Analysetekst
-    const analyseRes = await client.messages.create({
+    // Kall 1+2 kjøres parallelt — analysetekst og score er uavhengige.
+    // Sparer ~30 s vs sekvensiell kjøring.
+    const [analyseRes, scoreRes] = await Promise.all([
+      // ANALYSE
+      client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 4000,
       temperature: 0,
@@ -78,12 +87,9 @@ Beregn for 5%, 6% og 7% yield.
 
 ## 9. Investorvurdering og prisstrategi`
       }]
-    })
-
-    const analyseTekst = analyseRes.content[0].type === 'text' ? analyseRes.content[0].text : ''
-
-    // API-kall 2: Score separat
-    const scoreRes = await client.messages.create({
+    }),
+      // SCORE
+      client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 800,
       temperature: 0,
@@ -127,8 +133,10 @@ Scoring-regler:
 - lys: 🟢 hvis total >= 7, 🟡 hvis >= 5, 🔴 hvis under 5
 - maks_oppussing_5pst/6pst/7pst: maks euro på oppussing og fortsatt nå den yielden`
       }]
-    })
+    }),
+    ])
 
+    const analyseTekst = analyseRes.content[0].type === 'text' ? analyseRes.content[0].text : ''
     const scoreTekst = scoreRes.content[0].type === 'text' ? scoreRes.content[0].text : ''
     console.log('Score tekst:', scoreTekst.slice(0, 200))
 
@@ -154,7 +162,9 @@ Scoring-regler:
       },
     }
 
-    const dataRes = await client.messages.create({
+    // Bruker streaming på det største kallet (max 3000 tokens) så HTTP-forbindelsen
+    // holdes varm gjennom hele genereringen.
+    const dataStream = client.messages.stream({
       model: 'claude-sonnet-4-5',
       max_tokens: 3000,
       temperature: 0,
@@ -258,6 +268,7 @@ Retningslinjer:
       }],
     })
 
+    const dataRes = await dataStream.finalMessage()
     const toolBlock = dataRes.content.find(b => b.type === 'tool_use')
     let airbnbData: Record<string, unknown> | null = null
     if (toolBlock && toolBlock.type === 'tool_use') {
