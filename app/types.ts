@@ -216,6 +216,68 @@ export type Timeloggning = {
   opprettet: string
 }
 
+export type HandverkerFag =
+  | 'rorlegger' | 'rorlegger_avlop' | 'elektriker' | 'flislegger' | 'maler' | 'snekker'
+  | 'mur_betong' | 'maskin' | 'tak_fasade' | 'vvs' | 'vinduer'
+  | 'hage_uteplass' | 'oppvarming' | 'annet'
+
+export type Handverker = {
+  id: string
+  bruker: string
+  opprettet: string
+  navn: string
+  firma: string | null
+  fag: HandverkerFag[]
+  omrade: string | null
+  telefon: string | null
+  epost: string | null
+  whatsapp: string | null
+  sprak: 'no' | 'en' | 'es'
+  timepris_eur: number | null
+  evaluering: number | null
+  notat: string | null
+  aktiv: boolean
+}
+
+export type Tilbudsforesporsel = {
+  id: string
+  bruker: string
+  opprettet: string
+  handverker_id: string
+  prosjekt_id: string | null
+  oppussing_post_id: string | null
+  tittel: string
+  beskrivelse_no: string
+  beskrivelse_sendt: string | null
+  sendt_sprak: 'no' | 'en' | 'es' | null
+  bilde_ids: string[]
+  status: 'utkast' | 'sendt' | 'svart' | 'avtalt' | 'avvist' | 'utlopt'
+  tilbud_belop_eur: number | null
+  oppfolging_dato: string | null
+  intern_notat: string | null
+  sendt_via: 'epost' | 'whatsapp' | 'annet' | null
+  resend_id: string | null
+  feilmelding: string | null
+  sendt_tidspunkt: string | null
+}
+
+export const HANDVERKER_FAG_ETIKETT: Record<HandverkerFag, string> = {
+  rorlegger: 'Rørlegger',
+  rorlegger_avlop: 'Rørlegger (avløp)',
+  elektriker: 'Elektriker',
+  flislegger: 'Flislegger',
+  maler: 'Maler',
+  snekker: 'Snekker',
+  mur_betong: 'Mur / betong',
+  maskin: 'Maskin / graving',
+  tak_fasade: 'Tak / fasade',
+  vvs: 'VVS',
+  vinduer: 'Vinduer / glass',
+  hage_uteplass: 'Hage / uteplass',
+  oppvarming: 'Varme / klimaanlegg',
+  annet: 'Annet',
+}
+
 export type EiendomCashflow = {
   id: string
   prosjekt_id: string

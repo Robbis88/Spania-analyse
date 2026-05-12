@@ -11,6 +11,7 @@ import {
 } from '../lib/oppussing'
 import { REGULERING_ETIKETT, REGULERING_FARGE, TILLEGG_ETIKETT, type ReguleringVurdering, type TilleggType } from '../lib/bilder'
 import { visToast } from '../lib/toast'
+import { SendForesporselModal } from './SendForesporselModal'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
@@ -61,6 +62,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
   const [egenPost, setEgenPost] = useState('')
   const [forslagOppussing, setForslagOppussing] = useState<Array<{ bildeId: string; index: number; data: AIForslagOppussing }>>([])
   const [forslagTillegg, setForslagTillegg] = useState<Array<{ bildeId: string; index: number; data: AIForslagTillegg }>>([])
+  const [sendModal, setSendModal] = useState<{ apen: boolean; post: OppussingPost | null }>({ apen: false, post: null })
 
   const hentKvitteringSum = useCallback(async () => {
     const { data } = await supabase
@@ -445,6 +447,15 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
                   </span>
                 </div>
               )}
+
+              {/* Send tilbudsforespørsel til håndverker for denne posten */}
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={() => setSendModal({ apen: true, post: p })}
+                  title="Be om tilbud på akkurat denne posten fra én eller flere håndverkere"
+                  style={{ background: 'transparent', border: `1px solid ${FARGER.gull}`, color: FARGER.gull, padding: '4px 10px', borderRadius: RADIUS.sm, fontSize: 10, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.06em' }}>
+                  📤 Be om tilbud
+                </button>
+              </div>
             </div>
           )
         })}
@@ -583,6 +594,16 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
           <span style={{ color: roi >= 0 ? '#2D7D46' : '#C8102E' }}>{budsjett.estimert_salgspris ? roi.toFixed(1) + '%' : '–'}</span>
         </div>
       </div>
+
+      <SendForesporselModal
+        prosjektId={boligId}
+        oppussingPostId={sendModal.post?.id || null}
+        forhandsvalgteBildeIds={sendModal.post?.kilde_bilde_id ? [sendModal.post.kilde_bilde_id] : []}
+        initialTittel={sendModal.post ? `Tilbud på ${sendModal.post.navn}` : ''}
+        initialBeskrivelse={sendModal.post ? `${sendModal.post.navn}\n\n${sendModal.post.notat || ''}\n\nEstimert budsjett: €${Math.round(sendModal.post.kostnad || 0).toLocaleString('nb-NO')}`.trim() : ''}
+        apen={sendModal.apen}
+        onLukk={() => setSendModal({ apen: false, post: null })}
+      />
     </div>
   )
 }

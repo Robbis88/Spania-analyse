@@ -15,8 +15,9 @@ import { EiendomBilder } from './faner/EiendomBilder'
 import { EiendomKvitteringer } from './faner/EiendomKvitteringer'
 import { EiendomOppussing } from './faner/EiendomOppussing'
 import { EiendomAi } from './faner/EiendomAi'
+import { TilbudHistorikk } from '../TilbudHistorikk'
 
-type Fane = 'oversikt' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'ai'
+type Fane = 'oversikt' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'forespørsler' | 'ai'
 
 const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'oversikt',     lbl: 'Oversikt',     ikon: '📊' },
@@ -30,6 +31,7 @@ const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'bilder',       lbl: 'Bilder',       ikon: '📸' },
   { id: 'kvitteringer', lbl: 'Kvitteringer', ikon: '💳' },
   { id: 'oppussing',    lbl: 'Oppussing',    ikon: '🔨' },
+  { id: 'forespørsler', lbl: 'Forespørsler', ikon: '📤' },
   { id: 'ai',           lbl: 'AI-forslag',   ikon: '✨' },
 ]
 
@@ -103,6 +105,7 @@ export function EiendomDetalj({ prosjektId, onTilbake }: Props) {
       {aktivFane === 'bilder'       && <EiendomBilder data={data} />}
       {aktivFane === 'kvitteringer' && <EiendomKvitteringer data={data} />}
       {aktivFane === 'oppussing'    && <EiendomOppussing data={data} onEndret={refresh} />}
+      {aktivFane === 'forespørsler' && <TilbudHistorikk prosjektId={prosjektId} />}
       {aktivFane === 'ai'           && <EiendomAi data={data} onEndret={refresh} />}
     </div>
   )

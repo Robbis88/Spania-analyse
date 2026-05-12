@@ -13,6 +13,7 @@ import { UtleiePortalAdmin } from './UtleiePortalAdmin'
 import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
+import { TilbudHistorikk } from './TilbudHistorikk'
 import { lastNedPDF, byggProsjektPdf } from '../lib/pdf'
 import { visToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
@@ -28,7 +29,7 @@ export function Regnskap({
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter' | 'forespørsler'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
   const [pdfFremdrift, setPdfFremdrift] = useState('')
   const [salgspakkeApen, setSalgspakkeApen] = useState(false)
@@ -249,6 +250,7 @@ export function Regnskap({
                 { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
                 { id: 'kvitteringer' as const, lbl: '💳 Kvitteringer' },
                 { id: 'dokumenter' as const, lbl: '📁 Dokumenter' },
+                { id: 'forespørsler' as const, lbl: '📤 Forespørsler' },
                 ...(p.kategori === 'flipp' ? [{ id: 'oppussing' as const, lbl: '🔨 Oppussing' }] : []),
                 ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
                 { id: 'portal' as const, lbl: '🌐 Portal (leie/salg)' },
@@ -266,6 +268,10 @@ export function Regnskap({
 
             {aktivTab === 'dokumenter' && (
               <Dokumenter prosjektId={p.id} />
+            )}
+
+            {aktivTab === 'forespørsler' && (
+              <TilbudHistorikk prosjektId={p.id} />
             )}
 
             {aktivTab === 'oppussing' && p.kategori === 'flipp' && (

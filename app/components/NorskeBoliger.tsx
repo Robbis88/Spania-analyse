@@ -12,6 +12,7 @@ import { regnBankScore, regnLivsopphold, regnTotalScore } from '../lib/norskBank
 import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
+import { TilbudHistorikk } from './TilbudHistorikk'
 import { Dashboard } from './Dashboard'
 import { TakstAnalyse, type TakstData } from './TakstAnalyse'
 
@@ -1287,6 +1288,11 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
               <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📁 Dokumenter</div>
                 <Dokumenter prosjektId={lagretId} />
+              </div>
+
+              <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 22, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>📤 Tilbudsforespørsler</div>
+                <TilbudHistorikk prosjektId={lagretId} />
               </div>
 
               <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, padding: 18, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>

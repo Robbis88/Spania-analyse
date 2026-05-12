@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { KATEGORIER, STILER, estimerAnalyseKostnadEUR, resizKlient, type Kategori, type StilId } from '../lib/bilder'
 import { visToast } from '../lib/toast'
+import { SendForesporselModal } from './SendForesporselModal'
+import { FARGER, RADIUS } from '../lib/styles'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -31,6 +33,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
   const [analyseFeil, setAnalyseFeil] = useState('')
   const [analyseFremdrift, setAnalyseFremdrift] = useState<{ ferdig: number; total: number }>({ ferdig: 0, total: 0 })
   const pollRef = useRef<Record<string, number>>({})
+  const [sendModal, setSendModal] = useState<{ apen: boolean; bilde_ids: string[] }>({ apen: false, bilde_ids: [] })
 
   useEffect(() => () => {
     for (const id of Object.values(pollRef.current)) window.clearInterval(id)
@@ -255,6 +258,15 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
 
       {apen && (
         <div style={{ marginTop: 14 }}>
+          {bilder.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+              <button onClick={() => setSendModal({ apen: true, bilde_ids: bilder.map(b => b.id) })}
+                title="Send bilde + beskrivelse til håndverker(e) i nettverket"
+                style={{ background: FARGER.gull, color: '#fff', border: 'none', padding: '6px 14px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.06em' }}>
+                📤 Send tilbudsforespørsel
+              </button>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Kategori</div>
@@ -472,6 +484,13 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
           <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
         </div>
       )}
+
+      <SendForesporselModal
+        prosjektId={prosjektId}
+        forhandsvalgteBildeIds={sendModal.bilde_ids}
+        apen={sendModal.apen}
+        onLukk={() => setSendModal({ apen: false, bilde_ids: [] })}
+      />
     </div>
   )
 }

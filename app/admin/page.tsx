@@ -22,8 +22,9 @@ const NorskeBoliger = dynamic(() => import('../components/NorskeBoliger').then(m
 const Dashboard = dynamic(() => import('../components/Dashboard').then(m => m.Dashboard), { ssr: false, loading: laster })
 const Portefolje = dynamic(() => import('../components/portefolje/Portefolje').then(m => m.Portefolje), { ssr: false, loading: laster })
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
+const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 
-type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'logg' | null
+type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -46,6 +47,7 @@ const SEKSJONER: Snarvei[] = [
   { id: 'selge', ikon: '06', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle' },
   { id: 'regnskap', ikon: '07', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport' },
   { id: 'timer', ikon: '08', tittel: 'Timer', beskrivelse: 'Loggfør arbeidstimer per prosjekt — felles oversikt' },
+  { id: 'handverkere', ikon: '09', tittel: 'Håndverkere', beskrivelse: 'Nettverk av rørleggere, elektrikere, flisleggere osv.' },
 ]
 
 const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
@@ -57,6 +59,7 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   selge: 'Selge',
   regnskap: 'Regnskap',
   timer: 'Timer',
+  handverkere: 'Håndverkere',
   logg: 'Aktivitetslogg',
 }
 
@@ -96,6 +99,7 @@ const NAV_LINKS: NavLink[] = [
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
   { id: 'timer', lbl: 'Timer' },
+  { id: 'handverkere', lbl: 'Håndverk' },
   { id: 'gjoremal', lbl: 'Gjøremål' },
   { id: 'logg', lbl: 'Logg' },
 ]
@@ -331,6 +335,7 @@ export default function Home() {
           {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
           {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
           {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
+          {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
           {aktivSeksjon === 'portefolje' && <Portefolje onTilbake={hjem} />}
           {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
