@@ -40,6 +40,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
   const [laster, setLaster] = useState(true)
   const [brukLan, setBrukLan] = useState(false)
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
+  // Aggregerte oppussingsposter per år (fra oppussingsbudsjett)
+  const [oppussingPerAr, setOppussingPerAr] = useState<Record<number, number>>({})
 
   const last = useCallback(async () => {
     setLaster(true)
@@ -88,6 +90,34 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     await oppdater({ faktiske_inntekter: neste })
     await loggAktivitet({ handling, tabell: 'utleieanalyse', rad_id: analyse.id, detaljer: { bolig: prosjekt.navn, periode: n, belop } })
   }
+
+  // Hent oppussingsposter og aggreger per år. Bruker ferdig_dato hvis satt,
+  // ellers frist, ellers nåværende år. Faktisk_kostnad foretrekkes over budsjett.
+  const hentOppussingsposter = useCallback(async () => {
+    const { data: bud } = await supabase
+      .from('oppussing_budsjett').select('id').eq('bolig_id', prosjekt.id).maybeSingle()
+    if (!bud) { setOppussingPerAr({}); return }
+    const { data: poster } = await supabase
+      .from('oppussing_poster')
+      .select('kostnad, faktisk_kostnad, frist, ferdig_dato')
+      .eq('budsjett_id', bud.id)
+    const naa = new Date().getFullYear()
+    const map: Record<number, number> = {}
+    for (const p of (poster || []) as Array<{ kostnad: number | null; faktisk_kostnad: number | null; frist: string | null; ferdig_dato: string | null }>) {
+      const datoStr = p.ferdig_dato || p.frist
+      const ar = datoStr ? new Date(datoStr).getFullYear() : naa
+      const kost = (typeof p.faktisk_kostnad === 'number' && Number.isFinite(p.faktisk_kostnad))
+        ? p.faktisk_kostnad
+        : (p.kostnad || 0)
+      map[ar] = (map[ar] || 0) + kost
+    }
+    setOppussingPerAr(map)
+  }, [prosjekt.id])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void hentOppussingsposter()
+  }, [hentOppussingsposter])
 
   async function settOppussingAr(ar: number, kostnad: number) {
     if (!analyse) return
@@ -254,11 +284,34 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
       </div>
 
       <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🔨 Oppussingskostnader per år</div>
-        <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>Legg inn beløp for de årene du planlegger større oppussing eller oppgraderinger.</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>🔨 Oppussingskostnader per år</div>
+          {Object.keys(oppussingPerAr).length > 0 && (
+            <button
+              onClick={async () => {
+                if (!analyse) return
+                const eksisterende = analyse.oppussing_per_ar || []
+                const aar = new Set([...eksisterende.map(o => o.ar), ...Object.keys(oppussingPerAr).map(Number)])
+                const ny: OppussingPerAr[] = Array.from(aar).sort((a, b) => a - b).map(ar => ({
+                  ar,
+                  kostnad: oppussingPerAr[ar] || eksisterende.find(o => o.ar === ar)?.kostnad || 0,
+                }))
+                await oppdater({ oppussing_per_ar: ny })
+              }}
+              title="Hent automatisk fra oppussingsposter (faktisk eller budsjett, basert på ferdig-dato eller frist)"
+              style={{ background: '#0e1726', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              📥 Hent fra Oppussing-fanen
+            </button>
+          )}
+        </div>
+        <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+          Legg inn beløp for de årene du planlegger større oppussing eller oppgraderinger.
+          {Object.keys(oppussingPerAr).length > 0 && ' Tall i grått under feltet er det som ligger i Oppussing-fanen for samme år.'}
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           {aarListe.map(ar => {
             const post = analyse.oppussing_per_ar?.find(o => o.ar === ar)
+            const fraOppussing = oppussingPerAr[ar]
             return (
               <div key={ar} style={fieldStyle}>
                 <label style={labelStyle}>{ar} (€)</label>
@@ -272,6 +325,13 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
                       : [...(analyse.oppussing_per_ar || []), { ar, kostnad: kost }].sort((a, b) => a.ar - b.ar)
                     setAnalyse({ ...analyse, oppussing_per_ar: neste })
                   }} />
+                {fraOppussing && fraOppussing > 0 && (post?.kostnad || 0) !== fraOppussing && (
+                  <button onClick={() => settOppussingAr(ar, fraOppussing)}
+                    title="Bruk verdien fra Oppussing-fanen"
+                    style={{ background: 'none', border: 'none', color: '#b89a6f', cursor: 'pointer', fontSize: 10, marginTop: 4, padding: 0, textAlign: 'left' }}>
+                    📥 {fmt(fraOppussing)}
+                  </button>
+                )}
               </div>
             )
           })}
