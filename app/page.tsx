@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { PortalHeader } from './components/portal/PortalHeader'
 import { InteresseModal } from './components/portal/InteresseModal'
 import { plukkOversettelse, useSprak, useValuta } from './lib/i18n'
+import { FARGER, RADIUS, SHADOW, MOTION } from './lib/styles'
 
-const MØRK = '#0e1726'
-const CREAM = '#fafaf6'
-const CREAM_LYS = '#fdfcf7'
-const GULL = '#b89a6f'
+const MØRK = FARGER.mork
+const CREAM = FARGER.cream
+const CREAM_LYS = FARGER.creamLys
+const GULL = FARGER.gull
 
 type Bolig = {
   id: string
@@ -83,54 +84,81 @@ export default function Forside() {
   ), [boliger, filter])
 
   return (
-    <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh', color: MØRK }}>
+    <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
       <PortalHeader onRegistrerInteresse={() => setModalApen(true)} />
 
       {/* HERO */}
       <section style={{
         background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`,
-        borderBottom: `1px solid ${GULL}22`,
+        position: 'relative',
+        overflow: 'hidden',
       }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(60px, 10vw, 120px) clamp(20px, 4vw, 28px) clamp(50px, 9vw, 100px)', textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 'clamp(16px, 3vw, 28px)' }}>{t.hero_eyebrow}</div>
-          <h1 style={{ fontSize: 'clamp(30px, 5.5vw, 64px)', lineHeight: 1.08, fontWeight: 300, color: MØRK, margin: '0 0 20px', letterSpacing: '-0.01em' }}>
+        {/* Subtil dekorativ glød */}
+        <div aria-hidden style={{
+          position: 'absolute', top: '-20%', right: '-10%',
+          width: '50%', height: '120%',
+          background: `radial-gradient(circle, ${GULL}15 0%, transparent 60%)`,
+          pointerEvents: 'none',
+        }} />
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(80px, 12vw, 140px) clamp(20px, 4vw, 28px) clamp(60px, 10vw, 110px)', textAlign: 'center', position: 'relative' }}>
+          <div className="anim-fade-up" style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 'clamp(18px, 3vw, 28px)' }}>{t.hero_eyebrow}</div>
+          <h1 className="anim-fade-up" style={{ fontSize: 'clamp(34px, 6vw, 72px)', lineHeight: 1.05, fontWeight: 300, color: MØRK, margin: '0 0 24px', letterSpacing: '-0.025em', animationDelay: '60ms' }}>
             {t.hero_tittel}
           </h1>
-          <p style={{ fontSize: 'clamp(15px, 2vw, 17px)', lineHeight: 1.65, color: '#5a6171', margin: '0 auto clamp(28px, 5vw, 44px)', maxWidth: 580, fontWeight: 300 }}>
+          <p className="anim-fade-up" style={{ fontSize: 'clamp(16px, 2vw, 19px)', lineHeight: 1.6, color: FARGER.tekstMid, margin: '0 auto clamp(32px, 5vw, 52px)', maxWidth: 620, fontWeight: 300, animationDelay: '120ms' }}>
             {t.hero_undertittel}
           </p>
-          <a href="#boliger" style={{
+          <a href="#boliger" className="anim-fade-up knapp-hover-loft" style={{
             background: MØRK, color: CREAM_LYS, textDecoration: 'none',
-            padding: '14px 26px', fontSize: 12, fontWeight: 600,
-            letterSpacing: '0.16em', textTransform: 'uppercase',
-            display: 'inline-block',
+            padding: '16px 32px', fontSize: 13, fontWeight: 600,
+            letterSpacing: '0.06em',
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            borderRadius: RADIUS.pill,
+            boxShadow: SHADOW.md,
+            animationDelay: '180ms',
           }}>
-            {t.hero_cta_se_boliger} ↓
+            {t.hero_cta_se_boliger}
+            <span aria-hidden style={{ display: 'inline-block' }}>↓</span>
           </a>
         </div>
       </section>
 
       {/* LISTE */}
-      <section id="boliger" style={{ maxWidth: 1280, margin: '0 auto', padding: 'clamp(48px, 8vw, 88px) clamp(16px, 4vw, 28px) clamp(60px, 10vw, 96px)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 'clamp(28px, 5vw, 48px)' }}>
-          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>{t.vare_boliger}</div>
-          <h2 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 300, color: MØRK, margin: '0 0 24px', letterSpacing: '-0.01em' }}>{t.tilgjengelige_naa}</h2>
+      <section id="boliger" style={{ maxWidth: 1320, margin: '0 auto', padding: 'clamp(56px, 9vw, 100px) clamp(16px, 4vw, 32px) clamp(72px, 11vw, 120px)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(36px, 6vw, 56px)' }}>
+          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 14 }}>{t.vare_boliger}</div>
+          <h2 style={{ fontSize: 'clamp(28px, 4.5vw, 42px)', fontWeight: 300, color: MØRK, margin: '0 0 32px', letterSpacing: '-0.02em' }}>{t.tilgjengelige_naa}</h2>
 
           <FilterTabs aktiv={filter} setAktiv={setFilter} />
         </div>
 
-        {laster && <div style={{ textAlign: 'center', color: '#888', padding: 80, fontSize: 14 }}>{t.henter}</div>}
-        {feil && <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>}
+        {laster && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: 'clamp(20px, 3vw, 32px)' }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{ background: FARGER.hvit, borderRadius: RADIUS.lg, overflow: 'hidden', boxShadow: SHADOW.sm }}>
+                <div className="skimmer" style={{ aspectRatio: '4 / 3' }} />
+                <div style={{ padding: 22 }}>
+                  <div className="skimmer" style={{ height: 14, width: '40%', marginBottom: 12, borderRadius: 4 }} />
+                  <div className="skimmer" style={{ height: 22, width: '80%', marginBottom: 12, borderRadius: 4 }} />
+                  <div className="skimmer" style={{ height: 14, width: '60%', borderRadius: 4 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {feil && <div style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}`, padding: 20, color: '#7a0c1e', borderRadius: RADIUS.md }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>}
 
         {!laster && !feil && filtrert.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 80, color: '#888' }}>
-            <p style={{ fontSize: 14, margin: 0, fontStyle: 'italic' }}>{t.ingen_boliger}</p>
+          <div style={{ textAlign: 'center', padding: 80, color: FARGER.tekstLys }}>
+            <p style={{ fontSize: 15, margin: 0, fontStyle: 'italic' }}>{t.ingen_boliger}</p>
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 'clamp(16px, 3vw, 32px)' }}>
-          {filtrert.map((b, i) => <BoligKort key={b.id} bolig={b} kortIndex={i} />)}
-        </div>
+        {!laster && filtrert.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: 'clamp(20px, 3vw, 32px)' }}>
+            {filtrert.map((b, i) => <BoligKort key={b.id} bolig={b} kortIndex={i} />)}
+          </div>
+        )}
       </section>
 
       <Footer onRegistrerInteresse={() => setModalApen(true)} />
@@ -148,16 +176,27 @@ function FilterTabs({ aktiv, setAktiv }: { aktiv: Filter; setAktiv: (f: Filter) 
     ['salgs', t.til_salgs],
   ]
   return (
-    <div style={{ display: 'inline-flex', gap: 0, border: `1px solid ${GULL}44`, padding: 0, maxWidth: '100%', flexWrap: 'wrap' }}>
+    <div style={{
+      display: 'inline-flex', gap: 4,
+      background: FARGER.hvit,
+      padding: 5,
+      borderRadius: RADIUS.pill,
+      boxShadow: SHADOW.sm,
+      border: `1px solid ${FARGER.kantUltralys}`,
+    }}>
       {tabs.map(([id, lbl]) => (
         <button key={id} onClick={() => setAktiv(id)}
           style={{
             background: aktiv === id ? MØRK : 'transparent',
             color: aktiv === id ? CREAM_LYS : MØRK,
-            border: 'none', padding: '11px 18px', fontSize: 11,
-            fontWeight: 600, letterSpacing: '0.14em',
-            textTransform: 'uppercase', cursor: 'pointer',
+            border: 'none',
+            padding: '11px 22px',
+            fontSize: 12, fontWeight: 600,
+            letterSpacing: '0.06em',
+            cursor: 'pointer',
             whiteSpace: 'nowrap',
+            borderRadius: RADIUS.pill,
+            transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
           }}>
           {lbl}
         </button>
@@ -175,26 +214,32 @@ function BoligKort({ bolig, kortIndex }: { bolig: Bolig; kortIndex: number }) {
 
   return (
     <Link href={`/bolig/${bolig.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <article style={{ background: CREAM_LYS, transition: 'transform 0.4s ease' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-6px)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
-      >
+      <article className="kort-loft anim-fade-up" style={{
+        background: FARGER.hvit,
+        borderRadius: RADIUS.lg,
+        overflow: 'hidden',
+        boxShadow: SHADOW.sm,
+        border: `1px solid ${FARGER.kantUltralys}`,
+        animationDelay: `${Math.min(kortIndex, 8) * 40}ms`,
+        height: '100%',
+        display: 'flex', flexDirection: 'column',
+      }}>
         <BildeSlideshow bilder={bolig.bilde_urler && bolig.bilde_urler.length > 0 ? bolig.bilde_urler : (bolig.bilde_url ? [bolig.bilde_url] : [])} alt={navn} offsetMs={kortIndex * 800}>
-          <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 6, zIndex: 2 }}>
+          <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 6, zIndex: 2 }}>
             {bolig.til_salgs && <Badge>{t.til_salgs}</Badge>}
             {bolig.til_leie && <Badge>{t.til_leie}</Badge>}
           </div>
         </BildeSlideshow>
 
-        <div style={{ padding: '24px 6px 8px' }}>
-          <div style={{ fontSize: 10, color: GULL, letterSpacing: '0.16em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>
+        <div style={{ padding: '22px 22px 24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ fontSize: 10, color: GULL, letterSpacing: '0.18em', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>
             {bolig.beliggenhet || 'Spania'}
           </div>
-          <h3 style={{ fontSize: 19, fontWeight: 400, color: MØRK, margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.005em' }}>{navn}</h3>
-          {visKort && <p style={{ fontSize: 13, color: '#5a6171', lineHeight: 1.6, margin: '0 0 16px' }}>{visKort}</p>}
+          <h3 style={{ fontSize: 20, fontWeight: 500, color: MØRK, margin: '0 0 10px', lineHeight: 1.25, letterSpacing: '-0.015em' }}>{navn}</h3>
+          {visKort && <p style={{ fontSize: 13.5, color: FARGER.tekstMid, lineHeight: 1.6, margin: '0 0 18px', flex: 1 }}>{visKort}</p>}
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${GULL}33`, paddingTop: 14 }}>
-            <div style={{ fontSize: 11, color: '#888', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${FARGER.kantUltralys}`, paddingTop: 16, marginTop: 'auto' }}>
+            <div style={{ fontSize: 12, color: FARGER.tekstLys, letterSpacing: '0.02em' }}>
               {bolig.areal && <span>{bolig.areal} m²</span>}
               {bolig.areal && bolig.soverom ? <span style={{ margin: '0 8px' }}>·</span> : null}
               {bolig.soverom && <span>{bolig.soverom} {t.kort_sov}</span>}
@@ -251,7 +296,7 @@ function BildeSlideshow({ bilder, alt, offsetMs, children }: { bilder: string[];
   }, [bilder, offsetMs, synlig])
 
   return (
-    <div ref={containerRef} style={{ width: '100%', aspectRatio: '4 / 3', background: '#e8e4d8', position: 'relative', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100%', aspectRatio: '4 / 3', background: FARGER.kantLys, position: 'relative', overflow: 'hidden' }}>
       {bilder.length === 0 ? (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56, color: '#ccc8b8' }}>—</div>
       ) : (
@@ -277,20 +322,24 @@ function Pris({ bolig }: { bolig: Bolig }) {
   const { t } = useSprak()
   const { formater } = useValuta()
   if (bolig.til_salgs && bolig.salgspris_eur) {
-    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
+    return <div style={{ fontSize: 17, fontWeight: 600, color: MØRK, letterSpacing: '-0.01em' }}>{formater(bolig.salgspris_eur)}</div>
   }
   if (bolig.til_leie && bolig.pris_natt) {
-    return <div style={{ fontSize: 16, fontWeight: 500, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>{t.per_natt}</span></div>
+    return <div style={{ fontSize: 17, fontWeight: 600, color: MØRK, letterSpacing: '-0.01em' }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 12, color: FARGER.tekstLys, fontWeight: 400 }}>{t.per_natt}</span></div>
   }
-  return <div style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>{t.pris_paa_foresporsel}</div>
+  return <div style={{ fontSize: 12, color: FARGER.tekstLys, fontStyle: 'italic' }}>{t.pris_paa_foresporsel}</div>
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span style={{
-      background: 'rgba(14, 23, 38, 0.85)', color: CREAM_LYS,
-      padding: '5px 11px', fontSize: 10, fontWeight: 600,
-      letterSpacing: '0.14em', textTransform: 'uppercase',
+      background: 'rgba(14, 23, 38, 0.78)',
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
+      color: CREAM_LYS,
+      padding: '6px 12px', fontSize: 10, fontWeight: 600,
+      letterSpacing: '0.12em', textTransform: 'uppercase',
+      borderRadius: RADIUS.pill,
     }}>
       {children}
     </span>
@@ -300,28 +349,33 @@ function Badge({ children }: { children: React.ReactNode }) {
 function Footer({ onRegistrerInteresse }: { onRegistrerInteresse: () => void }) {
   const { t } = useSprak()
   return (
-    <footer id="kontakt" style={{ background: MØRK, color: CREAM_LYS, padding: '64px 28px 40px', marginTop: 0 }}>
+    <footer id="kontakt" style={{ background: MØRK, color: CREAM_LYS, padding: '80px 28px 48px', marginTop: 0 }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 48 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 56 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.18em', marginBottom: 16 }}>LEGANGER &amp; OSVAAG</div>
-            <p style={{ fontSize: 13, color: 'rgba(250,250,246,0.6)', lineHeight: 1.7, margin: 0 }}>Eksklusive eiendommer ved Middelhavskysten.</p>
+            <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.18em', marginBottom: 18 }}>LEGANGER &amp; OSVAAG</div>
+            <p style={{ fontSize: 14, color: 'rgba(250,250,246,0.65)', lineHeight: 1.7, margin: 0 }}>Eksklusive eiendommer ved Middelhavskysten.</p>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', marginBottom: 14, color: GULL }}>{t.kontakt_oss}</div>
-            <div style={{ fontSize: 13, lineHeight: 1.9 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', marginBottom: 16, color: GULL }}>{t.kontakt_oss}</div>
+            <div style={{ fontSize: 14, lineHeight: 1.9 }}>
               <a href="mailto:post@loeiendom.com" style={{ color: CREAM_LYS, textDecoration: 'none' }}>post@loeiendom.com</a><br />
-              <a href="https://loeiendom.com" style={{ color: 'rgba(250,250,246,0.6)', textDecoration: 'none' }}>loeiendom.com</a>
+              <a href="https://loeiendom.com" style={{ color: 'rgba(250,250,246,0.65)', textDecoration: 'none' }}>loeiendom.com</a>
             </div>
           </div>
           <div>
-            <button onClick={onRegistrerInteresse}
-              style={{ background: 'transparent', border: `1px solid ${GULL}`, color: CREAM_LYS, padding: '12px 20px', fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button onClick={onRegistrerInteresse} className="knapp-hover-loft"
+              style={{
+                background: 'transparent', border: `1px solid ${GULL}88`, color: CREAM_LYS,
+                padding: '14px 24px', fontSize: 12, fontWeight: 600,
+                letterSpacing: '0.06em',
+                cursor: 'pointer', borderRadius: RADIUS.pill,
+              }}>
               {t.registrer_interesse} →
             </button>
           </div>
         </div>
-        <div style={{ marginTop: 48, paddingTop: 24, borderTop: '1px solid rgba(250,250,246,0.1)', fontSize: 11, color: 'rgba(250,250,246,0.4)', textAlign: 'center', letterSpacing: '0.06em' }}>
+        <div style={{ marginTop: 56, paddingTop: 28, borderTop: '1px solid rgba(250,250,246,0.1)', fontSize: 12, color: 'rgba(250,250,246,0.45)', textAlign: 'center', letterSpacing: '0.06em' }}>
           {t.copyright} {new Date().getFullYear()}
         </div>
       </div>

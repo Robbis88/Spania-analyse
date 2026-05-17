@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useSprak } from '../../lib/i18n'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../../lib/styles'
 
-const MØRK = '#0e1726'
-const CREAM_LYS = '#fafaf6'
-const GULL = '#b89a6f'
+const MØRK = FARGER.mork
+const CREAM_LYS = FARGER.creamLys
+const GULL = FARGER.gull
 
 export function InteresseModal({ apen, onLukk, prosjektId, prosjektNavn }: {
   apen: boolean
@@ -64,70 +65,85 @@ export function InteresseModal({ apen, onLukk, prosjektId, prosjektNavn }: {
   }
 
   return (
-    <div onClick={onLukk}
+    <div onClick={onLukk} className="anim-fade-in"
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: 'rgba(14, 23, 38, 0.55)', backdropFilter: 'blur(4px)',
+        background: 'rgba(14, 23, 38, 0.45)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20, animation: 'fadeIn 0.2s',
+        padding: 20,
       }}>
-      <div onClick={e => e.stopPropagation()}
+      <div onClick={e => e.stopPropagation()} className="anim-scale-in"
         style={{
-          background: CREAM_LYS, maxWidth: 520, width: '100%',
+          background: CREAM_LYS, maxWidth: 540, width: '100%',
           maxHeight: '90vh', overflowY: 'auto',
-          padding: 'clamp(24px, 5vw, 40px) clamp(20px, 5vw, 36px)', borderRadius: 0,
-          boxShadow: '0 30px 80px rgba(0,0,0,0.25)',
+          padding: 'clamp(28px, 5vw, 44px) clamp(22px, 5vw, 40px)',
+          borderRadius: RADIUS.xl,
+          boxShadow: SHADOW.xl,
         }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           <div>
-            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.16em', fontWeight: 700, marginBottom: 6 }}>{t.registrer_interesse_tittel.toUpperCase()}</div>
-            <h2 style={{ fontSize: 26, fontWeight: 400, color: MØRK, margin: 0, lineHeight: 1.2 }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase' }}>{t.registrer_interesse_tittel}</div>
+            <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 400, color: MØRK, margin: 0, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
               {prosjektNavn || t.registrer_interesse_tittel}
             </h2>
           </div>
           <button onClick={onLukk}
-            style={{ background: 'none', border: 'none', fontSize: 24, color: '#888', cursor: 'pointer', lineHeight: 1, padding: 0 }}>
+            aria-label="Lukk"
+            style={{
+              background: FARGER.flateLys, border: 'none',
+              width: 36, height: 36, fontSize: 18, color: FARGER.tekstMid,
+              cursor: 'pointer', lineHeight: 1, padding: 0,
+              borderRadius: RADIUS.pill,
+              transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
             ×
           </button>
         </div>
 
-        <p style={{ fontSize: 13, color: '#666', lineHeight: 1.6, margin: '0 0 24px' }}>{t.registrer_interesse_intro}</p>
+        <p style={{ fontSize: 14, color: FARGER.tekstMid, lineHeight: 1.6, margin: '0 0 26px' }}>{t.registrer_interesse_intro}</p>
 
         {resultat === 'ok' && (
-          <div style={{ background: '#e8f5ed', border: `1px solid #2D7D46`, padding: 14, fontSize: 13, color: '#1a4d2b', marginBottom: 16 }}>
+          <div className="anim-fade-up" style={{ background: FARGER.suksessBg, border: `1px solid ${FARGER.suksess}33`, padding: 16, fontSize: 14, color: '#1a4d2b', marginBottom: 18, borderRadius: RADIUS.md }}>
             ✓ {t.takk_interesse}
           </div>
         )}
         {resultat === 'feil' && (
-          <div style={{ background: '#fde8ec', border: `1px solid #C8102E`, padding: 14, fontSize: 13, color: '#7a0c1e', marginBottom: 16 }}>
+          <div className="anim-fade-up" style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}33`, padding: 16, fontSize: 14, color: '#7a0c1e', marginBottom: 18, borderRadius: RADIUS.md }}>
             ✕ {feilTekst}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!prosjektId && (
             <div style={{ display: 'flex', gap: 8 }}>
               {(['kjop', 'leie', 'begge'] as const).map(v => (
                 <button key={v} onClick={() => setInteresse(v)}
                   style={{
-                    flex: 1, padding: '10px 8px', fontSize: 12,
-                    background: interesse === v ? MØRK : 'transparent',
+                    flex: 1, padding: '12px 10px', fontSize: 13,
+                    background: interesse === v ? MØRK : FARGER.hvit,
                     color: interesse === v ? CREAM_LYS : MØRK,
-                    border: `1px solid ${interesse === v ? MØRK : GULL + '55'}`,
-                    cursor: 'pointer', letterSpacing: '0.06em',
+                    border: `1px solid ${interesse === v ? MØRK : FARGER.kantUltralys}`,
+                    cursor: 'pointer', letterSpacing: '-0.005em', fontWeight: 500,
+                    borderRadius: RADIUS.pill,
+                    boxShadow: interesse === v ? SHADOW.sm : 'none',
+                    transition: `background ${MOTION.rask}, color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
                   }}>
                   {v === 'kjop' ? t.jeg_vil_kjope : v === 'leie' ? t.jeg_vil_leie : t.jeg_vil_begge}
                 </button>
               ))}
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Felt label={t.navn + ' *'} val={navn} onChange={setNavn} />
             <Felt label={t.epost + ' *'} type="email" val={epost} onChange={setEpost} />
           </div>
           <Felt label={t.telefon} type="tel" val={telefon} onChange={setTelefon} />
           {!prosjektId && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Felt label={t.region_onsket} val={region} onChange={setRegion} placeholder="Marbella, Costa del Sol..." />
               <Felt label={t.budsjett_eur} type="number" val={budsjett} onChange={setBudsjett} />
             </div>
@@ -135,16 +151,33 @@ export function InteresseModal({ apen, onLukk, prosjektId, prosjektNavn }: {
           <div>
             <label style={lblStil}>{t.melding}</label>
             <textarea value={melding} onChange={e => setMelding(e.target.value)}
-              style={{ ...inputStil, minHeight: 90, resize: 'vertical' }} />
+              style={{ ...inputStil, minHeight: 100, resize: 'vertical' }} />
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
             <button onClick={onLukk}
-              style={{ flex: 1, background: 'transparent', color: MØRK, border: `1px solid ${GULL}55`, padding: 14, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              style={{
+                flex: 1, background: FARGER.hvit, color: MØRK,
+                border: `1px solid ${FARGER.kantUltralys}`,
+                padding: 14, fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', letterSpacing: '-0.005em',
+                borderRadius: RADIUS.pill,
+                transition: `background ${MOTION.rask}`,
+              }}>
               {t.avbryt}
             </button>
             <button onClick={send} disabled={sender || !navn || !epost}
-              style={{ flex: 2, background: sender || !navn || !epost ? '#888' : MØRK, color: CREAM_LYS, border: 'none', padding: 14, fontSize: 12, fontWeight: 600, cursor: sender || !navn || !epost ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              className={sender || !navn || !epost ? '' : 'knapp-hover-loft'}
+              style={{
+                flex: 2,
+                background: sender || !navn || !epost ? FARGER.tekstLys : MØRK,
+                color: CREAM_LYS, border: 'none',
+                padding: 14, fontSize: 13, fontWeight: 600,
+                cursor: sender || !navn || !epost ? 'not-allowed' : 'pointer',
+                letterSpacing: '-0.005em',
+                borderRadius: RADIUS.pill,
+                boxShadow: sender || !navn || !epost ? 'none' : SHADOW.sm,
+              }}>
               {sender ? t.sender : t.send}
             </button>
           </div>
@@ -155,13 +188,16 @@ export function InteresseModal({ apen, onLukk, prosjektId, prosjektNavn }: {
 }
 
 const inputStil: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', fontSize: 13,
-  border: '1px solid #d4d0c4', background: 'white',
-  fontFamily: 'sans-serif', boxSizing: 'border-box',
+  width: '100%', padding: '12px 14px', fontSize: 14,
+  border: `1px solid ${FARGER.kantUltralys}`, background: FARGER.hvit,
+  fontFamily: 'inherit', boxSizing: 'border-box',
+  borderRadius: RADIUS.md,
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+  outline: 'none',
 }
 const lblStil: React.CSSProperties = {
-  display: 'block', fontSize: 10, color: '#777',
-  marginBottom: 6, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+  display: 'block', fontSize: 11, color: FARGER.tekstMid,
+  marginBottom: 8, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
 }
 
 function Felt({ label, val, onChange, type = 'text', placeholder }: { label: string; val: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {

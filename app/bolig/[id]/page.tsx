@@ -4,11 +4,12 @@ import { use, useEffect, useState } from 'react'
 import { PortalHeader } from '../../components/portal/PortalHeader'
 import { InteresseModal } from '../../components/portal/InteresseModal'
 import { plukkOversettelse, plukkOversettelseListe, useSprak, useValuta } from '../../lib/i18n'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../../lib/styles'
 
-const MØRK = '#0e1726'
-const CREAM = '#fafaf6'
-const CREAM_LYS = '#fdfcf7'
-const GULL = '#b89a6f'
+const MØRK = FARGER.mork
+const CREAM = FARGER.cream
+const CREAM_LYS = FARGER.creamLys
+const GULL = FARGER.gull
 
 type BoligDetalj = {
   id: string
@@ -81,30 +82,58 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
   }, [id])
 
   return (
-    <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh', color: MØRK }}>
+    <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
       <PortalHeader onRegistrerInteresse={() => setModalApen(true)} />
 
       <main>
-        {laster && <div style={{ textAlign: 'center', color: '#888', padding: 120 }}>{t.henter}</div>}
+        {laster && (
+          <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(32px, 5vw, 56px) clamp(18px, 4vw, 28px)' }}>
+            <div className="skimmer" style={{ height: 14, width: 120, marginBottom: 24, borderRadius: 4 }} />
+            <div className="skimmer" style={{ height: 14, width: 100, marginBottom: 16, borderRadius: 4 }} />
+            <div className="skimmer" style={{ height: 44, width: '70%', marginBottom: 18, borderRadius: 6 }} />
+            <div className="skimmer" style={{ height: 18, width: '90%', marginBottom: 10, borderRadius: 4 }} />
+            <div className="skimmer" style={{ height: 18, width: '60%', marginBottom: 32, borderRadius: 4 }} />
+            <div className="skimmer" style={{ aspectRatio: '16 / 9', borderRadius: RADIUS.lg }} />
+          </div>
+        )}
         {feil && (
           <div style={{ maxWidth: 900, margin: '40px auto', padding: '0 28px' }}>
-            <div style={{ background: '#fde8ec', border: '1px solid #C8102E', padding: 20, color: '#7a0c1e' }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>
-            <Link href="/" style={{ display: 'inline-block', marginTop: 20, fontSize: 13, color: '#666', textDecoration: 'none' }}>{t.tilbake_til_boliger}</Link>
+            <div style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}33`, padding: 20, color: '#7a0c1e', borderRadius: RADIUS.md }}>{feil === '__feil__' ? t.feil_oppstod : feil}</div>
+            <Link href="/" style={{ display: 'inline-block', marginTop: 20, fontSize: 14, color: FARGER.tekstMid, textDecoration: 'none' }}>← {t.tilbake_til_boliger}</Link>
           </div>
         )}
 
         {bolig && (
           <>
             {/* HERO */}
-            <section style={{ background: CREAM_LYS, borderBottom: `1px solid ${GULL}22` }}>
-              <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(24px, 5vw, 40px) clamp(18px, 4vw, 28px) clamp(36px, 7vw, 56px)' }}>
-                <Link href="/" style={{ fontSize: 11, color: '#888', textDecoration: 'none', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 22, display: 'inline-block' }}>
-                  {t.tilbake_til_boliger}
+            <section style={{
+              background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`,
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div aria-hidden style={{
+                position: 'absolute', top: '-30%', right: '-15%',
+                width: '50%', height: '120%',
+                background: `radial-gradient(circle, ${GULL}12 0%, transparent 60%)`,
+                pointerEvents: 'none',
+              }} />
+              <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(28px, 5vw, 48px) clamp(18px, 4vw, 28px) clamp(40px, 7vw, 64px)', position: 'relative' }}>
+                <Link href="/" className="anim-fade-up" style={{
+                  fontSize: 13, color: FARGER.tekstMid, textDecoration: 'none',
+                  letterSpacing: '-0.005em',
+                  marginBottom: 26, display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px 6px 10px',
+                  background: FARGER.hvit,
+                  border: `1px solid ${FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.pill,
+                  boxShadow: SHADOW.xs,
+                  transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                }}>
+                  <span aria-hidden>←</span> {t.tilbake_til_boliger}
                 </Link>
-                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>
+                <div className="anim-fade-up" style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 16, animationDelay: '40ms' }}>
                   {(bolig.bolig_data.beliggenhet || 'SPANIA').toUpperCase()}
                 </div>
-                <h1 style={{ fontSize: 'clamp(32px, 4.5vw, 52px)', fontWeight: 300, color: MØRK, margin: '0 0 18px', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                <h1 className="anim-fade-up" style={{ fontSize: 'clamp(34px, 5vw, 56px)', fontWeight: 300, color: MØRK, margin: '0 0 20px', lineHeight: 1.05, letterSpacing: '-0.025em', animationDelay: '80ms' }}>
                   {plukkOversettelse(bolig.navn_oversettelser, sprak, bolig.navn)}
                 </h1>
                 {(() => {
@@ -112,7 +141,7 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
                     ? plukkOversettelse(bolig.salg_kort_oversettelser, sprak, bolig.salg_kort)
                     : plukkOversettelse(bolig.utleie_kort_oversettelser, sprak, bolig.utleie_kort)
                   return kort ? (
-                    <p style={{ fontSize: 17, color: '#5a6171', lineHeight: 1.65, margin: '0 0 32px', maxWidth: 720, fontWeight: 300 }}>
+                    <p className="anim-fade-up" style={{ fontSize: 18, color: FARGER.tekstMid, lineHeight: 1.6, margin: '0 0 36px', maxWidth: 720, fontWeight: 300, animationDelay: '120ms' }}>
                       {kort}
                     </p>
                   ) : null
@@ -124,7 +153,7 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
 
             {/* GALLERI */}
             {bolig.bilder.length > 0 && (
-              <section style={{ background: CREAM, padding: 'clamp(24px, 5vw, 40px) 0' }}>
+              <section style={{ background: CREAM, padding: 'clamp(28px, 5vw, 48px) 0' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)' }}>
                   <BildeGalleri bilder={bolig.bilder} aktiv={aktivBilde} onVelg={setAktivBilde} />
                 </div>
@@ -132,34 +161,40 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
             )}
 
             {/* INNHOLD */}
-            <section style={{ background: CREAM_LYS, padding: 'clamp(40px, 7vw, 64px) 0' }}>
-              <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)', display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: erMobil ? 32 : 64 }}>
+            <section style={{ background: CREAM_LYS, padding: 'clamp(48px, 8vw, 80px) 0' }}>
+              <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)', display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: erMobil ? 40 : 72 }}>
                 <div>
                   {(() => {
                     const full = bolig.til_salgs
                       ? plukkOversettelse(bolig.salg_beskrivelse_oversettelser, sprak, bolig.salg_beskrivelse)
                       : plukkOversettelse(bolig.utleie_beskrivelse_oversettelser, sprak, bolig.utleie_beskrivelse)
                     return full ? (
-                      <Seksjon eyebrow={t.om_boligen.toUpperCase()} tittel={t.om_boligen}>
-                        <p style={{ fontSize: 15, color: '#444', lineHeight: 1.85, margin: 0, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
+                      <Seksjon eyebrow={t.om_boligen} tittel={t.om_boligen}>
+                        <p style={{ fontSize: 16, color: FARGER.tekstMid, lineHeight: 1.85, margin: 0, whiteSpace: 'pre-wrap', fontWeight: 300 }}>
                           {full}
                         </p>
                       </Seksjon>
                     ) : null
                   })()}
 
-                  <Seksjon eyebrow={t.spesifikasjoner.toUpperCase()} tittel={t.spesifikasjoner}>
+                  <Seksjon eyebrow={t.spesifikasjoner} tittel={t.spesifikasjoner}>
                     <SpecTabell bolig={bolig} />
                   </Seksjon>
 
                   {(() => {
                     const fas = plukkOversettelseListe(bolig.utleie_fasiliteter_oversettelser, sprak, bolig.fasiliteter)
                     return fas.length > 0 ? (
-                      <Seksjon eyebrow={t.fasiliteter.toUpperCase()} tittel={t.fasiliteter}>
+                      <Seksjon eyebrow={t.fasiliteter} tittel={t.fasiliteter}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px 32px' }}>
                           {fas.map((f, i) => (
-                            <div key={i} style={{ fontSize: 14, color: '#444', padding: '10px 0', borderBottom: `1px solid ${GULL}22`, fontWeight: 300 }}>
-                              <span style={{ color: GULL, marginRight: 12 }}>—</span>{f}
+                            <div key={i} style={{ fontSize: 14.5, color: FARGER.tekstMid, padding: '12px 0', borderBottom: `1px solid ${FARGER.kantUltralys}`, fontWeight: 400, display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{
+                                color: GULL, fontSize: 12,
+                                width: 20, height: 20, borderRadius: RADIUS.pill,
+                                background: `${GULL}18`,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                              }}>✓</span>{f}
                             </div>
                           ))}
                         </div>
@@ -168,12 +203,18 @@ export default function BoligDetaljSide({ params }: { params: Promise<{ id: stri
                   })()}
 
                   {Object.keys(bolig.kort_avstand).length > 0 && (
-                    <Seksjon eyebrow={t.beliggenhet.toUpperCase()} tittel={t.beliggenhet}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+                    <Seksjon eyebrow={t.beliggenhet} tittel={t.beliggenhet}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
                         {Object.entries(bolig.kort_avstand).map(([navn, avstand], i) => (
-                          <div key={i} style={{ borderLeft: `2px solid ${GULL}`, paddingLeft: 14 }}>
-                            <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{navn}</div>
-                            <div style={{ fontSize: 15, color: MØRK, fontWeight: 400 }}>{avstand}</div>
+                          <div key={i} style={{
+                            background: FARGER.hvit,
+                            border: `1px solid ${FARGER.kantUltralys}`,
+                            padding: '16px 18px',
+                            borderRadius: RADIUS.md,
+                            boxShadow: SHADOW.xs,
+                          }}>
+                            <div style={{ fontSize: 11, color: GULL, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 6, fontWeight: 700 }}>{navn}</div>
+                            <div style={{ fontSize: 16, color: MØRK, fontWeight: 500, letterSpacing: '-0.01em' }}>{avstand}</div>
                           </div>
                         ))}
                       </div>
@@ -199,34 +240,49 @@ function PrisStripe({ bolig, onForesporsel }: { bolig: BoligDetalj; onForesporse
   const { t } = useSprak()
   const { formater } = useValuta()
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap', borderTop: `1px solid ${GULL}33`, paddingTop: 28 }}>
+    <div className="anim-fade-up" style={{
+      display: 'flex', alignItems: 'center', gap: 'clamp(20px, 3vw, 36px)',
+      flexWrap: 'wrap',
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg,
+      padding: 'clamp(20px, 3vw, 28px)',
+      boxShadow: SHADOW.sm,
+      animationDelay: '160ms',
+    }}>
       {bolig.til_salgs && bolig.salgspris_eur && (
         <div>
-          <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.til_salgs}</div>
-          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
+          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>{t.til_salgs}</div>
+          <div style={{ fontSize: 28, fontWeight: 500, color: MØRK, letterSpacing: '-0.02em' }}>{formater(bolig.salgspris_eur)}</div>
         </div>
       )}
       {bolig.til_leie && bolig.pris_natt && (
         <div>
-          <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.til_leie}</div>
-          <div style={{ fontSize: 28, fontWeight: 400, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 14, color: '#888', fontWeight: 300 }}>{t.per_natt}</span></div>
+          <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>{t.til_leie}</div>
+          <div style={{ fontSize: 28, fontWeight: 500, color: MØRK, letterSpacing: '-0.02em' }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 14, color: FARGER.tekstLys, fontWeight: 400 }}>{t.per_natt}</span></div>
         </div>
       )}
       {bolig.bolig_data.areal && (
-        <div>
-          <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.areal}</div>
-          <div style={{ fontSize: 22, fontWeight: 400, color: MØRK }}>{bolig.bolig_data.areal} m²</div>
+        <div style={{ paddingLeft: 24, borderLeft: `1px solid ${FARGER.kantUltralys}` }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstLys, letterSpacing: '0.16em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>{t.areal}</div>
+          <div style={{ fontSize: 20, fontWeight: 500, color: MØRK, letterSpacing: '-0.01em' }}>{bolig.bolig_data.areal} m²</div>
         </div>
       )}
       {bolig.byggear && (
-        <div>
-          <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.16em', marginBottom: 4, textTransform: 'uppercase' }}>{t.byggear}</div>
-          <div style={{ fontSize: 22, fontWeight: 400, color: MØRK }}>{bolig.byggear}</div>
+        <div style={{ paddingLeft: 24, borderLeft: `1px solid ${FARGER.kantUltralys}` }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstLys, letterSpacing: '0.16em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>{t.byggear}</div>
+          <div style={{ fontSize: 20, fontWeight: 500, color: MØRK, letterSpacing: '-0.01em' }}>{bolig.byggear}</div>
         </div>
       )}
       <div style={{ flex: 1, textAlign: 'right', minWidth: 200 }}>
-        <button onClick={onForesporsel}
-          style={{ background: MØRK, color: CREAM_LYS, border: 'none', padding: '14px 28px', fontSize: 12, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        <button onClick={onForesporsel} className="knapp-hover-loft"
+          style={{
+            background: MØRK, color: CREAM_LYS, border: 'none',
+            padding: '14px 28px', fontSize: 13, fontWeight: 600,
+            letterSpacing: '0.02em', cursor: 'pointer',
+            borderRadius: RADIUS.pill,
+            boxShadow: SHADOW.sm,
+          }}>
           {t.registrer_interesse}
         </button>
       </div>
@@ -236,9 +292,9 @@ function PrisStripe({ bolig, onForesporsel }: { bolig: BoligDetalj; onForesporse
 
 function Seksjon({ eyebrow, tittel, children }: { eyebrow: string; tittel: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 64 }}>
-      <div style={{ fontSize: 10, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12 }}>{eyebrow}</div>
-      <h2 style={{ fontSize: 26, fontWeight: 300, color: MØRK, margin: '0 0 28px', letterSpacing: '-0.005em' }}>{tittel}</h2>
+    <section style={{ marginBottom: 72 }}>
+      <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 14, textTransform: 'uppercase' }}>{eyebrow}</div>
+      <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 300, color: MØRK, margin: '0 0 32px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{tittel}</h2>
       {children}
     </section>
   )
@@ -263,11 +319,17 @@ function SpecTabell({ bolig }: { bolig: BoligDetalj }) {
   if (rader.length === 0) return null
 
   return (
-    <div>
+    <div style={{
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg,
+      padding: 'clamp(8px, 2vw, 20px) clamp(16px, 3vw, 24px)',
+      boxShadow: SHADOW.xs,
+    }}>
       {rader.map(([lbl, val], i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${GULL}22`, fontSize: 14 }}>
-          <span style={{ color: '#666', fontWeight: 300 }}>{lbl}</span>
-          <span style={{ color: MØRK, fontWeight: 500 }}>{val}</span>
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: i === rader.length - 1 ? 'none' : `1px solid ${FARGER.kantUltralys}`, fontSize: 14.5, gap: 16 }}>
+          <span style={{ color: FARGER.tekstMid, fontWeight: 400 }}>{lbl}</span>
+          <span style={{ color: MØRK, fontWeight: 500, textAlign: 'right' }}>{val}</span>
         </div>
       ))}
     </div>
@@ -279,23 +341,31 @@ function BildeGalleri({ bilder, aktiv, onVelg }: { bilder: { id: string; url: st
   const aktivBilde = bilder[aktiv] || bilder[0]
   return (
     <div>
-      <div style={{ width: '100%', aspectRatio: '16 / 9', background: '#e8e4d8', overflow: 'hidden', marginBottom: 14 }}>
+      <div style={{
+        width: '100%', aspectRatio: '16 / 9',
+        background: FARGER.kantLys,
+        overflow: 'hidden', marginBottom: 14,
+        borderRadius: RADIUS.lg,
+        boxShadow: SHADOW.md,
+      }}>
         {aktivBilde.url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={aktivBilde.url} alt="" loading="eager" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={aktivBilde.url} alt="" loading="eager" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: `opacity ${MOTION.normal}` }} />
         )}
       </div>
       {bilder.length > 1 && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(bilder.length, 8)}, 1fr)`, gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(bilder.length, 8)}, 1fr)`, gap: 10 }}>
           {bilder.slice(0, 8).map((b, i) => (
             <button key={b.id} onClick={() => onVelg(i)}
               style={{
                 border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden',
-                aspectRatio: '4 / 3', background: '#e8e4d8',
-                opacity: i === aktiv ? 1 : 0.55,
-                outline: i === aktiv ? `2px solid ${GULL}` : 'none',
-                outlineOffset: -2,
-                transition: 'opacity 0.2s',
+                aspectRatio: '4 / 3', background: FARGER.kantLys,
+                opacity: i === aktiv ? 1 : 0.6,
+                outline: i === aktiv ? `2px solid ${GULL}` : `1px solid ${FARGER.kantUltralys}`,
+                outlineOffset: i === aktiv ? -2 : -1,
+                transition: `opacity ${MOTION.rask}, transform ${MOTION.rask}`,
+                borderRadius: RADIUS.md,
+                transform: i === aktiv ? 'scale(1)' : 'scale(0.98)',
               }}>
               {b.url && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -315,46 +385,54 @@ function SidePanel({ bolig, onForesporsel, erMobil }: { bolig: BoligDetalj; onFo
   return (
     <aside style={{
       position: erMobil ? 'static' : 'sticky',
-      top: erMobil ? 'auto' : 96,
+      top: erMobil ? 'auto' : 104,
       alignSelf: 'start',
-      background: 'white', border: `1px solid ${GULL}33`,
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
       padding: erMobil ? 24 : 32,
+      borderRadius: RADIUS.xl,
+      boxShadow: SHADOW.md,
     }}>
-      <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${GULL}22` }}>
+      <div style={{ marginBottom: 22, paddingBottom: 20, borderBottom: `1px solid ${FARGER.kantUltralys}` }}>
         {bolig.til_salgs && bolig.salgspris_eur && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>{t.til_salgs}</div>
-            <div style={{ fontSize: 26, fontWeight: 400, color: MØRK }}>{formater(bolig.salgspris_eur)}</div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>{t.til_salgs}</div>
+            <div style={{ fontSize: 28, fontWeight: 600, color: MØRK, letterSpacing: '-0.02em' }}>{formater(bolig.salgspris_eur)}</div>
           </div>
         )}
         {bolig.til_leie && (
           <div>
-            <div style={{ fontSize: 10, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>{t.til_leie}</div>
-            {bolig.pris_natt && <div style={{ fontSize: 22, fontWeight: 400, color: MØRK }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 13, color: '#888' }}>{t.per_natt}</span></div>}
-            {bolig.pris_uke && <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>{formater(bolig.pris_uke)}{t.per_uke}</div>}
-            {bolig.min_netter && <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>{t.min_opphold}: {bolig.min_netter} {t.natter}</div>}
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>{t.til_leie}</div>
+            {bolig.pris_natt && <div style={{ fontSize: 24, fontWeight: 600, color: MØRK, letterSpacing: '-0.02em' }}>{formater(bolig.pris_natt)}<span style={{ fontSize: 13, color: FARGER.tekstLys, fontWeight: 400 }}>{t.per_natt}</span></div>}
+            {bolig.pris_uke && <div style={{ fontSize: 14, color: FARGER.tekstMid, marginTop: 6 }}>{formater(bolig.pris_uke)}{t.per_uke}</div>}
+            {bolig.min_netter && <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 8 }}>{t.min_opphold}: {bolig.min_netter} {t.natter}</div>}
           </div>
         )}
         {!bolig.salgspris_eur && !bolig.pris_natt && (
-          <div style={{ fontSize: 14, color: '#888', fontStyle: 'italic' }}>{t.pris_paa_foresporsel}</div>
+          <div style={{ fontSize: 14, color: FARGER.tekstLys, fontStyle: 'italic' }}>{t.pris_paa_foresporsel}</div>
         )}
       </div>
 
-      <button onClick={onForesporsel}
+      <button onClick={onForesporsel} className="knapp-hover-loft"
         style={{
           width: '100%', background: MØRK, color: CREAM_LYS, border: 'none',
-          padding: 16, fontSize: 12, fontWeight: 600,
-          letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
-          marginBottom: 12,
+          padding: 16, fontSize: 13, fontWeight: 600,
+          letterSpacing: '0.02em', cursor: 'pointer',
+          marginBottom: 10,
+          borderRadius: RADIUS.pill,
+          boxShadow: SHADOW.sm,
         }}>
         {t.registrer_interesse}
       </button>
       <a href="mailto:post@loeiendom.com"
         style={{
           display: 'block', textAlign: 'center', width: '100%', padding: 14,
-          fontSize: 12, fontWeight: 500, color: MØRK, textDecoration: 'none',
-          border: `1px solid ${GULL}55`, letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 13, fontWeight: 500, color: MØRK, textDecoration: 'none',
+          border: `1px solid ${FARGER.kantUltralys}`, letterSpacing: '-0.005em',
           boxSizing: 'border-box',
+          borderRadius: RADIUS.pill,
+          background: FARGER.flateLys,
+          transition: `background ${MOTION.rask}`,
         }}>
         post@loeiendom.com
       </a>
@@ -365,8 +443,8 @@ function SidePanel({ bolig, onForesporsel, erMobil }: { bolig: BoligDetalj; onFo
 function Footer() {
   const { t } = useSprak()
   return (
-    <footer style={{ background: MØRK, color: CREAM_LYS, padding: '48px 28px 36px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', textAlign: 'center', fontSize: 11, color: 'rgba(250,250,246,0.5)', letterSpacing: '0.06em' }}>
+    <footer style={{ background: MØRK, color: CREAM_LYS, padding: '56px 28px 40px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', textAlign: 'center', fontSize: 12, color: 'rgba(250,250,246,0.45)', letterSpacing: '0.04em' }}>
         {t.copyright} {new Date().getFullYear()}
       </div>
     </footer>
