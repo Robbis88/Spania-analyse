@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { Innlogging } from '../components/Innlogging'
 import { fjernAktivBruker, hentAktivBruker, settAktivBruker } from '../lib/aktivBruker'
 import { supabase } from '../lib/supabase'
-import { BREAKPOINT, FARGER } from '../lib/styles'
+import { BREAKPOINT, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 // Lazy-loadede seksjoner — bare den brukeren åpner havner i nedlastet JS.
 // Bytter ut ~3000+ linjer fra initial admin-bundle.
@@ -72,18 +72,23 @@ function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbak
 }) {
   const seksjonLbl = SEKSJON_LBL[aktivSeksjon]
   const navn = visProsjekt ? prosjektNavn[visProsjekt] : null
+  const krumStil: React.CSSProperties = {
+    background: 'none', border: 'none', color: FARGER.tekstMid,
+    cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 500,
+    letterSpacing: '-0.005em',
+  }
   return (
-    <div style={{ fontSize: 11, color: FARGER.tekstLys, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-      <button onClick={onHjem} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', padding: 0, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Hjem</button>
-      <span style={{ color: GULL }}>/</span>
+    <div style={{ fontSize: 13, color: FARGER.tekstMid, marginBottom: 22, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <button onClick={onHjem} style={krumStil}>Hjem</button>
+      <span style={{ color: FARGER.tekstLys, fontSize: 11 }}>/</span>
       {visProsjekt ? (
         <>
-          <button onClick={onTilbakeSeksjon} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', padding: 0, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{seksjonLbl}</button>
-          <span style={{ color: GULL }}>/</span>
-          <span style={{ color: MØRK, fontWeight: 600 }}>{navn || 'Prosjekt'}</span>
+          <button onClick={onTilbakeSeksjon} style={krumStil}>{seksjonLbl}</button>
+          <span style={{ color: FARGER.tekstLys, fontSize: 11 }}>/</span>
+          <span style={{ color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{navn || 'Prosjekt'}</span>
         </>
       ) : (
-        <span style={{ color: MØRK, fontWeight: 600 }}>{seksjonLbl}</span>
+        <span style={{ color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{seksjonLbl}</span>
       )}
     </div>
   )
@@ -111,6 +116,7 @@ export default function Home() {
   const [erMobil, setErMobil] = useState(false)
   const [mobilMenyApen, setMobilMenyApen] = useState(false)
   const [prosjektNavn, setProsjektNavn] = useState<Record<string, string>>({})
+  const [scrollet, setScrollet] = useState(false)
 
   useEffect(() => {
     const lagret = hentAktivBruker()
@@ -131,6 +137,13 @@ export default function Home() {
     sjekkBredde()
     window.addEventListener('resize', sjekkBredde)
     return () => window.removeEventListener('resize', sjekkBredde)
+  }, [])
+
+  useEffect(() => {
+    function sjekkScroll() { setScrollet(window.scrollY > 8) }
+    sjekkScroll()
+    window.addEventListener('scroll', sjekkScroll, { passive: true })
+    return () => window.removeEventListener('scroll', sjekkScroll)
   }, [])
 
   useEffect(() => {
@@ -180,15 +193,17 @@ export default function Home() {
   }
 
   return (
-    <div style={{ fontFamily: 'sans-serif', background: CREAM, minHeight: '100vh', color: MØRK }}>
+    <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
       <nav style={{
         position: 'sticky', top: 0, zIndex: 20,
-        background: 'rgba(250, 250, 246, 0.92)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        borderBottom: `1px solid ${FARGER.gullSvak}`,
+        background: scrollet ? 'rgba(250, 250, 246, 0.85)' : 'rgba(250, 250, 246, 0.6)',
+        backdropFilter: 'saturate(180%) blur(20px)',
+        WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+        borderBottom: scrollet ? `1px solid ${FARGER.kantUltralys}` : '1px solid transparent',
+        boxShadow: scrollet ? SHADOW.xs : 'none',
         padding: erMobil ? '12px 18px' : '14px 28px',
         display: 'flex', alignItems: 'center', gap: 16,
+        transition: `background ${MOTION.normal}, border-color ${MOTION.normal}, box-shadow ${MOTION.normal}`,
       }}>
         <button onClick={hjem} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 12, flex: erMobil ? 1 : 'initial' }}>
           <Image src="/logo.png" alt="Leganger & Osvaag" width={erMobil ? 36 : 40} height={erMobil ? 36 : 40} style={{ objectFit: 'contain' }} priority />
@@ -196,19 +211,21 @@ export default function Home() {
         </button>
 
         {!erMobil && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 26, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
             {NAV_LINKS.map(l => {
               const aktiv = aktivSeksjon === l.id
               const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
               return (
-                <button key={l.id} onClick={onClick}
+                <button key={l.id} onClick={onClick} className="nav-lenke"
                   style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: aktiv ? 700 : 500,
-                    color: aktiv ? MØRK : FARGER.tekstMid,
-                    padding: '6px 2px',
-                    letterSpacing: '0.14em', textTransform: 'uppercase',
-                    borderBottom: aktiv ? `1px solid ${GULL}` : '1px solid transparent',
+                    background: aktiv ? FARGER.mork : 'transparent',
+                    border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: aktiv ? 600 : 500,
+                    color: aktiv ? FARGER.creamLys : FARGER.tekstMid,
+                    padding: '8px 14px',
+                    letterSpacing: '-0.005em',
+                    borderRadius: RADIUS.pill,
+                    transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
                   }}>{l.lbl}</button>
               )
             })}
@@ -216,24 +233,32 @@ export default function Home() {
         )}
 
         {!erMobil && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <Link href="/" style={{ fontSize: 11, color: FARGER.tekstLys, textDecoration: 'none', letterSpacing: '0.12em', textTransform: 'uppercase' }}>↗ Portal</Link>
-            <span style={{ fontSize: 12, color: MØRK, fontWeight: 600 }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 11, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Logg ut</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Link href="/" className="nav-lenke" style={{ fontSize: 12, color: FARGER.tekstMid, textDecoration: 'none', letterSpacing: '-0.005em', fontWeight: 500 }}>↗ Portal</Link>
+            <div style={{ width: 1, height: 18, background: FARGER.kantUltralys }} />
+            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
+            <button onClick={loggUt} className="nav-lenke" style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 12, cursor: 'pointer', letterSpacing: '-0.005em', fontWeight: 500 }}>Logg ut</button>
           </div>
         )}
 
         {erMobil && (
           <button onClick={() => setMobilMenyApen(o => !o)}
             aria-label="Meny"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, fontSize: 22, color: MØRK }}>
+            style={{
+              background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+              cursor: 'pointer', padding: 0,
+              width: 40, height: 40, fontSize: 17, color: MØRK,
+              borderRadius: RADIUS.pill,
+              boxShadow: SHADOW.xs,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
             {mobilMenyApen ? '✕' : '☰'}
           </button>
         )}
       </nav>
 
       {erMobil && mobilMenyApen && (
-        <div style={{ background: CREAM_LYS, borderBottom: `1px solid ${FARGER.gullSvak}`, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="anim-fade-down" style={{ background: CREAM_LYS, borderTop: `1px solid ${FARGER.kantUltralys}`, padding: '14px 16px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: SHADOW.md }}>
           {NAV_LINKS.map(l => {
             const aktiv = aktivSeksjon === l.id
             const onClick = () => {
@@ -244,83 +269,99 @@ export default function Home() {
             return (
               <button key={l.id} onClick={onClick}
                 style={{
-                  background: aktiv ? FARGER.flateLys : 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 14, fontWeight: aktiv ? 700 : 500, color: MØRK,
-                  padding: '12px 14px', textAlign: 'left',
-                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  background: aktiv ? FARGER.mork : 'transparent',
+                  color: aktiv ? FARGER.creamLys : MØRK,
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 14, fontWeight: aktiv ? 600 : 500,
+                  padding: '12px 16px', textAlign: 'left',
+                  letterSpacing: '-0.005em',
+                  borderRadius: RADIUS.pill,
                 }}>{l.lbl}</button>
             )
           })}
-          <div style={{ borderTop: `1px solid ${FARGER.gullSvak}`, marginTop: 6, paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
-            <span style={{ fontSize: 12, color: MØRK, fontWeight: 600 }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 11, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Logg ut</button>
+          <div style={{ borderTop: `1px solid ${FARGER.kantUltralys}`, marginTop: 10, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 8px 4px' }}>
+            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
+            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 12, cursor: 'pointer', letterSpacing: '-0.005em', fontWeight: 500 }}>Logg ut</button>
           </div>
         </div>
       )}
 
       {!aktivSeksjon && (
         <>
-          <section style={{ background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`, borderBottom: `1px solid ${FARGER.gullSvak}` }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '60px 24px' : '96px 28px', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 22 }}>ADMIN</div>
-              <h1 style={{ fontSize: 'clamp(32px, 4.5vw, 50px)', lineHeight: 1.1, fontWeight: 300, color: MØRK, margin: '0 0 20px', letterSpacing: '-0.01em' }}>
+          <section style={{
+            background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`,
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div aria-hidden style={{
+              position: 'absolute', top: '-20%', right: '-10%',
+              width: '50%', height: '120%',
+              background: `radial-gradient(circle, ${GULL}15 0%, transparent 60%)`,
+              pointerEvents: 'none',
+            }} />
+            <div style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '64px 24px' : '110px 28px', textAlign: 'center', position: 'relative' }}>
+              <div className="anim-fade-up" style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 22 }}>ADMIN</div>
+              <h1 className="anim-fade-up" style={{ fontSize: 'clamp(34px, 5vw, 56px)', lineHeight: 1.05, fontWeight: 300, color: MØRK, margin: '0 0 22px', letterSpacing: '-0.025em', animationDelay: '60ms' }}>
                 Velkommen, {bruker.charAt(0).toUpperCase() + bruker.slice(1)}
               </h1>
-              <p style={{ fontSize: 16, lineHeight: 1.6, color: FARGER.tekstMid, margin: '0 auto 36px', maxWidth: 540, fontWeight: 300 }}>
+              <p className="anim-fade-up" style={{ fontSize: 'clamp(16px, 2vw, 18px)', lineHeight: 1.6, color: FARGER.tekstMid, margin: '0 auto 40px', maxWidth: 580, fontWeight: 300, animationDelay: '120ms' }}>
                 Analyser eiendommer, følg opp prosjekter og publiser boliger til portalen — alt på ett sted.
               </p>
-              <button onClick={() => gåTil('analyse')} style={{
+              <button onClick={() => gåTil('analyse')} className="anim-fade-up knapp-hover-loft" style={{
                 background: MØRK, color: CREAM_LYS, border: 'none',
-                padding: '16px 32px', fontSize: 12, fontWeight: 600,
-                letterSpacing: '0.16em', textTransform: 'uppercase',
+                padding: '16px 32px', fontSize: 13, fontWeight: 600,
+                letterSpacing: '-0.005em',
                 cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                borderRadius: RADIUS.pill,
+                boxShadow: SHADOW.md,
+                animationDelay: '180ms',
               }}>
-                Analyser ny bolig →
+                Analyser ny bolig
+                <span aria-hidden>→</span>
               </button>
             </div>
           </section>
 
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 28px 16px' }}>
-            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>OVERSIKT — SPANIA</div>
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 28px 16px' }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Oversikt — Spania</div>
             <Dashboard marked="spania" onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
-            <p style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 12, fontStyle: 'italic' }}>
+            <p style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 14, fontStyle: 'italic' }}>
               Norske prosjekter ligger i sin egen Norge-fane med eget dashboard.
             </p>
           </section>
 
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 28px 80px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: 48 }}>
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 96px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: erMobil ? 40 : 56 }}>
               <div>
-                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>SNARVEIER</div>
-                <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'repeat(2, 1fr)', gap: 0, border: `1px solid ${FARGER.gullSvak}` }}>
+                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Snarveier</div>
+                <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'repeat(2, 1fr)', gap: 16 }}>
                   {SEKSJONER.map((boks, i) => (
                     <button
                       key={boks.id}
                       onClick={() => gåTil(boks.id)}
+                      className="kort-loft anim-fade-up"
                       style={{
-                        background: 'transparent',
-                        border: 'none',
-                        borderRight: !erMobil && i % 2 === 0 ? `1px solid ${FARGER.gullSvak}` : 'none',
-                        borderBottom: i < SEKSJONER.length - (erMobil ? 1 : 2) ? `1px solid ${FARGER.gullSvak}` : 'none',
-                        padding: '32px 28px',
+                        background: FARGER.hvit,
+                        border: `1px solid ${FARGER.kantUltralys}`,
+                        padding: '28px 26px',
                         cursor: 'pointer',
                         textAlign: 'left',
-                        transition: 'background 0.2s',
-                        fontFamily: 'sans-serif',
+                        borderRadius: RADIUS.lg,
+                        boxShadow: SHADOW.sm,
+                        animationDelay: `${Math.min(i, 8) * 40}ms`,
+                        display: 'flex', flexDirection: 'column',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = FARGER.flateLys }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                     >
-                      <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.16em', fontWeight: 700, marginBottom: 12 }}>{boks.ikon}</div>
-                      <div style={{ fontSize: 20, fontWeight: 400, color: MØRK, marginBottom: 6, letterSpacing: '-0.005em' }}>{boks.tittel}</div>
-                      <div style={{ fontSize: 13, color: FARGER.tekstMid, lineHeight: 1.5, fontWeight: 300 }}>{boks.beskrivelse}</div>
+                      <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 12 }}>{boks.ikon}</div>
+                      <div style={{ fontSize: 19, fontWeight: 500, color: MØRK, marginBottom: 8, letterSpacing: '-0.015em' }}>{boks.tittel}</div>
+                      <div style={{ fontSize: 13.5, color: FARGER.tekstMid, lineHeight: 1.55, fontWeight: 400 }}>{boks.beskrivelse}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div id="gjoremal">
-                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 18 }}>GJØREMÅL</div>
+                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
                 <Oppgaver />
               </div>
             </div>

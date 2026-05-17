@@ -2,7 +2,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => void }) {
   const [brukernavnInput, setBrukernavnInput] = useState('')
@@ -35,36 +35,47 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => v
     <main style={{
       minHeight: '100vh',
       background: `linear-gradient(180deg, ${FARGER.creamLys} 0%, ${FARGER.cream} 100%)`,
-      fontFamily: 'sans-serif', color: FARGER.tekstMork,
+      color: FARGER.tekstMork,
       display: 'flex', flexDirection: 'column',
+      position: 'relative', overflow: 'hidden',
     }}>
+      <div aria-hidden style={{
+        position: 'absolute', top: '-20%', right: '-15%',
+        width: '50%', height: '100%',
+        background: `radial-gradient(circle, ${FARGER.gull}15 0%, transparent 60%)`,
+        pointerEvents: 'none',
+      }} />
       <header style={{
-        padding: '20px 28px', display: 'flex', alignItems: 'center',
+        padding: '18px 28px', display: 'flex', alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: `1px solid ${FARGER.gullSvak}`,
+        borderBottom: `1px solid ${FARGER.kantUltralys}`,
+        position: 'relative', zIndex: 1,
       }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
           <Image src="/logo.png" alt="Leganger & Osvaag" width={40} height={40} style={{ objectFit: 'contain' }} priority />
           <span style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, letterSpacing: '0.18em' }}>LEGANGER &amp; OSVAAG</span>
         </Link>
-        <Link href="/" style={{ fontSize: 11, color: FARGER.tekstLys, textDecoration: 'none', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+        <Link href="/" className="nav-lenke" style={{ fontSize: 12, color: FARGER.tekstMid, textDecoration: 'none', letterSpacing: '-0.005em', fontWeight: 500 }}>
           ← Til portalen
         </Link>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 28px' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', position: 'relative', zIndex: 1 }}>
         <div style={{ width: '100%', maxWidth: 440 }}>
-          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div className="anim-fade-up" style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>ADMIN</div>
-            <h1 style={{ fontSize: 30, fontWeight: 300, color: FARGER.mork, margin: 0, letterSpacing: '-0.01em' }}>
+            <h1 style={{ fontSize: 'clamp(28px, 4vw, 36px)', fontWeight: 300, color: FARGER.mork, margin: 0, letterSpacing: '-0.025em' }}>
               Logg inn
             </h1>
           </div>
 
-          <div style={{
+          <div className="anim-fade-up" style={{
             background: FARGER.hvit,
-            border: `1px solid ${FARGER.kantLys}`,
+            border: `1px solid ${FARGER.kantUltralys}`,
             padding: 36,
+            borderRadius: RADIUS.xl,
+            boxShadow: SHADOW.md,
+            animationDelay: '80ms',
           }}>
             <div style={{ marginBottom: 18 }}>
               <label style={lblStil}>Brukernavn</label>
@@ -75,7 +86,14 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => v
                 onKeyDown={e => e.key === 'Enter' && loggInn()}
                 placeholder="Brukernavn"
                 autoComplete="username"
-                style={{ width: '100%', padding: '12px 14px', fontSize: 14, borderRadius: RADIUS.sm, border: inputKant(feil), fontFamily: 'sans-serif', background: FARGER.hvit, boxSizing: 'border-box' }}
+                style={{
+                  width: '100%', padding: '12px 14px', fontSize: 14,
+                  borderRadius: RADIUS.md,
+                  border: inputKant(feil),
+                  background: FARGER.hvit, boxSizing: 'border-box',
+                  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                  outline: 'none',
+                }}
               />
             </div>
             <div style={{ marginBottom: 22 }}>
@@ -87,21 +105,30 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => v
                 onKeyDown={e => e.key === 'Enter' && loggInn()}
                 placeholder="Passord"
                 autoComplete="current-password"
-                style={{ width: '100%', padding: '12px 14px', fontSize: 14, borderRadius: RADIUS.sm, border: inputKant(feil), fontFamily: 'sans-serif', background: FARGER.hvit, boxSizing: 'border-box' }}
+                style={{
+                  width: '100%', padding: '12px 14px', fontSize: 14,
+                  borderRadius: RADIUS.md,
+                  border: inputKant(feil),
+                  background: FARGER.hvit, boxSizing: 'border-box',
+                  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                  outline: 'none',
+                }}
               />
               {feil && <div style={{ color: FARGER.feil, fontSize: 12, marginTop: 8 }}>Feil brukernavn eller passord. Prøv igjen.</div>}
             </div>
-            <button onClick={loggInn} disabled={sjekker} style={{
+            <button onClick={loggInn} disabled={sjekker} className="knapp-hover-loft" style={{
               width: '100%',
               background: sjekker ? FARGER.tekstLys : FARGER.mork,
               color: FARGER.creamLys,
               border: 'none', padding: 14,
-              fontSize: 12, fontWeight: 600,
-              letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontSize: 13, fontWeight: 600,
+              letterSpacing: '-0.005em',
               cursor: sjekker ? 'not-allowed' : 'pointer',
-              borderRadius: RADIUS.sm,
+              borderRadius: RADIUS.pill,
+              boxShadow: sjekker ? 'none' : SHADOW.sm,
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}, background ${MOTION.rask}`,
             }}>
-              {sjekker ? 'Sjekker...' : 'Logg inn'}
+              {sjekker ? 'Sjekker…' : 'Logg inn'}
             </button>
           </div>
         </div>
@@ -111,6 +138,6 @@ export function Innlogging({ onLoggetInn }: { onLoggetInn: (bruker: string) => v
 }
 
 const lblStil: React.CSSProperties = {
-  fontSize: 10, color: FARGER.tekstMid, marginBottom: 8, display: 'block',
-  letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
+  fontSize: 11, color: FARGER.tekstMid, marginBottom: 8, display: 'block',
+  letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600,
 }
