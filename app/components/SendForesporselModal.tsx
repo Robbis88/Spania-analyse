@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { HANDVERKER_FAG_ETIKETT, type Handverker, type HandverkerFag } from '../types'
 
 type Props = {
@@ -175,37 +175,50 @@ export function SendForesporselModal({
   if (!apen) return null
 
   return (
-    <div onClick={onLukk}
+    <div onClick={onLukk} className="anim-fade-in"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(14,23,38,0.55)',
+        position: 'fixed', inset: 0,
+        background: 'rgba(14, 23, 38, 0.45)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         padding: 20, overflowY: 'auto',
       }}>
-      <div onClick={e => e.stopPropagation()}
+      <div onClick={e => e.stopPropagation()} className="anim-scale-in"
         style={{
-          background: '#fff', borderRadius: RADIUS.lg, maxWidth: 800, width: '100%',
-          padding: 28, marginTop: 20, marginBottom: 40,
+          background: FARGER.creamLys, borderRadius: RADIUS.xl, maxWidth: 820, width: '100%',
+          padding: 'clamp(24px, 4vw, 36px)', marginTop: 20, marginBottom: 40,
+          boxShadow: SHADOW.xl,
         }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 4 }}>
-              📤 TILBUDSFORESPØRSEL
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase' }}>
+              📤 Tilbudsforespørsel
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: FARGER.mork }}>
+            <h2 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 500, margin: 0, color: FARGER.mork, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
               Send til håndverkere
             </h2>
-            <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '6px 0 0' }}>
+            <p style={{ fontSize: 13.5, color: FARGER.tekstMid, margin: '8px 0 0', lineHeight: 1.55 }}>
               Velg én eller flere håndverkere fra nettverket, skriv hva du vil ha gjort, og send.
             </p>
           </div>
           <button onClick={onLukk} disabled={sender}
-            style={{ background: 'none', border: 'none', fontSize: 22, color: FARGER.tekstLys, cursor: sender ? 'not-allowed' : 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+            aria-label="Lukk"
+            style={{
+              background: FARGER.flateLys, border: 'none',
+              width: 36, height: 36, fontSize: 18, color: FARGER.tekstMid,
+              cursor: sender ? 'not-allowed' : 'pointer',
+              lineHeight: 1, padding: 0,
+              borderRadius: RADIUS.pill,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>×</button>
         </div>
 
         {lasterData ? (
-          <div style={{ textAlign: 'center', padding: 40, color: FARGER.tekstLys }}>⏳ Laster…</div>
+          <div style={{ textAlign: 'center', padding: 48, color: FARGER.tekstLys }}>⏳ Laster…</div>
         ) : handverkere.length === 0 ? (
-          <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys }}>
+          <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 36, textAlign: 'center', color: FARGER.tekstMid, fontSize: 13.5 }}>
             Du har ingen håndverkere i nettverket ennå. Legg til i «🔧 Håndverkere»-fanen først.
           </div>
         ) : (
@@ -226,13 +239,21 @@ export function SendForesporselModal({
 
             {/* AI-oversetting */}
             {malspraak !== 'no' && beskrivelse.trim() && (
-              <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 14, boxShadow: SHADOW.xs }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                     🤖 Oversettelse til {SPRAK_ETIKETT[malspraak]} {malspraak === 'es' ? 'spansk' : 'engelsk'}
                   </span>
-                  <button onClick={oversett} disabled={oversetter}
-                    style={{ background: oversetter ? FARGER.tekstLys : FARGER.mork, color: '#fff', border: 'none', padding: '6px 14px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: oversetter ? 'wait' : 'pointer' }}>
+                  <button onClick={oversett} disabled={oversetter} className="knapp-hover-loft"
+                    style={{
+                      background: oversetter ? FARGER.tekstLys : FARGER.mork,
+                      color: FARGER.creamLys, border: 'none',
+                      padding: '7px 14px', borderRadius: RADIUS.pill,
+                      fontSize: 12, fontWeight: 600,
+                      cursor: oversetter ? 'wait' : 'pointer',
+                      letterSpacing: '-0.005em',
+                      boxShadow: oversetter ? 'none' : SHADOW.sm,
+                    }}>
                     {oversetter ? '⏳ Oversetter…' : oversetterTil ? '🔄 Oversett på nytt' : '✨ Oversett'}
                   </button>
                 </div>
@@ -260,10 +281,12 @@ export function SendForesporselModal({
                     return (
                       <button key={b.id} type="button" onClick={() => toggleBilde(b.id)}
                         style={{
-                          background: '#fff', border: valgt ? `2.5px solid ${FARGER.gull}` : `1px solid ${FARGER.kantLys}`,
-                          borderRadius: RADIUS.sm, padding: 0, cursor: 'pointer',
+                          background: FARGER.hvit, border: valgt ? `2px solid ${FARGER.gull}` : `1px solid ${FARGER.kantUltralys}`,
+                          borderRadius: RADIUS.md, padding: 0, cursor: 'pointer',
                           aspectRatio: '4 / 3', overflow: 'hidden', position: 'relative',
                           opacity: valgt ? 1 : 0.7,
+                          boxShadow: valgt ? SHADOW.sm : SHADOW.xs,
+                          transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
                         }}>
                         {b.signert_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -296,7 +319,7 @@ export function SendForesporselModal({
                   {tilgjengeligeFag.map(f => <option key={f} value={f}>{HANDVERKER_FAG_ETIKETT[f]}</option>)}
                 </select>
               )}
-              <div style={{ maxHeight: 280, overflowY: 'auto', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm }}>
+              <div style={{ maxHeight: 280, overflowY: 'auto', border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, background: FARGER.hvit }}>
                 {filtrert.length === 0 && (
                   <div style={{ padding: 16, fontSize: 12, color: FARGER.tekstLys, textAlign: 'center', fontStyle: 'italic' }}>
                     Ingen håndverkere i dette filteret.
@@ -306,15 +329,15 @@ export function SendForesporselModal({
                   const valgt = valgte.has(h.id)
                   const wa = whatsappLink(h)
                   return (
-                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: `1px solid ${FARGER.flateLys}`, background: valgt ? FARGER.creamLys : '#fff' }}>
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: `1px solid ${FARGER.kantUltralys}`, background: valgt ? FARGER.creamLys : FARGER.hvit, transition: `background ${MOTION.rask}` }}>
                       <input type="checkbox" checked={valgt} onChange={() => toggleHandverker(h.id)}
                         style={{ width: 18, height: 18, accentColor: FARGER.gull }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>
                           {h.navn} {SPRAK_ETIKETT[h.sprak]}
-                          {!h.epost && <span style={{ marginLeft: 8, fontSize: 10, color: FARGER.feil }}>(mangler e-post)</span>}
+                          {!h.epost && <span style={{ marginLeft: 8, fontSize: 11, color: FARGER.feil }}>(mangler e-post)</span>}
                         </div>
-                        <div style={{ fontSize: 11, color: FARGER.tekstLys }}>
+                        <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginTop: 2 }}>
                           {h.fag.map(f => HANDVERKER_FAG_ETIKETT[f as HandverkerFag] || f).join(', ')}
                           {h.omrade && ` · 📍 ${h.omrade}`}
                         </div>
@@ -322,7 +345,7 @@ export function SendForesporselModal({
                       {wa && valgt && (
                         <a href={wa} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
                           title="Åpne WhatsApp med ferdig tekst og bilde-lenker"
-                          style={{ background: '#25d366', color: '#fff', padding: '4px 10px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
+                          style={{ background: '#25d366', color: FARGER.creamLys, padding: '5px 12px', borderRadius: RADIUS.pill, fontSize: 11, fontWeight: 600, textDecoration: 'none', letterSpacing: '-0.005em' }}>
                           💬 WA
                         </a>
                       )}
@@ -333,13 +356,28 @@ export function SendForesporselModal({
             </div>
 
             {/* Send-knapp */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={send} disabled={sender || valgte.size === 0 || !tittel.trim() || !beskrivelse.trim()}
-                style={{ flex: 1, background: sender || valgte.size === 0 ? FARGER.tekstLys : FARGER.mork, color: '#fff', border: 'none', padding: 14, borderRadius: RADIUS.md, fontSize: 14, fontWeight: 600, cursor: sender || valgte.size === 0 ? 'not-allowed' : 'pointer', letterSpacing: '0.04em' }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={send} disabled={sender || valgte.size === 0 || !tittel.trim() || !beskrivelse.trim()} className="knapp-hover-loft"
+                style={{
+                  flex: 1, background: sender || valgte.size === 0 ? FARGER.tekstLys : FARGER.mork,
+                  color: FARGER.creamLys, border: 'none', padding: 14, borderRadius: RADIUS.pill,
+                  fontSize: 14, fontWeight: 600,
+                  cursor: sender || valgte.size === 0 ? 'not-allowed' : 'pointer',
+                  letterSpacing: '-0.005em',
+                  boxShadow: sender || valgte.size === 0 ? 'none' : SHADOW.sm,
+                  transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                }}>
                 {sender ? '⏳ Sender…' : `📧 Send via e-post til ${valgte.size} ${valgte.size === 1 ? 'håndverker' : 'håndverkere'}`}
               </button>
               <button onClick={onLukk} disabled={sender}
-                style={{ background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '14px 20px', borderRadius: RADIUS.md, fontSize: 14, fontWeight: 600, cursor: sender ? 'not-allowed' : 'pointer' }}>
+                style={{
+                  background: FARGER.hvit, color: FARGER.tekstMid,
+                  border: `1px solid ${FARGER.kantUltralys}`,
+                  padding: '14px 22px', borderRadius: RADIUS.pill,
+                  fontSize: 14, fontWeight: 500,
+                  cursor: sender ? 'not-allowed' : 'pointer',
+                  letterSpacing: '-0.005em',
+                }}>
                 Avbryt
               </button>
             </div>
@@ -364,7 +402,9 @@ function Lbl({ children }: { children: React.ReactNode }) {
 }
 
 const inputStil: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', fontSize: 13,
-  border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, background: '#fff',
+  width: '100%', padding: '11px 14px', fontSize: 14,
+  border: `1px solid ${FARGER.kant}`, borderRadius: RADIUS.md, background: FARGER.hvit,
   boxSizing: 'border-box', fontFamily: 'inherit',
+  outline: 'none',
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
 }

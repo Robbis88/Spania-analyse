@@ -1,7 +1,7 @@
 'use client'
 import { Component, type ErrorInfo, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { DokumentStatus, Prosjekt, SalgsanalyseData } from '../types'
-import { fmt } from '../lib/styles'
+import { fmt, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 
@@ -46,7 +46,7 @@ class Feilvakt extends Component<{ children: ReactNode }, { feil: Error | null }
   render() {
     if (this.state.feil) {
       return (
-        <div style={{ background: '#fde8ec', border: '1.5px solid #C8102E', borderRadius: 8, padding: 14, fontSize: 13, color: '#7a0c1e' }}>
+        <div style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}44`, borderRadius: RADIUS.md, padding: 16, fontSize: 13, color: '#7a0c1e', lineHeight: 1.55 }}>
           ⚠️ Kunne ikke vise salgsanalysen — data kan være ufullstendig. Prøv å generere på nytt.
           <br /><small style={{ color: '#a0445a' }}>{this.state.feil.message}</small>
         </div>
@@ -107,28 +107,38 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
   const malgruppe = data?.malgruppe
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>🤖 AI-salgsanalyse</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: FARGER.mork, letterSpacing: '-0.015em' }}>🤖 AI-salgsanalyse</h3>
           {prosjekt.salgsanalyse_generert && (
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 4 }}>
               Sist generert: {new Date(prosjekt.salgsanalyse_generert).toLocaleString('nb-NO')}
             </div>
           )}
         </div>
         <button onClick={generer} disabled={genererer}
           title="Genererer annonse, bildeplan, dokumentcheck, prisstrategi, investeringsanalyse, forbedringsforslag og målgruppe"
-          style={{ background: genererer ? '#999' : '#6a4c93', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: genererer ? 'wait' : 'pointer' }}>
-          {genererer ? '⏳ Genererer (10–20 s)...' : data ? '🔄 Generer på nytt' : '✨ Generer salgsanalyse'}
+          className="knapp-hover-loft"
+          style={{
+            background: genererer ? FARGER.tekstLys : '#6a4c93',
+            color: FARGER.creamLys, border: 'none',
+            borderRadius: RADIUS.pill, padding: '10px 18px',
+            fontSize: 13, fontWeight: 600,
+            cursor: genererer ? 'wait' : 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: genererer ? 'none' : SHADOW.sm,
+            transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+          }}>
+          {genererer ? '⏳ Genererer (10–20 s)…' : data ? '🔄 Generer på nytt' : '✨ Generer salgsanalyse'}
         </button>
       </div>
 
-      {feil && <div style={{ background: '#fde8ec', color: '#7a0c1e', padding: 10, borderRadius: 8, fontSize: 12, marginBottom: 10 }}>⚠️ {feil}</div>}
+      {feil && <div className="anim-fade-up" style={{ background: FARGER.feilBg, color: '#7a0c1e', padding: 12, borderRadius: RADIUS.md, fontSize: 13, marginBottom: 12, border: `1px solid ${FARGER.feil}33` }}>⚠️ {feil}</div>}
 
       {!data && !genererer && (
-        <div style={{ background: '#faf7f0', border: '1.5px dashed #c9a87655', borderRadius: 6, padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
-          Trykk &quot;Generer salgsanalyse&quot; for å få: salgsannonse, bildeplan, dokumentcheck, prisstrategi, investeringsanalyse, forbedringsforslag og målgruppe
+        <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 30, textAlign: 'center', color: FARGER.tekstMid, fontSize: 13.5, lineHeight: 1.6 }}>
+          Trykk «Generer salgsanalyse» for å få: salgsannonse, bildeplan, dokumentcheck, prisstrategi, investeringsanalyse, forbedringsforslag og målgruppe
         </div>
       )}
 
@@ -152,7 +162,13 @@ function SalgsanalyseInnhold({ prosjekt, onOppdatert }: Props) {
             const full = [annonse.intro, '', ...bullets, '', annonse.beskrivelse, '', annonse.omraade, '', annonse.cta].filter(Boolean).join('\n')
             kopier(full, 'Annonse')
           }}
-            style={{ marginTop: 10, background: '#f0f0f0', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+            style={{
+              marginTop: 12, background: FARGER.hvit,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              borderRadius: RADIUS.pill, padding: '7px 14px',
+              fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              color: FARGER.tekstMid, letterSpacing: '-0.005em',
+            }}>
             📋 Kopier hele annonsen
           </button>
         </Seksjon>

@@ -3,14 +3,19 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { visToast } from '../lib/toast'
 import type { Prosjekt, Prosjektbilde } from '../types'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 type BildeRad = Prosjektbilde & { url?: string | null }
 
 const inputStil: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', fontSize: 13, borderRadius: 6, border: '1.5px solid #ddd',
-  fontFamily: 'sans-serif', boxSizing: 'border-box', background: 'white',
+  width: '100%', padding: '10px 12px', fontSize: 13,
+  borderRadius: RADIUS.md,
+  border: `1px solid ${FARGER.kant}`,
+  fontFamily: 'inherit', boxSizing: 'border-box', background: FARGER.hvit,
+  outline: 'none',
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
 }
-const lblStil: React.CSSProperties = { display: 'block', fontSize: 11, color: '#777', marginBottom: 4, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' }
+const lblStil: React.CSSProperties = { display: 'block', fontSize: 11, color: FARGER.tekstMid, marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }
 
 export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjekt; onOppdatert: () => void }) {
   const [redigert, setRedigert] = useState<Prosjekt>(prosjekt)
@@ -147,8 +152,8 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
           onToggle={v => setRedigert({ ...redigert, publisert_salg: v })} portalUrl={portalUrl} />
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#2D7D46', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>🏖️ Utleie — pris og kapasitet</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 18, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#2D7D46', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.18em' }}>🏖️ Utleie — pris og kapasitet</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
           <div><label style={lblStil}>Pris per natt (€)</label>
             <input type="number" min={0} style={inputStil} value={redigert.utleie_pris_natt ?? ''}
@@ -190,17 +195,23 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
               onChange={e => setFasilitetInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); leggTilFasilitet() } }}
               placeholder="F.eks. Klimaanlegg, Wifi, Oppvaskmaskin" />
-            <button onClick={leggTilFasilitet}
-              style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={leggTilFasilitet} className="knapp-hover-loft"
+              style={{
+                background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+                borderRadius: RADIUS.pill, padding: '0 18px',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: SHADOW.sm,
+              }}>
               + Legg til
             </button>
           </div>
           {(redigert.utleie_fasiliteter || []).length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {(redigert.utleie_fasiliteter || []).map((f, i) => (
-                <span key={i} style={{ background: '#f0f0f0', borderRadius: 8, padding: '4px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span key={i} style={{ background: FARGER.flateLys, borderRadius: RADIUS.pill, padding: '5px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, color: FARGER.tekstMid, fontWeight: 500 }}>
                   {f}
-                  <button onClick={() => fjernFasilitet(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0, fontSize: 14, lineHeight: 1 }}>×</button>
+                  <button onClick={() => fjernFasilitet(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FARGER.tekstLys, padding: 0, fontSize: 14, lineHeight: 1 }}>×</button>
                 </span>
               ))}
             </div>
@@ -208,8 +219,8 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1726', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>💎 Salg — pris og info</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 18, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0e1726', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.18em' }}>💎 Salg — pris og info</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
           <div><label style={lblStil}>Salgspris (€)</label>
             <input type="number" min={0} style={inputStil} value={redigert.salgspris_eur ?? ''}
@@ -238,9 +249,9 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 18, boxShadow: SHADOW.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Marketing-bilder ({markedsBilder.length} valgt)</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Marketing-bilder ({markedsBilder.length} valgt)</div>
           <div style={{ fontSize: 11, color: '#888' }}>Lavere rekkefølge vises først</div>
         </div>
         {lasterBilder && <div style={{ color: '#888', fontSize: 13, padding: 20, textAlign: 'center' }}>⏳ Henter bilder...</div>}
@@ -252,8 +263,8 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         {!lasterBilder && bilder.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             {bilder.map(b => (
-              <div key={b.id} style={{ border: b.er_marketing ? '2px solid #2D7D46' : '1.5px solid #eee', borderRadius: 8, padding: 8, background: b.er_marketing ? '#f6fbf7' : 'white' }}>
-                <div style={{ width: '100%', aspectRatio: '4 / 3', borderRadius: 6, overflow: 'hidden', background: '#f0f0f0', marginBottom: 8 }}>
+              <div key={b.id} style={{ border: b.er_marketing ? '2px solid #2D7D46' : `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.md, padding: 10, background: b.er_marketing ? '#f6fbf7' : FARGER.hvit, boxShadow: SHADOW.xs }}>
+                <div style={{ width: '100%', aspectRatio: '4 / 3', borderRadius: RADIUS.md, overflow: 'hidden', background: FARGER.flateMid, marginBottom: 10 }}>
                   {b.url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={b.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -279,26 +290,43 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-        <button onClick={lagre} disabled={lagrer}
-          style={{ flex: 1, background: lagrer ? '#999' : '#2D7D46', color: 'white', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: lagrer ? 'not-allowed' : 'pointer' }}>
-          {lagrer ? '⏳ Lagrer...' : '💾 Lagre publiseringsinnstillinger'}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <button onClick={lagre} disabled={lagrer} className="knapp-hover-loft"
+          style={{
+            flex: 1, background: lagrer ? FARGER.tekstLys : '#2D7D46',
+            color: FARGER.creamLys, border: 'none',
+            padding: 14, borderRadius: RADIUS.pill,
+            fontSize: 14, fontWeight: 600,
+            cursor: lagrer ? 'not-allowed' : 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: lagrer ? 'none' : SHADOW.sm,
+            transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+          }}>
+          {lagrer ? '⏳ Lagrer…' : '💾 Lagre publiseringsinnstillinger'}
         </button>
       </div>
 
-      <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f44', borderRadius: 6, padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.lg, padding: 18, boxShadow: SHADOW.sm }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#b89a6f', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🌍 Oversettelser</div>
-            <div style={{ fontSize: 13, color: '#5a6171', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 8 }}>🌍 Oversettelser</div>
+            <div style={{ fontSize: 13.5, color: FARGER.tekstMid, lineHeight: 1.55 }}>
               {redigert.oversettelser_oppdatert
                 ? `Sist oversatt ${new Date(redigert.oversettelser_oppdatert).toLocaleString('nb-NO')}. Generer på nytt hvis du har endret tekst.`
                 : 'Generer oversettelser til alle 8 språk (Claude). Lagrer alt automatisk først.'}
             </div>
           </div>
-          <button onClick={genererOversettelser} disabled={oversetter || lagrer}
-            style={{ background: oversetter ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: '12px 20px', fontSize: 12, fontWeight: 600, cursor: oversetter || lagrer ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            {oversetter ? 'Oversetter...' : redigert.oversettelser_oppdatert ? 'Generer på nytt' : 'Generer oversettelser'}
+          <button onClick={genererOversettelser} disabled={oversetter || lagrer} className="knapp-hover-loft"
+            style={{
+              background: oversetter ? FARGER.tekstLys : FARGER.mork,
+              color: FARGER.creamLys, border: 'none',
+              borderRadius: RADIUS.pill, padding: '12px 22px',
+              fontSize: 13, fontWeight: 600,
+              cursor: oversetter || lagrer ? 'not-allowed' : 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: oversetter ? 'none' : SHADOW.sm,
+            }}>
+            {oversetter ? 'Oversetter…' : redigert.oversettelser_oppdatert ? 'Generer på nytt' : 'Generer oversettelser'}
           </button>
         </div>
       </div>
@@ -308,7 +336,7 @@ export function UtleiePortalAdmin({ prosjekt, onOppdatert }: { prosjekt: Prosjek
 
 function PubliserBoks({ etikett, aktiv, onToggle, portalUrl }: { etikett: string; aktiv: boolean; onToggle: (v: boolean) => void; portalUrl: string }) {
   return (
-    <div style={{ background: aktiv ? '#e8f5ed' : '#f8f8f4', border: `2px solid ${aktiv ? '#2D7D46' : '#ddd'}`, borderRadius: 6, padding: 16 }}>
+    <div style={{ background: aktiv ? '#e8f5ed' : FARGER.flateLys, border: `1px solid ${aktiv ? '#2D7D4644' : FARGER.kantUltralys}`, borderRadius: RADIUS.md, padding: 18 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 6 }}>
         <input type="checkbox" checked={aktiv} onChange={e => onToggle(e.target.checked)}
           style={{ width: 20, height: 20, cursor: 'pointer' }} />
