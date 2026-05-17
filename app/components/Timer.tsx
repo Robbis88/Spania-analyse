@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import type { Timeloggning } from '../types'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
@@ -219,21 +219,29 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
 
   return (
     <div>
-      <button onClick={onTilbake}
-        style={{ background: FARGER.flateLys, border: 'none', borderRadius: RADIUS.sm, padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginBottom: 20, color: FARGER.tekstMid, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        ← Tilbake
+      <button onClick={onTilbake} className="nav-lenke"
+        style={{
+          background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+          borderRadius: RADIUS.pill, padding: '8px 16px 8px 12px',
+          fontSize: 13, cursor: 'pointer', marginBottom: 22,
+          color: FARGER.tekstMid, fontWeight: 500,
+          boxShadow: SHADOW.xs,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          letterSpacing: '-0.005em',
+        }}>
+        <span aria-hidden>←</span> Tilbake
       </button>
 
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 10 }}>TIMEBANK</div>
-        <h2 style={{ fontSize: 28, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>Timer</h2>
-        <p style={{ color: FARGER.tekstMid, margin: '6px 0 0', fontSize: 14, fontWeight: 300 }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Timebank</div>
+        <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.025em' }}>Timer</h2>
+        <p style={{ color: FARGER.tekstMid, margin: '8px 0 0', fontSize: 14.5, fontWeight: 300, lineHeight: 1.55 }}>
           Logg arbeidstimer per dag — valgfritt knytt til prosjekt. Alle ser alles logger.
         </p>
       </div>
 
       {/* Skjema */}
-      <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 20, marginBottom: 18 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 18, boxShadow: SHADOW.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aapent ? 16 : 0, gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: FARGER.mork }}>
             {redigerer ? '✏️ Rediger time-loggning' : '➕ Logg nye timer'}
@@ -270,13 +278,28 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
                 style={inputStil} />
             </Felt>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={lagre} disabled={lagrer || !nyTimer || !nyDato}
-                style={{ background: lagrer || !nyTimer ? FARGER.tekstLys : FARGER.mork, color: '#fff', border: 'none', padding: '10px 20px', borderRadius: RADIUS.sm, fontSize: 13, fontWeight: 600, cursor: lagrer || !nyTimer ? 'not-allowed' : 'pointer', letterSpacing: '0.06em' }}>
+              <button onClick={lagre} disabled={lagrer || !nyTimer || !nyDato} className="knapp-hover-loft"
+                style={{
+                  background: lagrer || !nyTimer ? FARGER.tekstLys : FARGER.mork,
+                  color: FARGER.creamLys, border: 'none',
+                  padding: '11px 22px', borderRadius: RADIUS.pill,
+                  fontSize: 13, fontWeight: 600,
+                  cursor: lagrer || !nyTimer ? 'not-allowed' : 'pointer',
+                  letterSpacing: '-0.005em',
+                  boxShadow: lagrer || !nyTimer ? 'none' : SHADOW.sm,
+                  transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                }}>
                 {lagrer ? '⏳' : redigerer ? '💾 Oppdater' : '✓ Logg timer'}
               </button>
               {redigerer && (
                 <button onClick={avbrytRediger}
-                  style={{ background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '10px 16px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{
+                    background: FARGER.hvit, color: FARGER.tekstMid,
+                    border: `1px solid ${FARGER.kantUltralys}`,
+                    padding: '11px 20px', borderRadius: RADIUS.pill,
+                    fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                    letterSpacing: '-0.005em',
+                  }}>
                   Avbryt
                 </button>
               )}
@@ -294,7 +317,7 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
 
       {/* Sum per prosjekt */}
       {sumPerProsjekt.length > 0 && (
-        <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 18 }}>
+        <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 18, marginBottom: 18, boxShadow: SHADOW.sm }}>
           <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
             🏠 Timer per prosjekt (valgt utvalg)
           </div>
@@ -321,7 +344,16 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
         </select>
         <div style={{ flex: 1 }} />
         <button onClick={eksporterCsv} disabled={filtrerte.length === 0}
-          style={{ background: filtrerte.length === 0 ? FARGER.tekstLys : FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '8px 14px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: filtrerte.length === 0 ? 'not-allowed' : 'pointer' }}>
+          style={{
+            background: filtrerte.length === 0 ? FARGER.tekstLys : FARGER.hvit,
+            color: FARGER.tekstMid,
+            border: filtrerte.length === 0 ? 'none' : `1px solid ${FARGER.kantUltralys}`,
+            padding: '8px 16px', borderRadius: RADIUS.pill,
+            fontSize: 12, fontWeight: 600,
+            cursor: filtrerte.length === 0 ? 'not-allowed' : 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: filtrerte.length === 0 ? 'none' : SHADOW.xs,
+          }}>
           📥 CSV ({filtrerte.length})
         </button>
       </div>
@@ -329,7 +361,7 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
       {/* Liste */}
       {laster && <div style={{ textAlign: 'center', padding: 30, color: FARGER.tekstLys }}>⏳ Laster…</div>}
       {!laster && filtrerte.length === 0 && (
-        <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys, fontSize: 13 }}>
+        <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 36, textAlign: 'center', color: FARGER.tekstMid, fontSize: 13.5 }}>
           Ingen loggninger i dette utvalget.
         </div>
       )}
@@ -339,8 +371,8 @@ export function Timer({ onTilbake }: { onTilbake: () => void }) {
         const erMine = l.bruker === aktivBruker
         const prosjekt = l.prosjekt_id ? prosjekter.find(p => p.id === l.prosjekt_id) : null
         return (
-          <div key={l.id} style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 12, marginBottom: 8, display: 'grid', gridTemplateColumns: 'auto auto 1fr auto auto', gap: 10, alignItems: 'center' }}>
-            <span style={{ background: f.bg, color: f.tekst, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 12, whiteSpace: 'nowrap' }}>
+          <div key={l.id} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.md, padding: '12px 14px', marginBottom: 8, display: 'grid', gridTemplateColumns: 'auto auto 1fr auto auto', gap: 12, alignItems: 'center', boxShadow: SHADOW.xs }}>
+            <span style={{ background: f.bg, color: f.tekst, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: RADIUS.pill, whiteSpace: 'nowrap' }}>
               {l.bruker.charAt(0).toUpperCase() + l.bruker.slice(1)}
             </span>
             <span style={{ fontSize: 12, color: FARGER.tekstLys, whiteSpace: 'nowrap' }}>{fmtDato(l.dato)}</span>

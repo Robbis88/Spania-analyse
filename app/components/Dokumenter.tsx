@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import {
   DOKUMENT_ETIKETT, DOKUMENT_TYPER,
   DOKUMENT_TILLATTE_MIME, DOKUMENT_MAKS_STORRELSE_BYTES,
@@ -217,11 +217,11 @@ export function Dokumenter({ prosjektId }: Props) {
   return (
     <div>
       {/* SJEKKLISTE */}
-      <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 20, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>📋 Dokumentsjekkliste</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.015em' }}>📋 Dokumentsjekkliste</div>
           {sjekkpunktSammendrag.totalt > 0 && (
-            <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+            <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: RADIUS.pill }}>
               {sjekkpunktSammendrag.ok}/{sjekkpunktSammendrag.totalt} på plass
             </span>
           )}
@@ -274,7 +274,15 @@ export function Dokumenter({ prosjektId }: Props) {
               {ikkeIBruktSjekkpunkt.map(t => <option key={t} value={t}>{DOKUMENT_ETIKETT[t]}</option>)}
             </select>
             <button onClick={leggTilSjekkpunktAction} disabled={!leggTilSjekkpunkt}
-              style={{ background: leggTilSjekkpunkt ? FARGER.mork : FARGER.tekstLys, color: '#fff', border: 'none', padding: '6px 14px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: leggTilSjekkpunkt ? 'pointer' : 'not-allowed' }}>
+              style={{
+                background: leggTilSjekkpunkt ? FARGER.mork : FARGER.tekstLys,
+                color: FARGER.creamLys, border: 'none',
+                padding: '8px 18px', borderRadius: RADIUS.pill,
+                fontSize: 12, fontWeight: 600,
+                cursor: leggTilSjekkpunkt ? 'pointer' : 'not-allowed',
+                letterSpacing: '-0.005em',
+                boxShadow: leggTilSjekkpunkt ? SHADOW.sm : 'none',
+              }}>
               Legg til
             </button>
           </div>
@@ -282,8 +290,8 @@ export function Dokumenter({ prosjektId }: Props) {
       </div>
 
       {/* OPPLASTING */}
-      <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📁 Last opp dokument</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>📁 Last opp dokument</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 12 }}>
           <select value={opplastingType} onChange={e => setOpplastingType(e.target.value as DokumentType)}
             style={{ padding: '8px 10px', fontSize: 13, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, background: '#fff' }}>
@@ -333,7 +341,7 @@ export function Dokumenter({ prosjektId }: Props) {
       </div>
 
       {/* DOKUMENTLISTE */}
-      <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 20 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, boxShadow: SHADOW.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>🗂️ Dokumenter ({dokumenter.length})</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -352,7 +360,7 @@ export function Dokumenter({ prosjektId }: Props) {
 
         {laster && <div style={{ textAlign: 'center', padding: 30, color: FARGER.tekstLys }}>⏳ Laster…</div>}
         {!laster && dokumenter.length === 0 && (
-          <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys, fontSize: 13 }}>
+          <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 36, textAlign: 'center', color: FARGER.tekstMid, fontSize: 13.5 }}>
             Ingen dokumenter ennå. Last opp escritura, IBI, kjøpekontrakt osv. fra panelet over.
           </div>
         )}
@@ -370,8 +378,9 @@ export function Dokumenter({ prosjektId }: Props) {
           const utgaaer = d.gyldig_til && new Date(d.gyldig_til) < new Date()
           return (
             <div key={d.id} style={{
-              background: '#fff', border: `1.5px solid ${utgaaer ? '#C8102E66' : FARGER.kantLys}`,
-              borderRadius: RADIUS.md, marginBottom: 8, overflow: 'hidden',
+              background: FARGER.hvit, border: `1px solid ${utgaaer ? '#C8102E44' : FARGER.kantUltralys}`,
+              borderRadius: RADIUS.lg, marginBottom: 10, overflow: 'hidden',
+              boxShadow: SHADOW.xs,
             }}>
               <div onClick={() => setUtvidet(erUtvidet ? null : d.id)}
                 style={{ display: 'flex', gap: 12, padding: 12, cursor: 'pointer', alignItems: 'center', flexWrap: 'wrap' }}>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { resizKlient } from '../lib/bilder'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import {
   KVITTERING_KATEGORIER, KVITTERING_KATEGORI_ETIKETT,
   KVITTERING_ROM, KVITTERING_ROM_ETIKETT,
@@ -191,14 +191,15 @@ export function Kvitteringer({ prosjektId, valuta: defaultValuta = 'EUR' }: Prop
         onDrop={onDrop}
         onClick={() => filInputRef.current?.click()}
         style={{
-          background: dragOver ? '#fff8e1' : FARGER.creamLys,
-          border: `2px dashed ${dragOver ? FARGER.advarsel : FARGER.gullSvak}`,
-          borderRadius: RADIUS.md, padding: 24, marginBottom: 16,
+          background: dragOver ? '#fff8e1' : FARGER.hvit,
+          border: `1.5px dashed ${dragOver ? FARGER.advarsel : FARGER.gull + '66'}`,
+          borderRadius: RADIUS.lg, padding: 30, marginBottom: 16,
           textAlign: 'center', cursor: 'pointer',
-          transition: 'all 0.15s',
+          boxShadow: SHADOW.xs,
+          transition: `background ${MOTION.rask}, border-color ${MOTION.rask}`,
         }}>
-        <div style={{ fontSize: 32, marginBottom: 6 }}>📄</div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>
+        <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: FARGER.mork, marginBottom: 6, letterSpacing: '-0.005em' }}>
           Dra-og-slipp kvitteringer eller fakturaer her
         </div>
         <div style={{ fontSize: 12, color: FARGER.tekstLys }}>
@@ -252,7 +253,7 @@ export function Kvitteringer({ prosjektId, valuta: defaultValuta = 'EUR' }: Prop
 
       {laster && <div style={{ textAlign: 'center', padding: 30, color: FARGER.tekstLys }}>⏳ Laster…</div>}
       {!laster && rader.length === 0 && (
-        <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys, fontSize: 13 }}>
+        <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 36, textAlign: 'center', color: FARGER.tekstMid, fontSize: 13.5 }}>
           Ingen kvitteringer ennå. Last opp fra mobil eller skanner — OCR fyller inn feltene automatisk.
         </div>
       )}
@@ -265,8 +266,9 @@ export function Kvitteringer({ prosjektId, valuta: defaultValuta = 'EUR' }: Prop
         const ocrFarge = r.ocr_status === 'analysert' ? FARGER.suksess : r.ocr_status === 'venter' ? FARGER.tekstLys : FARGER.feil
         return (
           <div key={r.id} style={{
-            background: '#fff', border: `1.5px solid ${FARGER.kantLys}`,
-            borderRadius: RADIUS.md, marginBottom: 8, overflow: 'hidden',
+            background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+            borderRadius: RADIUS.lg, marginBottom: 10, overflow: 'hidden',
+            boxShadow: SHADOW.xs,
           }}>
             <div onClick={() => setUtvidet(erUtvidet ? null : r.id)}
               style={{ display: 'flex', gap: 12, padding: 12, cursor: 'pointer', alignItems: 'center', flexWrap: 'wrap' }}>
