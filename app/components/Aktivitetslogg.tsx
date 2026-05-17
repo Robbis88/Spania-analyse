@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 type LoggRad = {
   id: string
@@ -73,42 +74,74 @@ export function Aktivitetslogg({ onTilbake }: { onTilbake: () => void }) {
 
   return (
     <div>
-      <button onClick={onTilbake} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
+      <button onClick={onTilbake} className="nav-lenke" style={{
+        background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+        borderRadius: RADIUS.pill, padding: '8px 16px 8px 12px',
+        fontSize: 13, cursor: 'pointer', marginBottom: 22,
+        color: FARGER.tekstMid, fontWeight: 500,
+        boxShadow: SHADOW.xs,
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        letterSpacing: '-0.005em',
+      }}><span aria-hidden>←</span> Tilbake</button>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 36 }}>📜</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 40 }}>📜</div>
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Aktivitetslogg</h2>
-          <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Hvem har gjort hva, og når</p>
+          <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 500, margin: 0, color: FARGER.mork, letterSpacing: '-0.02em' }}>Aktivitetslogg</h2>
+          <p style={{ color: FARGER.tekstMid, margin: '4px 0 0', fontSize: 14 }}>Hvem har gjort hva, og når</p>
         </div>
         <select value={filterBruker} onChange={e => setFilterBruker(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14 }}>
+          style={{
+            padding: '10px 14px', borderRadius: RADIUS.pill,
+            border: `1px solid ${FARGER.kantUltralys}`,
+            background: FARGER.hvit,
+            fontSize: 13, color: FARGER.mork,
+            boxShadow: SHADOW.xs,
+            outline: 'none',
+            transition: `border-color ${MOTION.rask}`,
+          }}>
           <option value="alle">Alle brukere</option>
           {brukere.map(b => <option key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</option>)}
         </select>
       </div>
 
-      {laster && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>}
-
-      {!laster && synlige.length === 0 && (
-        <div style={{ background: '#f8f8f8', border: '2px dashed #ddd', borderRadius: 6, padding: 40, textAlign: 'center', color: '#888' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Ingen aktivitet registrert</div>
+      {laster && (
+        <div>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 8, boxShadow: SHADOW.xs }}>
+              <div className="skimmer" style={{ height: 14, width: '70%', borderRadius: 4 }} />
+            </div>
+          ))}
         </div>
       )}
 
-      {synlige.map(r => {
+      {!laster && synlige.length === 0 && (
+        <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 48, textAlign: 'center', color: FARGER.tekstMid }}>
+          <div style={{ fontSize: 44, marginBottom: 14 }}>📋</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>Ingen aktivitet registrert</div>
+        </div>
+      )}
+
+      {synlige.map((r, i) => {
         const bf = brukerFarge(r.bruker)
         return (
-          <div key={r.id} style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ background: bf.bg, color: bf.tekst, fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+          <div key={r.id} className="anim-fade-up" style={{
+            background: FARGER.hvit,
+            border: `1px solid ${FARGER.kantUltralys}`,
+            borderRadius: RADIUS.md,
+            padding: '14px 16px', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            boxShadow: SHADOW.xs,
+            animationDelay: `${Math.min(i, 12) * 30}ms`,
+          }}>
+            <span style={{ background: bf.bg, color: bf.tekst, fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: RADIUS.pill, letterSpacing: '-0.005em' }}>
               {r.bruker.charAt(0).toUpperCase() + r.bruker.slice(1)}
             </span>
-            <div style={{ flex: 1, fontSize: 14, color: '#0e1726' }}>
-              <strong>{r.handling}</strong>
-              {' '}<span style={{ color: '#666' }}>{detaljTekst(r.detaljer)}</span>
+            <div style={{ flex: 1, fontSize: 14, color: FARGER.mork, letterSpacing: '-0.005em' }}>
+              <strong style={{ fontWeight: 600 }}>{r.handling}</strong>
+              {' '}<span style={{ color: FARGER.tekstMid }}>{detaljTekst(r.detaljer)}</span>
             </div>
-            <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>{formaterTid(r.tidspunkt)}</span>
+            <span style={{ fontSize: 12, color: FARGER.tekstLys, whiteSpace: 'nowrap' }}>{formaterTid(r.tidspunkt)}</span>
           </div>
         )
       })}

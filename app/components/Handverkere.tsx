@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { HANDVERKER_FAG_ETIKETT, type Handverker, type HandverkerFag } from '../types'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
@@ -132,22 +132,37 @@ export function Handverkere({ onTilbake }: Props) {
 
   return (
     <div>
-      <button onClick={onTilbake}
-        style={{ background: FARGER.flateLys, border: 'none', borderRadius: RADIUS.sm, padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginBottom: 20, color: FARGER.tekstMid, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        ← Tilbake
+      <button onClick={onTilbake} className="nav-lenke"
+        style={{
+          background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+          borderRadius: RADIUS.pill, padding: '8px 16px 8px 12px',
+          fontSize: 13, cursor: 'pointer', marginBottom: 22,
+          color: FARGER.tekstMid, fontWeight: 500,
+          boxShadow: SHADOW.xs,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          letterSpacing: '-0.005em',
+        }}>
+        <span aria-hidden>←</span> Tilbake
       </button>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 14, marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 10 }}>NETTVERK</div>
-          <h2 style={{ fontSize: 28, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>Håndverkere</h2>
-          <p style={{ color: FARGER.tekstMid, margin: '6px 0 0', fontSize: 14, fontWeight: 300 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Nettverk</div>
+          <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.025em' }}>Håndverkere</h2>
+          <p style={{ color: FARGER.tekstMid, margin: '8px 0 0', fontSize: 14.5, fontWeight: 300, lineHeight: 1.55 }}>
             Bygg opp et nettverk av rørleggere, elektrikere, flisleggere osv. — i Spania og Norge.
           </p>
         </div>
         {redigerer === null && (
-          <button onClick={startNy}
-            style={{ background: FARGER.mork, color: 'white', border: 'none', padding: '10px 20px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <button onClick={startNy} className="knapp-hover-loft"
+            style={{
+              background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+              padding: '11px 22px', borderRadius: RADIUS.pill,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: SHADOW.sm,
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            }}>
             + Ny håndverker
           </button>
         )}
@@ -155,7 +170,7 @@ export function Handverkere({ onTilbake }: Props) {
 
       {/* Skjema */}
       {redigerer !== null && (
-        <div style={{ background: '#fff', border: `1.5px solid ${FARGER.gull}`, borderRadius: RADIUS.md, padding: 22, marginBottom: 20 }}>
+        <div className="anim-fade-up" style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 24, marginBottom: 22, boxShadow: SHADOW.sm }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: FARGER.mork, marginBottom: 16 }}>
             {redigerer === 'ny' ? '➕ Ny håndverker' : '✏️ Rediger håndverker'}
           </div>
@@ -186,11 +201,13 @@ export function Handverkere({ onTilbake }: Props) {
                 return (
                   <button key={f} type="button" onClick={() => toggleFag(f)}
                     style={{
-                      background: valgt ? FARGER.mork : 'transparent',
-                      color: valgt ? '#fff' : FARGER.tekstMid,
-                      border: `1px solid ${valgt ? FARGER.mork : FARGER.kantLys}`,
-                      borderRadius: RADIUS.sm, padding: '6px 12px', fontSize: 12,
+                      background: valgt ? FARGER.mork : FARGER.hvit,
+                      color: valgt ? FARGER.creamLys : FARGER.tekstMid,
+                      border: `1px solid ${valgt ? FARGER.mork : FARGER.kantUltralys}`,
+                      borderRadius: RADIUS.pill, padding: '7px 14px', fontSize: 12,
                       fontWeight: 600, cursor: 'pointer',
+                      letterSpacing: '-0.005em',
+                      transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
                     }}>
                     {HANDVERKER_FAG_ETIKETT[f]}
                   </button>
@@ -235,13 +252,25 @@ export function Handverkere({ onTilbake }: Props) {
             <span>Aktiv (vises i nettverket — fjern haken for å skjule uten å slette)</span>
           </label>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-            <button onClick={lagre} disabled={lagrer}
-              style={{ background: lagrer ? FARGER.tekstLys : FARGER.mork, color: '#fff', border: 'none', padding: '10px 22px', borderRadius: RADIUS.sm, fontSize: 13, fontWeight: 600, cursor: lagrer ? 'wait' : 'pointer', letterSpacing: '0.06em' }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <button onClick={lagre} disabled={lagrer} className="knapp-hover-loft"
+              style={{
+                background: lagrer ? FARGER.tekstLys : FARGER.mork, color: FARGER.creamLys,
+                border: 'none', padding: '11px 22px', borderRadius: RADIUS.pill,
+                fontSize: 13, fontWeight: 600, cursor: lagrer ? 'wait' : 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: lagrer ? 'none' : SHADOW.sm,
+              }}>
               {lagrer ? '⏳' : '💾 Lagre'}
             </button>
             <button onClick={lukk} disabled={lagrer}
-              style={{ background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '10px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              style={{
+                background: FARGER.hvit, color: FARGER.tekstMid,
+                border: `1px solid ${FARGER.kantUltralys}`,
+                padding: '11px 20px', borderRadius: RADIUS.pill,
+                fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+              }}>
               Avbryt
             </button>
           </div>
@@ -275,10 +304,10 @@ export function Handverkere({ onTilbake }: Props) {
       {laster && <div style={{ textAlign: 'center', padding: 40, color: FARGER.tekstLys }}>⏳ Laster…</div>}
 
       {!laster && liste.length === 0 && (
-        <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🔧</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork }}>Nettverket er tomt</div>
-          <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 4 }}>
+        <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 48, textAlign: 'center' }}>
+          <div style={{ fontSize: 44, marginBottom: 14 }}>🔧</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>Nettverket er tomt</div>
+          <div style={{ fontSize: 13, color: FARGER.tekstMid, marginTop: 6 }}>
             Trykk «+ Ny håndverker» for å legge til den første kontakten.
           </div>
         </div>
@@ -307,37 +336,38 @@ function HandverkerKort({ h, onRediger, onToggleAktiv, onSlett }: {
   onSlett: () => void
 }) {
   return (
-    <div style={{
-      background: '#fff',
-      border: `1.5px solid ${h.aktiv ? FARGER.kantLys : FARGER.flateLys}`,
-      borderRadius: RADIUS.md, padding: 16, opacity: h.aktiv ? 1 : 0.6,
+    <div className="kort-loft" style={{
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg, padding: 18, opacity: h.aktiv ? 1 : 0.6,
+      boxShadow: SHADOW.sm,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: FARGER.mork, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: FARGER.mork, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.015em' }}>
             {h.navn}
           </div>
-          <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {h.firma && <span>{h.firma}</span>}
             {h.omrade && <span>· 📍 {h.omrade}</span>}
             <span>· {SPRAK_ETIKETT[h.sprak]}</span>
           </div>
         </div>
         {!h.aktiv && (
-          <span style={{ background: FARGER.flateMid, color: FARGER.tekstMid, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 12 }}>
+          <span style={{ background: FARGER.flateMid, color: FARGER.tekstMid, fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: RADIUS.pill, letterSpacing: '0.06em' }}>
             INAKTIV
           </span>
         )}
         {h.evaluering && (
           <span style={{ fontSize: 12, color: '#f5b400', whiteSpace: 'nowrap' }}>
-            {'★'.repeat(h.evaluering)}<span style={{ color: FARGER.kantLys }}>{'★'.repeat(5 - h.evaluering)}</span>
+            {'★'.repeat(h.evaluering)}<span style={{ color: FARGER.kantUltralys }}>{'★'.repeat(5 - h.evaluering)}</span>
           </span>
         )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 12 }}>
         {h.fag.map(f => (
-          <span key={f} style={{ background: FARGER.creamLys, color: FARGER.tekstMid, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600 }}>
+          <span key={f} style={{ background: FARGER.flateLys, color: FARGER.tekstMid, padding: '3px 10px', borderRadius: RADIUS.pill, fontSize: 11, fontWeight: 600 }}>
             {HANDVERKER_FAG_ETIKETT[f as HandverkerFag] || f}
           </span>
         ))}
@@ -363,17 +393,17 @@ function HandverkerKort({ h, onRediger, onToggleAktiv, onSlett }: {
 
       {h.notat && <div style={{ fontSize: 12, color: FARGER.tekstMid, fontStyle: 'italic', marginBottom: 10, lineHeight: 1.5 }}>{h.notat}</div>}
 
-      <div style={{ display: 'flex', gap: 6, borderTop: `1px solid ${FARGER.flateLys}`, paddingTop: 10 }}>
+      <div style={{ display: 'flex', gap: 6, borderTop: `1px solid ${FARGER.kantUltralys}`, paddingTop: 12 }}>
         <button onClick={onRediger}
-          style={{ flex: 1, background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '6px 10px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ flex: 1, background: FARGER.flateLys, color: FARGER.tekstMid, border: 'none', padding: '8px 12px', borderRadius: RADIUS.pill, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '-0.005em' }}>
           ✏️ Rediger
         </button>
         <button onClick={onToggleAktiv}
-          style={{ background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none', padding: '6px 10px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ background: FARGER.flateLys, color: FARGER.tekstMid, border: 'none', padding: '8px 12px', borderRadius: RADIUS.pill, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '-0.005em' }}>
           {h.aktiv ? '🚫 Skjul' : '✓ Aktiver'}
         </button>
         <button onClick={onSlett}
-          style={{ background: FARGER.feilBg, color: FARGER.feil, border: 'none', padding: '6px 10px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ background: FARGER.feilBg, color: FARGER.feil, border: 'none', padding: '8px 12px', borderRadius: RADIUS.pill, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           🗑
         </button>
       </div>
