@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { HANDVERKER_FAG_ETIKETT, type Handverker, type HandverkerFag, type Tilbudsforesporsel } from '../types'
 
 const STATUS_VALG: Array<{ id: Tilbudsforesporsel['status']; lbl: string; bg: string; tekst: string }> = [
@@ -88,10 +88,10 @@ export function TilbudHistorikk({ prosjektId }: Props) {
 
   if (rader.length === 0) {
     return (
-      <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 30, textAlign: 'center', color: FARGER.tekstLys }}>
-        <div style={{ fontSize: 32, marginBottom: 8 }}>📤</div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork }}>Ingen tilbudsforespørsler ennå</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>
+      <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 40, textAlign: 'center', color: FARGER.tekstMid }}>
+        <div style={{ fontSize: 38, marginBottom: 12 }}>📤</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>Ingen tilbudsforespørsler ennå</div>
+        <div style={{ fontSize: 13, marginTop: 6, lineHeight: 1.55 }}>
           Bruk «📤 Send tilbudsforespørsel»-knappen fra Bilder- eller Oppussings-fanen for å sende første.
         </div>
       </div>
@@ -109,9 +109,22 @@ export function TilbudHistorikk({ prosjektId }: Props) {
       </div>
 
       {/* Filter */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'inline-flex', gap: 4, flexWrap: 'wrap',
+        background: FARGER.hvit, padding: 5, marginBottom: 14,
+        borderRadius: RADIUS.pill,
+        boxShadow: SHADOW.sm,
+        border: `1px solid ${FARGER.kantUltralys}`,
+      }}>
         <button onClick={() => setFilter('alle')}
-          style={{ background: filter === 'alle' ? FARGER.mork : FARGER.flateMid, color: filter === 'alle' ? '#fff' : FARGER.tekstMid, border: 'none', padding: '5px 12px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          style={{
+            background: filter === 'alle' ? FARGER.mork : 'transparent',
+            color: filter === 'alle' ? FARGER.creamLys : FARGER.tekstMid,
+            border: 'none', padding: '7px 14px', borderRadius: RADIUS.pill,
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            letterSpacing: '-0.005em',
+            transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
+          }}>
           Alle ({rader.length})
         </button>
         {STATUS_VALG.map(s => {
@@ -119,7 +132,14 @@ export function TilbudHistorikk({ prosjektId }: Props) {
           if (antall === 0) return null
           return (
             <button key={s.id} onClick={() => setFilter(s.id)}
-              style={{ background: filter === s.id ? FARGER.mork : FARGER.flateMid, color: filter === s.id ? '#fff' : FARGER.tekstMid, border: 'none', padding: '5px 12px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              style={{
+                background: filter === s.id ? FARGER.mork : 'transparent',
+                color: filter === s.id ? FARGER.creamLys : FARGER.tekstMid,
+                border: 'none', padding: '7px 14px', borderRadius: RADIUS.pill,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+                transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
+              }}>
               {s.lbl} ({antall})
             </button>
           )
@@ -131,10 +151,10 @@ export function TilbudHistorikk({ prosjektId }: Props) {
         const sv = STATUS_VALG.find(s => s.id === r.status) || STATUS_VALG[0]
         const erApen = utvidet === r.id
         return (
-          <div key={r.id} style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, marginBottom: 8, overflow: 'hidden' }}>
+          <div key={r.id} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, marginBottom: 10, overflow: 'hidden', boxShadow: SHADOW.xs }}>
             <div onClick={() => setUtvidet(erApen ? null : r.id)}
-              style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', gap: 10, padding: 12, cursor: 'pointer', alignItems: 'center' }}>
-              <span style={{ background: sv.bg, color: sv.tekst, padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', gap: 12, padding: 14, cursor: 'pointer', alignItems: 'center' }}>
+              <span style={{ background: sv.bg, color: sv.tekst, padding: '4px 12px', borderRadius: RADIUS.pill, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', letterSpacing: '0.02em' }}>
                 {sv.lbl}
               </span>
               <div style={{ minWidth: 0 }}>
@@ -156,7 +176,7 @@ export function TilbudHistorikk({ prosjektId }: Props) {
             </div>
 
             {erApen && (
-              <div style={{ borderTop: `1px solid ${FARGER.kantLys}`, padding: 16, background: FARGER.creamLys }}>
+              <div className="anim-fade-down" style={{ borderTop: `1px solid ${FARGER.kantUltralys}`, padding: 18, background: FARGER.creamLys }}>
                 {/* Håndverker-info */}
                 {h && (
                   <div style={{ marginBottom: 12, fontSize: 12, color: FARGER.tekstMid }}>
@@ -225,9 +245,14 @@ export function TilbudHistorikk({ prosjektId }: Props) {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                   <button onClick={() => slett(r.id)}
-                    style={{ background: FARGER.feilBg, color: FARGER.feil, border: 'none', padding: '6px 12px', borderRadius: RADIUS.sm, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{
+                      background: FARGER.feilBg, color: FARGER.feil, border: 'none',
+                      padding: '8px 16px', borderRadius: RADIUS.pill,
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      letterSpacing: '-0.005em',
+                    }}>
                     🗑 Slett forespørsel
                   </button>
                 </div>
@@ -251,15 +276,17 @@ function Felt({ lbl, children }: { lbl: string; children: React.ReactNode }) {
 
 function Kort({ lbl, stor, farge }: { lbl: string; stor: string; farge?: string }) {
   return (
-    <div style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 12 }}>
-      <div style={{ fontSize: 10, color: FARGER.tekstLys, marginBottom: 3 }}>{lbl}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: farge || FARGER.mork }}>{stor}</div>
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 14, boxShadow: SHADOW.sm }}>
+      <div style={{ fontSize: 11, color: FARGER.tekstLys, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, color: farge || FARGER.mork, letterSpacing: '-0.02em' }}>{stor}</div>
     </div>
   )
 }
 
 const inputStil: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', fontSize: 13,
-  border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, background: '#fff',
+  width: '100%', padding: '9px 12px', fontSize: 13,
+  border: `1px solid ${FARGER.kant}`, borderRadius: RADIUS.md, background: FARGER.hvit,
   boxSizing: 'border-box', fontFamily: 'inherit',
+  outline: 'none',
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
 }

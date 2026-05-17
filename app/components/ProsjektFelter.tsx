@@ -1,6 +1,6 @@
 'use client'
 import type { Prosjekt } from '../types'
-import { inputStyle, selectStyle, labelStyle, fieldStyle } from '../lib/styles'
+import { inputStyle, selectStyle, labelStyle, fieldStyle, FARGER, RADIUS, MOTION } from '../lib/styles'
 
 export function ProsjektFelter({ data, onChange }: { data: Prosjekt; onChange: (p: Prosjekt) => void }) {
   return (
@@ -51,7 +51,15 @@ export function ProsjektFelter({ data, onChange }: { data: Prosjekt; onChange: (
           value={data.notater}
           onChange={e => onChange({ ...data, notater: e.target.value })}
           placeholder="F.eks. Kontakt: Maria Lopez, advokat..."
-          style={{ width: '100%', height: 80, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
+          style={{
+            width: '100%', height: 90, padding: 12, fontSize: 14,
+            borderRadius: RADIUS.md,
+            border: `1px solid ${FARGER.kant}`,
+            background: FARGER.hvit,
+            resize: 'vertical', fontFamily: 'inherit',
+            transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            outline: 'none',
+          }}
         />
       </div>
     </div>

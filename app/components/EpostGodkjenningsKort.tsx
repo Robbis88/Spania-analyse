@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { FORMAAL_ETIKETT, type Formaal, type MottakerType } from '../lib/epost'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 export type EpostUtkast = {
   til: string
@@ -27,6 +28,28 @@ const FORMAAL_FARGE: Record<Formaal, string> = {
 }
 
 const SPRAK_LABEL: Record<string, string> = { no: 'NO', es: 'ES', en: 'EN' }
+
+const inputStil: React.CSSProperties = {
+  width: '100%', padding: '8px 12px', fontSize: 13,
+  borderRadius: RADIUS.md,
+  border: `1px solid ${FARGER.kant}`,
+  background: FARGER.hvit,
+  marginBottom: 10,
+  fontFamily: 'inherit',
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+  outline: 'none',
+}
+
+const tekstAreaStil: React.CSSProperties = {
+  width: '100%', padding: 12, fontSize: 13, lineHeight: 1.55,
+  borderRadius: RADIUS.md,
+  border: `1px solid ${FARGER.kant}`,
+  background: FARGER.hvit,
+  fontFamily: 'inherit', resize: 'vertical',
+  marginBottom: 10,
+  transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+  outline: 'none',
+}
 
 export function EpostGodkjenningsKort({
   utkast, prosjektNavn, prosjektId, bruker, sender, onSend, onAvbryt, onBeAIEndre,
@@ -60,11 +83,9 @@ export function EpostGodkjenningsKort({
 
   const sendUtkast = async () => {
     const rensetSporsmal = sporsmal.map(s => s.trim()).filter(Boolean)
-    // Hvis spørsmål endret og formålet støtter dem, flett dem inn i innholdet
     let endeligInnhold = innhold
     if (harSporsmal && rensetSporsmal.length > 0 && innhold === utkast.innhold) {
       const listeTekst = rensetSporsmal.map((s, i) => `${i + 1}. ${s}`).join('\n')
-      // Bare legg til hvis AI sin tekst ikke allerede inneholder listen
       if (!utkast.innhold.includes(rensetSporsmal[0])) {
         endeligInnhold = innhold + '\n\n' + listeTekst
       }
@@ -84,97 +105,136 @@ export function EpostGodkjenningsKort({
     `---\n${bruker.charAt(0).toUpperCase() + bruker.slice(1)}\nLeganger & Osvaag Eiendom\npost@loeiendom.com\nloeiendom.com`
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #ddd', borderRadius: 6, padding: 14, marginTop: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.06)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ background: farge, color: 'white', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{etikett}</span>
-        <span style={{ background: '#f0f0f0', color: '#444', padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700 }}>{SPRAK_LABEL[utkast.sprak] || utkast.sprak.toUpperCase()}</span>
-        {prosjektNavn && <span style={{ fontSize: 11, color: '#666' }}>📁 {prosjektNavn}</span>}
+    <div className="anim-fade-up" style={{
+      background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg, padding: 18, marginTop: 10,
+      boxShadow: SHADOW.md,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <span style={{ background: farge, color: FARGER.creamLys, padding: '4px 12px', borderRadius: RADIUS.pill, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em' }}>{etikett}</span>
+        <span style={{ background: FARGER.flateLys, color: FARGER.tekstMid, padding: '4px 12px', borderRadius: RADIUS.pill, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em' }}>{SPRAK_LABEL[utkast.sprak] || utkast.sprak.toUpperCase()}</span>
+        {prosjektNavn && <span style={{ fontSize: 12, color: FARGER.tekstMid }}>📁 {prosjektNavn}</span>}
       </div>
 
       {erBud && (
-        <div style={{ background: '#fde8ec', border: '1.5px solid #C8102E', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12, color: '#7a0c1e' }}>
+        <div style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}44`, borderRadius: RADIUS.md, padding: 12, marginBottom: 12, fontSize: 12.5, color: '#7a0c1e', lineHeight: 1.55 }}>
           ⚠️ Dette er et <strong>bud</strong>. Les grundig og kontroller alle tall og betingelser før du sender.
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>Til</div>
-      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
+      <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Til</div>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12, color: FARGER.mork, letterSpacing: '-0.005em' }}>
         {utkast.mottaker_navn && <span>{utkast.mottaker_navn} </span>}
-        <span style={{ color: '#666' }}>&lt;{utkast.til}&gt;</span>
+        <span style={{ color: FARGER.tekstMid }}>&lt;{utkast.til}&gt;</span>
       </div>
 
-      <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>Emne</div>
+      <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Emne</div>
       <input
         value={emne}
         onChange={e => setEmne(e.target.value)}
-        style={{ width: '100%', padding: '6px 8px', fontSize: 13, borderRadius: 6, border: '1px solid #ddd', marginBottom: 10 }}
+        style={inputStil}
       />
 
-      <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>Innhold</div>
+      <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Innhold</div>
       <textarea
         value={innhold}
         onChange={e => setInnhold(e.target.value)}
         rows={8}
-        style={{ width: '100%', padding: '8px', fontSize: 12, lineHeight: 1.5, borderRadius: 6, border: '1px solid #ddd', fontFamily: 'sans-serif', resize: 'vertical', marginBottom: 10 }}
+        style={tekstAreaStil}
       />
 
       {harSporsmal && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Spørsmål (redigerbare)</div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Spørsmål (redigerbare)</div>
           {sporsmal.map((s, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: '#666', minWidth: 16, lineHeight: '28px' }}>{i + 1}.</span>
+            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: FARGER.tekstMid, minWidth: 18, lineHeight: '32px' }}>{i + 1}.</span>
               <input value={s} onChange={e => endreSporsmal(i, e.target.value)}
-                style={{ flex: 1, padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #ddd' }} />
-              <button onClick={() => fjernSporsmal(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✕</button>
+                style={{ flex: 1, padding: '6px 10px', fontSize: 13, borderRadius: RADIUS.md, border: `1px solid ${FARGER.kant}`, fontFamily: 'inherit', outline: 'none', background: FARGER.hvit }} />
+              <button onClick={() => fjernSporsmal(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FARGER.tekstLys, fontSize: 14 }}>✕</button>
             </div>
           ))}
-          <button onClick={leggTilSporsmal} style={{ background: '#f0f0f0', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', color: '#444' }}>+ Spørsmål</button>
+          <button onClick={leggTilSporsmal} style={{
+            background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+            borderRadius: RADIUS.pill, padding: '6px 14px',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            color: FARGER.tekstMid, letterSpacing: '-0.005em',
+          }}>+ Spørsmål</button>
         </div>
       )}
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8, cursor: effektivProsjektId ? 'pointer' : 'not-allowed' }}>
-        <input type="checkbox" checked={vedleggPdf} onChange={e => setVedleggPdf(e.target.checked)} disabled={!effektivProsjektId} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, marginBottom: 12, cursor: effektivProsjektId ? 'pointer' : 'not-allowed', color: FARGER.tekstMid }}>
+        <input type="checkbox" checked={vedleggPdf} onChange={e => setVedleggPdf(e.target.checked)} disabled={!effektivProsjektId} style={{ accentColor: FARGER.gull }} />
         <span>Vedlegg prosjektanalyse som PDF (med før/etter-bilder)
-          {!effektivProsjektId && <span style={{ color: '#aaa' }}> (krever prosjekt-kontekst)</span>}
-          {effektivProsjektId && !utkast.relatert_prosjekt_id && <span style={{ color: '#888' }}> – bruker valgt prosjekt fra dropdown</span>}
+          {!effektivProsjektId && <span style={{ color: FARGER.tekstLys }}> (krever prosjekt-kontekst)</span>}
+          {effektivProsjektId && !utkast.relatert_prosjekt_id && <span style={{ color: FARGER.tekstLys }}> – bruker valgt prosjekt fra dropdown</span>}
         </span>
       </label>
 
-      <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 8, fontSize: 11, color: '#666', fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginBottom: 10 }}>
+      <div style={{ background: FARGER.flateLys, borderRadius: RADIUS.md, padding: 12, fontSize: 11.5, color: FARGER.tekstMid, fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginBottom: 14, border: `1px solid ${FARGER.kantUltralys}` }}>
         {signaturForhandsvisning}
       </div>
 
       {!endreFelt && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button onClick={sendUtkast} disabled={sender}
-            style={{ flex: 1, background: sender ? '#999' : '#2D7D46', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: sender ? 'not-allowed' : 'pointer' }}>
-            {sender ? '⏳ Sender...' : '📤 Send'}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={sendUtkast} disabled={sender} className="knapp-hover-loft"
+            style={{
+              flex: 1, background: sender ? FARGER.tekstLys : '#2D7D46',
+              color: FARGER.creamLys, border: 'none',
+              borderRadius: RADIUS.pill, padding: '11px 18px',
+              fontSize: 13, fontWeight: 600, cursor: sender ? 'not-allowed' : 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: sender ? 'none' : SHADOW.sm,
+            }}>
+            {sender ? '⏳ Sender…' : '📤 Send'}
           </button>
           <button onClick={() => setEndreFelt(true)} disabled={sender}
-            style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            style={{
+              background: FARGER.hvit, color: FARGER.tekstMid,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              borderRadius: RADIUS.pill, padding: '11px 16px',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+            }}>
             Be AI endre
           </button>
           <button onClick={onAvbryt} disabled={sender}
-            style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            style={{
+              background: FARGER.feilBg, color: FARGER.feil, border: 'none',
+              borderRadius: RADIUS.pill, padding: '11px 16px',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+            }}>
             Avbryt
           </button>
         </div>
       )}
 
       {endreFelt && (
-        <div>
+        <div className="anim-fade-up">
           <textarea value={endreInstruks} onChange={e => setEndreInstruks(e.target.value)}
             placeholder="Hva skal endres? F.eks. 'gjør mer formell' eller 'be også om energiattest'"
             rows={2}
-            style={{ width: '100%', padding: 8, fontSize: 12, borderRadius: 6, border: '1px solid #ddd', fontFamily: 'sans-serif', marginBottom: 6 }} />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => { onBeAIEndre(endreInstruks.trim() || 'Endre utkastet'); setEndreFelt(false); setEndreInstruks('') }}
-              style={{ flex: 1, background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            style={tekstAreaStil} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { onBeAIEndre(endreInstruks.trim() || 'Endre utkastet'); setEndreFelt(false); setEndreInstruks('') }} className="knapp-hover-loft"
+              style={{
+                flex: 1, background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+                borderRadius: RADIUS.pill, padding: '11px 18px',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: SHADOW.sm,
+              }}>
               Send til AI
             </button>
             <button onClick={() => { setEndreFelt(false); setEndreInstruks('') }}
-              style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>
+              style={{
+                background: FARGER.hvit, color: FARGER.tekstMid,
+                border: `1px solid ${FARGER.kantUltralys}`,
+                borderRadius: RADIUS.pill, padding: '11px 16px',
+                fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+              }}>
               Avbryt
             </button>
           </div>
