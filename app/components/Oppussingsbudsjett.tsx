@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { AIForslagOppussing, AIForslagTillegg, LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt, Prosjektbilde } from '../types'
-import { FARGER, RADIUS, inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION, inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
 import {
   LOPENDE_FELTER, POSTE_FORSLAG, STANDARD_LABEL,
   bruttoFortjeneste, erEstimatUtdatert, lopendePerManed, lopendeTotal,
@@ -337,16 +337,16 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
           <div style={{ fontSize: 15, fontWeight: 700 }}>🧱 Oppussingsposter</div>
           {poster.length > 0 && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+              <span style={{ background: '#e8f5ed', color: '#1a4d2b', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: RADIUS.pill }}>
                 {fremdrift.ferdig}/{fremdrift.totalt} ferdig
               </span>
               {fremdrift.pagar > 0 && (
-                <span style={{ background: '#fff8e1', color: '#7a4a08', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                <span style={{ background: '#fff8e1', color: '#7a4a08', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: RADIUS.pill }}>
                   {fremdrift.pagar} pågår
                 </span>
               )}
               {fremdrift.overskridelser > 0 && (
-                <span style={{ background: '#fde8ec', color: '#7a0c1e', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                <span style={{ background: '#fde8ec', color: '#7a0c1e', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: RADIUS.pill }}>
                   ⚠️ {fremdrift.overskridelser} over budsjett
                 </span>
               )}
@@ -377,7 +377,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
                 <input style={inputStyle} value={p.navn} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, navn: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { navn: e.target.value })} placeholder="Navn" />
                 <input style={inputStyle} type="number" value={p.kostnad || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, kostnad: Number(e.target.value) } : pp))} onBlur={e => oppdaterPost(p.id, { kostnad: Number(e.target.value) || 0 })} placeholder="Budsjett €" />
                 <input style={inputStyle} value={p.notat || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, notat: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { notat: e.target.value || null })} placeholder="Notat (valgfritt)" />
-                <button onClick={() => slettPost(p.id)} style={{ background: '#fde8ec', color: '#C8102E', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✕</button>
+                <button onClick={() => slettPost(p.id)} style={{ background: FARGER.feilBg, color: FARGER.feil, border: 'none', borderRadius: RADIUS.pill, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✕</button>
               </div>
 
               {/* Linje 2: status / faktisk / frist / ansvarlig */}
@@ -479,12 +479,24 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         <div style={{ marginTop: 16, fontSize: 12, color: '#666', marginBottom: 6 }}>Legg til forhåndsdefinert post:</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {POSTE_FORSLAG.filter(n => !brukteForslagssett.has(n)).map(n => (
-            <button key={n} onClick={() => leggTilPost(n)} style={{ background: '#fdfcf7', color: '#0e1726', border: '1px solid #0e172644', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ {n}</button>
+            <button key={n} onClick={() => leggTilPost(n)} style={{
+              background: FARGER.hvit, color: FARGER.mork,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              borderRadius: RADIUS.pill, padding: '6px 14px',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+            }}>+ {n}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input style={{ ...inputStyle, flex: 1 }} value={egenPost} onChange={e => setEgenPost(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} placeholder="Egen post (f.eks. Terrassegulv)" />
-          <button onClick={() => { if (egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Legg til</button>
+          <button onClick={() => { if (egenPost.trim()) { leggTilPost(egenPost); setEgenPost('') } }} className="knapp-hover-loft" style={{
+            background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+            borderRadius: RADIUS.pill, padding: '10px 18px',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: SHADOW.sm,
+          }}>+ Legg til</button>
         </div>
       </div>
 
@@ -493,7 +505,16 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {(['standard', 'bra', 'luksus'] as OppussingStandard[]).map(s => (
             <button key={s} onClick={() => oppdaterBudsjett({ standard: s })}
-              style={{ background: budsjett.standard === s ? '#0e1726' : '#f0f0f0', color: budsjett.standard === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              style={{
+                background: budsjett.standard === s ? FARGER.mork : FARGER.flateLys,
+                color: budsjett.standard === s ? FARGER.creamLys : FARGER.tekstMid,
+                border: 'none', borderRadius: RADIUS.pill,
+                padding: '10px 22px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: budsjett.standard === s ? SHADOW.sm : 'none',
+                transition: `background ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+              }}>
               {STANDARD_LABEL[s]}
             </button>
           ))}
@@ -526,8 +547,8 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         </div>
       </div>
 
-      <div style={{ background: '#fdfcf7', border: '2px solid #0e172644', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#0e1726' }}>🤖 Estimert salgspris fra AI</div>
+      <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>🤖 Estimert salgspris fra AI</div>
 
         {budsjett.estimert_salgspris ? (
           <div>
@@ -555,12 +576,21 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
           <p style={{ fontSize: 13, color: '#555', margin: '0 0 12px' }}>Fyll inn poster og standard først, så estimerer AI-agenten salgspris basert på boligen og området.</p>
         )}
 
-        <button onClick={estimerSalgspris} disabled={estimerer || poster.length === 0} style={{ background: estimerer || poster.length === 0 ? '#999' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 14, fontWeight: 600, cursor: estimerer || poster.length === 0 ? 'not-allowed' : 'pointer' }}>
-          {estimerer ? '⏳ Estimerer...' : budsjett.estimert_salgspris ? '🔄 Kjør estimat på nytt' : '🤖 Estimer salgspris med AI'}
+        <button onClick={estimerSalgspris} disabled={estimerer || poster.length === 0} className="knapp-hover-loft" style={{
+          background: estimerer || poster.length === 0 ? FARGER.tekstLys : FARGER.mork,
+          color: FARGER.creamLys, border: 'none',
+          borderRadius: RADIUS.pill, padding: '12px 22px',
+          fontSize: 14, fontWeight: 600,
+          cursor: estimerer || poster.length === 0 ? 'not-allowed' : 'pointer',
+          letterSpacing: '-0.005em',
+          boxShadow: estimerer || poster.length === 0 ? 'none' : SHADOW.sm,
+          transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+        }}>
+          {estimerer ? '⏳ Estimerer…' : budsjett.estimert_salgspris ? '🔄 Kjør estimat på nytt' : '🤖 Estimer salgspris med AI'}
         </button>
 
         {feil && (
-          <div style={{ marginTop: 10, background: '#fde8ec', border: '1.5px solid #C8102E', borderRadius: 8, padding: 10, fontSize: 13, color: '#7a0c1e' }}>
+          <div className="anim-fade-up" style={{ marginTop: 12, background: FARGER.feilBg, border: `1px solid ${FARGER.feil}33`, borderRadius: RADIUS.md, padding: 12, fontSize: 13, color: '#7a0c1e' }}>
             ❌ {feil}
           </div>
         )}

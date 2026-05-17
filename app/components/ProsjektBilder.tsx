@@ -5,7 +5,7 @@ import { hentAktivBruker } from '../lib/aktivBruker'
 import { KATEGORIER, STILER, estimerAnalyseKostnadEUR, resizKlient, type Kategori, type StilId } from '../lib/bilder'
 import { visToast } from '../lib/toast'
 import { SendForesporselModal } from './SendForesporselModal'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import type { Prosjektbilde } from '../types'
 
 type LasteState = { filnavn: string; status: 'laster' | 'feilet'; feilmelding?: string }
@@ -289,14 +289,15 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             onDrop={onDrop}
             onClick={() => filInputRef.current?.click()}
             style={{
-              border: `2px dashed ${dragOver ? '#c9a876' : '#ddd'}`,
-              background: dragOver ? '#faf7f0' : '#f8f8f8',
-              borderRadius: 6, padding: 20, textAlign: 'center',
-              cursor: 'pointer', marginBottom: 14,
+              border: `1.5px dashed ${dragOver ? FARGER.advarsel : FARGER.gull + '66'}`,
+              background: dragOver ? '#fff8e1' : FARGER.flateLys,
+              borderRadius: RADIUS.lg, padding: 28, textAlign: 'center',
+              cursor: 'pointer', marginBottom: 16,
+              transition: `background ${MOTION.rask}, border-color ${MOTION.rask}`,
             }}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>📥</div>
-            <div style={{ fontSize: 13, color: '#555' }}>Dra filer hit – eller klikk for å velge</div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>JPEG, PNG, WebP · maks 10 MB</div>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>📥</div>
+            <div style={{ fontSize: 14, color: FARGER.tekstMid, fontWeight: 500 }}>Dra filer hit — eller klikk for å velge</div>
+            <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 6 }}>JPEG, PNG, WebP · maks 10 MB</div>
             <input ref={filInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple
               onChange={onFilerValgt} style={{ display: 'none' }} />
           </div>
@@ -304,7 +305,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
           {pending.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               {pending.map((p, i) => (
-                <div key={i} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, marginBottom: 4, background: p.status === 'feilet' ? '#fde8ec' : '#fdfcf7', color: p.status === 'feilet' ? '#7a0c1e' : '#0e1726' }}>
+                <div key={i} style={{ fontSize: 12.5, padding: '8px 12px', borderRadius: RADIUS.md, marginBottom: 6, background: p.status === 'feilet' ? FARGER.feilBg : FARGER.flateLys, color: p.status === 'feilet' ? '#7a0c1e' : FARGER.mork }}>
                   {p.status === 'laster' ? '⏳ ' : '❌ '}{p.filnavn}
                   {p.status === 'feilet' && p.feilmelding && <span style={{ marginLeft: 6 }}>– {p.feilmelding}</span>}
                 </div>
@@ -317,7 +318,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             const analyserte = bilder.length - uanalyserte.length
             if (uanalyserte.length === 0) {
               return (
-                <div style={{ fontSize: 12, color: '#2D7D46', background: '#e8f5ed', border: '1px solid #2D7D4644', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: '#2D7D46', background: '#e8f5ed', border: '1px solid #2D7D4633', borderRadius: RADIUS.md, padding: 12, marginBottom: 14 }}>
                   ✨ Alle {analyserte} bildene er analysert. Forslagene finner du i Oppussing-fanen.
                 </div>
               )
@@ -325,8 +326,16 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
             const kostnad = estimerAnalyseKostnadEUR(uanalyserte)
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                <button onClick={analyserBilder} disabled={analyserer}
-                  style={{ background: analyserer ? '#999' : '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: analyserer ? 'not-allowed' : 'pointer' }}>
+                <button onClick={analyserBilder} disabled={analyserer} className="knapp-hover-loft"
+                  style={{
+                    background: analyserer ? FARGER.tekstLys : FARGER.mork,
+                    color: FARGER.creamLys, border: 'none',
+                    borderRadius: RADIUS.pill, padding: '10px 18px',
+                    fontSize: 13, fontWeight: 600,
+                    cursor: analyserer ? 'not-allowed' : 'pointer',
+                    letterSpacing: '-0.005em',
+                    boxShadow: analyserer ? 'none' : SHADOW.sm,
+                  }}>
                   {analyserer
                     ? (analyseFremdrift.total > 0
                       ? `⏳ Analyserer ${analyseFremdrift.ferdig + 1}/${analyseFremdrift.total}...`
@@ -339,7 +348,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
           })()}
 
           {analyseFeil && (
-            <div style={{ fontSize: 12, background: '#fde8ec', color: '#7a0c1e', padding: 10, borderRadius: 8, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, background: FARGER.feilBg, color: '#7a0c1e', padding: 12, borderRadius: RADIUS.md, marginBottom: 14, border: `1px solid ${FARGER.feil}33` }}>
               ⚠️ {analyseFeil}
             </div>
           )}
@@ -363,7 +372,7 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                   const barn = genererte[b.id] || []
                   return (
                     <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ position: 'relative', background: '#f0f0f0', borderRadius: 8, overflow: 'hidden', aspectRatio: '4/3' }}>
+                      <div style={{ position: 'relative', background: FARGER.flateMid, borderRadius: RADIUS.md, overflow: 'hidden', aspectRatio: '4/3', boxShadow: SHADOW.xs }}>
                         {url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={url} alt={b.filnavn || ''} onClick={() => setLightbox(url)}
@@ -416,9 +425,13 @@ export function ProsjektBilder({ prosjektId }: { prosjektId: string }) {
                           <button onClick={() => startGenerering(b.id)}
                             disabled={jobb?.status === 'starter' || jobb?.status === 'jobber'}
                             style={{
-                              background: jobb?.status === 'jobber' || jobb?.status === 'starter' ? '#999' : '#6a4c93',
-                              color: 'white', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                              background: jobb?.status === 'jobber' || jobb?.status === 'starter' ? FARGER.tekstLys : '#6a4c93',
+                              color: FARGER.creamLys, border: 'none',
+                              borderRadius: RADIUS.pill, padding: '7px 12px',
+                              fontSize: 11.5, fontWeight: 600,
                               cursor: jobb?.status === 'jobber' || jobb?.status === 'starter' ? 'wait' : 'pointer',
+                              letterSpacing: '-0.005em',
+                              boxShadow: jobb?.status === 'jobber' || jobb?.status === 'starter' ? 'none' : SHADOW.xs,
                             }}>
                             {jobb?.status === 'starter' && '⏳ Starter...'}
                             {jobb?.status === 'jobber' && '🎨 Genererer (10–30 s)...'}
