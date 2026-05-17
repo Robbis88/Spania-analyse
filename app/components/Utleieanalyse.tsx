@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { AirbnbData, LanInfo, Leietype, OppussingPerAr, Prosjekt, Utleieanalyse as Analyse, UtleieScenario } from '../types'
-import { fmt, inputStyle, labelStyle, fieldStyle } from '../lib/styles'
+import { fmt, inputStyle, labelStyle, fieldStyle, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import {
   KOSTNAD_LABEL, MANED_NAVN, aarligYield, beregnAar, estimertManedligInntekt,
   faktiskNokkel, manedligLaanebetaling, sumKostnaderAr,
@@ -181,16 +181,25 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
   const nesteAarOversikt = useMemo(() => analyse ? beregnAar(iAar + 1, data || null, analyse) : null, [analyse, data, iAar])
 
   if (laster || !analyse) {
-    return <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>⏳ Laster...</div>
+    return (
+      <div>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 14, boxShadow: SHADOW.sm }}>
+            <div className="skimmer" style={{ height: 18, width: '40%', marginBottom: 16, borderRadius: 4 }} />
+            <div className="skimmer" style={{ height: 60, borderRadius: RADIUS.md }} />
+          </div>
+        ))}
+      </div>
+    )
   }
 
   const gyldigData = !!data && Array.isArray(data.maaneder) && data.maaneder.length === 12 && !!data.scenarier
   if (!gyldigData) {
     return (
-      <div style={{ background: '#fff8e1', border: '2px solid #B05E0A44', borderRadius: 6, padding: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#7a400a', marginBottom: 8 }}>⚠️ Mangler analyse-data</div>
-        <p style={{ fontSize: 14, color: '#6b3a0a', margin: 0, lineHeight: 1.6 }}>
-          Denne boligen mangler strukturert airbnb-data, eller ble lagret på et gammelt skjema. Gå til <strong>Boliganalyse</strong>, analyser samme eiendom på nytt og lagre som utleieprosjekt – da får du tilgang til tallene utleieanalysen trenger.
+      <div style={{ background: '#fff8e1', border: '1px solid #B05E0A44', borderRadius: RADIUS.lg, padding: 26, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#7a400a', marginBottom: 10, letterSpacing: '-0.015em' }}>⚠️ Mangler analyse-data</div>
+        <p style={{ fontSize: 14, color: '#6b3a0a', margin: 0, lineHeight: 1.65 }}>
+          Denne boligen mangler strukturert airbnb-data, eller ble lagret på et gammelt skjema. Gå til <strong>Boliganalyse</strong>, analyser samme eiendom på nytt og lagre som utleieprosjekt — da får du tilgang til tallene utleieanalysen trenger.
         </p>
       </div>
     )
@@ -201,23 +210,39 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
 
   return (
     <div>
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>🏖️ Leietype og scenario</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>🏖️ Leietype og scenario</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           {(['korttid', 'langtid'] as Leietype[]).map(t => (
             <button key={t} onClick={() => oppdater({ leietype: t })}
-              style={{ background: analyse.leietype === t ? '#2D7D46' : '#f0f0f0', color: analyse.leietype === t ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              style={{
+                background: analyse.leietype === t ? '#2D7D46' : FARGER.flateLys,
+                color: analyse.leietype === t ? FARGER.creamLys : FARGER.tekstMid,
+                border: 'none', borderRadius: RADIUS.pill,
+                padding: '10px 20px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', letterSpacing: '-0.005em',
+                boxShadow: analyse.leietype === t ? SHADOW.sm : 'none',
+                transition: `background ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+              }}>
               {t === 'korttid' ? 'Korttidsleie (Airbnb)' : 'Langtidsleie'}
             </button>
           ))}
         </div>
         {analyse.leietype === 'korttid' && (
           <div>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Scenario</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>Scenario</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {(['konservativt', 'realistisk', 'sterkt'] as UtleieScenario[]).map(s => (
                 <button key={s} onClick={() => oppdater({ scenario: s })}
-                  style={{ background: analyse.scenario === s ? '#0e1726' : '#f0f0f0', color: analyse.scenario === s ? 'white' : '#444', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{
+                    background: analyse.scenario === s ? FARGER.mork : FARGER.flateLys,
+                    color: analyse.scenario === s ? FARGER.creamLys : FARGER.tekstMid,
+                    border: 'none', borderRadius: RADIUS.pill,
+                    padding: '9px 18px', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', letterSpacing: '-0.005em',
+                    boxShadow: analyse.scenario === s ? SHADOW.sm : 'none',
+                    transition: `background ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+                  }}>
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
               ))}
@@ -239,8 +264,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         )}
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💰 Kjøp og oppstart</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>💰 Kjøp og oppstart</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Total kjøpspris (€)</label>
@@ -285,9 +310,9 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>🏦 Finansiering</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.015em' }}>🏦 Finansiering</div>
           <label style={{ fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
             <input type="checkbox" checked={brukLan} onChange={e => { setBrukLan(e.target.checked); if (!e.target.checked) oppdater({ lan: null }) }} />
             Jeg bruker lån
@@ -322,9 +347,9 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
         {!brukLan && <div style={{ fontSize: 13, color: '#888' }}>Alle tall vises uten lån. Huk av for å legge inn lånebetingelser – da får du sammenligning med og uten lån.</div>}
       </div>
 
-      <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>🔨 Oppussingskostnader per år</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.015em' }}>🔨 Oppussingskostnader per år</div>
           {Object.keys(oppussingPerAr).length > 0 && (
             <button
               onClick={async () => {
@@ -338,7 +363,14 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
                 await oppdater({ oppussing_per_ar: ny })
               }}
               title="Hent automatisk fra oppussingsposter (faktisk eller budsjett, basert på ferdig-dato eller frist)"
-              style={{ background: '#0e1726', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              className="knapp-hover-loft"
+              style={{
+                background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+                padding: '8px 16px', borderRadius: RADIUS.pill,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: SHADOW.sm,
+              }}>
               📥 Hent fra Oppussing-fanen
             </button>
           )}
@@ -379,8 +411,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
 
       {iAarOversikt && nesteAarOversikt && (
         <>
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📊 Oversikt {iAar} og {iAar + 1}</div>
+          <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>📊 Oversikt {iAar} og {iAar + 1}</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               {[iAarOversikt, nesteAarOversikt].map((o, i) => (
@@ -426,8 +458,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>💸 Kostnadsnedbrytning (hele år, fra analysen)</div>
+          <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>💸 Kostnadsnedbrytning (hele år, fra analysen)</div>
             {Object.entries(data.kostnader_arlig || {}).filter(([, v]) => (v as number) > 0).map(([k, v], i) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
                 <span style={{ color: '#555' }}>{KOSTNAD_LABEL[k] || k}</span>
@@ -440,13 +472,23 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             </div>
           </div>
 
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
+          <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>📅 Leieinntekt per måned</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.015em' }}>📅 Leieinntekt per måned</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setValgtAr(valgtAr - 1)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>←</button>
-                <div style={{ fontSize: 15, fontWeight: 700, minWidth: 60, textAlign: 'center' }}>{valgtAr}</div>
-                <button onClick={() => setValgtAr(valgtAr + 1)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>→</button>
+                <button onClick={() => setValgtAr(valgtAr - 1)} style={{
+                  background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.pill, padding: '7px 14px', fontSize: 13,
+                  cursor: 'pointer', color: FARGER.tekstMid, fontWeight: 500,
+                  boxShadow: SHADOW.xs,
+                }}>←</button>
+                <div style={{ fontSize: 15, fontWeight: 600, minWidth: 60, textAlign: 'center', color: FARGER.mork, letterSpacing: '-0.005em' }}>{valgtAr}</div>
+                <button onClick={() => setValgtAr(valgtAr + 1)} style={{
+                  background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.pill, padding: '7px 14px', fontSize: 13,
+                  cursor: 'pointer', color: FARGER.tekstMid, fontWeight: 500,
+                  boxShadow: SHADOW.xs,
+                }}>→</button>
               </div>
             </div>
             <p style={{ fontSize: 12, color: '#666', margin: '0 0 12px' }}>Skriv inn faktisk inntekt når tallet er kjent – tomme felt bruker estimatet fra analysen. Verdier kan endres eller slettes når som helst.</p>

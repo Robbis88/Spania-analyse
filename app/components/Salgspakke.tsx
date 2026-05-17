@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { visToast } from '../lib/toast'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 type Props = {
   prosjektId: string
@@ -69,35 +69,54 @@ export function Salgspakke({ prosjektId, prosjektNavn, apen, onLukk }: Props) {
   }
 
   return (
-    <div onClick={onLukk}
+    <div onClick={onLukk} className="anim-fade-in"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(14, 23, 38, 0.55)',
+        position: 'fixed', inset: 0,
+        background: 'rgba(14, 23, 38, 0.45)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
       }}>
-      <div onClick={e => e.stopPropagation()}
+      <div onClick={e => e.stopPropagation()} className="anim-scale-in"
         style={{
-          background: '#fff', borderRadius: RADIUS.lg, maxWidth: 520, width: '100%',
-          padding: 28, maxHeight: '90vh', overflowY: 'auto',
+          background: FARGER.creamLys,
+          borderRadius: RADIUS.xl, maxWidth: 540, width: '100%',
+          padding: 'clamp(24px, 4vw, 36px)', maxHeight: '90vh', overflowY: 'auto',
+          boxShadow: SHADOW.xl,
         }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 6 }}>
-              SALGSPAKKE
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase' }}>
+              Salgspakke
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: FARGER.mork }}>
+            <h2 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 500, margin: 0, color: FARGER.mork, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
               {prosjektNavn}
             </h2>
-            <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '6px 0 0' }}>
+            <p style={{ fontSize: 14, color: FARGER.tekstMid, margin: '8px 0 0', lineHeight: 1.55 }}>
               Investor- og kjøper-rettet PDF som samler oppgraderinger, kostnader, bilder og dokumenter.
             </p>
           </div>
           <button onClick={onLukk} disabled={bygger}
-            style={{ background: 'none', border: 'none', fontSize: 22, color: FARGER.tekstLys, cursor: bygger ? 'not-allowed' : 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+            aria-label="Lukk"
+            style={{
+              background: FARGER.flateLys, border: 'none',
+              width: 36, height: 36, fontSize: 18, color: FARGER.tekstMid,
+              cursor: bygger ? 'not-allowed' : 'pointer',
+              lineHeight: 1, padding: 0,
+              borderRadius: RADIUS.pill,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>×</button>
         </div>
 
-        <div style={{ background: FARGER.creamLys, borderRadius: RADIUS.md, padding: 14, marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+        <div style={{
+          background: FARGER.hvit,
+          border: `1px solid ${FARGER.kantUltralys}`,
+          borderRadius: RADIUS.lg,
+          padding: 18, marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 12 }}>
             Hva skal inkluderes?
           </div>
           {[
@@ -106,37 +125,42 @@ export function Salgspakke({ prosjektId, prosjektNavn, apen, onLukk }: Props) {
             { id: 'inkluderDokumenter' as const, lbl: 'Vedlagte dokumenter', beskr: 'Liste over alle opplastede dokumenter' },
             { id: 'inkluderSjekkliste' as const, lbl: 'Dokumentsjekkliste', beskr: 'Status på escritura, IBI, VFT osv.' },
           ].map(felt => (
-            <label key={felt.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', cursor: 'pointer' }}>
+            <label key={felt.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', cursor: 'pointer' }}>
               <input type="checkbox" checked={valg[felt.id]} onChange={() => toggle(felt.id)}
                 disabled={bygger}
-                style={{ marginTop: 2, accentColor: FARGER.gull }} />
+                style={{ marginTop: 3, accentColor: FARGER.gull, width: 16, height: 16 }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>{felt.lbl}</div>
-                <div style={{ fontSize: 11, color: FARGER.tekstLys }}>{felt.beskr}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>{felt.lbl}</div>
+                <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 2 }}>{felt.beskr}</div>
               </div>
             </label>
           ))}
         </div>
 
-        <div style={{ fontSize: 11, color: FARGER.tekstLys, marginBottom: 14, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: FARGER.tekstLys, marginBottom: 16, lineHeight: 1.55 }}>
           Sammendrag (kjøp, investering, ROI) og oppgraderinger med budsjett vs faktisk er alltid med.
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={bygg} disabled={bygger}
+          <button onClick={bygg} disabled={bygger} className="knapp-hover-loft"
             style={{
-              flex: 1, background: bygger ? FARGER.tekstLys : FARGER.mork, color: '#fff',
-              border: 'none', padding: 14, borderRadius: RADIUS.md,
+              flex: 1, background: bygger ? FARGER.tekstLys : FARGER.mork, color: FARGER.creamLys,
+              border: 'none', padding: 14, borderRadius: RADIUS.pill,
               fontSize: 14, fontWeight: 600, cursor: bygger ? 'wait' : 'pointer',
-              letterSpacing: '0.04em',
+              letterSpacing: '-0.005em',
+              boxShadow: bygger ? 'none' : SHADOW.sm,
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
             }}>
             {bygger ? '⏳ Bygger PDF…' : '📥 Bygg og last ned'}
           </button>
           <button onClick={onLukk} disabled={bygger}
             style={{
-              background: FARGER.flateMid, color: FARGER.tekstMid,
-              border: 'none', padding: '14px 20px', borderRadius: RADIUS.md,
-              fontSize: 14, fontWeight: 600, cursor: bygger ? 'not-allowed' : 'pointer',
+              background: FARGER.hvit, color: FARGER.tekstMid,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              padding: '14px 20px', borderRadius: RADIUS.pill,
+              fontSize: 14, fontWeight: 600,
+              cursor: bygger ? 'not-allowed' : 'pointer',
+              letterSpacing: '-0.005em',
             }}>
             Avbryt
           </button>

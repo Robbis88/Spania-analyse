@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
 import { type AirbnbData, type Bolig, type BoligData, tomBolig, tomtProsjekt, type Prosjekt } from '../types'
-import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct } from '../lib/styles'
+import { inputStyle, selectStyle, labelStyle, fieldStyle, fmt, fmtPct, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ScoreKort, type Score } from './ScoreKort'
 import { byggProsjektPdf } from '../lib/pdf'
 import { visToast } from '../lib/toast'
@@ -305,64 +305,96 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
 
   return (
     <div>
-      <button onClick={() => { onTilbake(); nullstill() }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20, color: '#444', fontWeight: 500 }}>← Tilbake</button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <div style={{ fontSize: 36 }}>🔍</div>
+      <button onClick={() => { onTilbake(); nullstill() }} className="nav-lenke" style={{
+        background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+        borderRadius: RADIUS.pill, padding: '8px 16px 8px 12px',
+        fontSize: 13, cursor: 'pointer', marginBottom: 22,
+        color: FARGER.tekstMid, fontWeight: 500,
+        boxShadow: SHADOW.xs,
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        letterSpacing: '-0.005em',
+      }}><span aria-hidden>←</span> Tilbake</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
+        <div style={{ fontSize: 40 }}>🔍</div>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Boliganalyse</h2>
-          <p style={{ color: '#666', margin: 0, fontSize: 14 }}>Analyser en ny eiendom og vurder potensial</p>
+          <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 500, margin: 0, color: FARGER.mork, letterSpacing: '-0.02em' }}>Boliganalyse</h2>
+          <p style={{ color: FARGER.tekstMid, margin: '4px 0 0', fontSize: 14 }}>Analyser en ny eiendom og vurder potensial</p>
         </div>
       </div>
-      <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lim inn bolig-info</div>
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 24, marginBottom: 24, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.18em' }}>Lim inn bolig-info</div>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="Lim inn Finn.no-lenke eller beskriv eiendommen&#10;&#10;Eks: Villa 4 soverom, 180m², privat pool, 500m fra strand, €650 000, Marbella Golden Mile"
-          style={{ width: '100%', height: 120, padding: 12, fontSize: 14, borderRadius: 8, border: '1.5px solid #ddd', resize: 'vertical', fontFamily: 'sans-serif' }}
+          style={{
+            width: '100%', height: 130, padding: 14, fontSize: 14,
+            borderRadius: RADIUS.md, border: `1px solid ${FARGER.kant}`,
+            resize: 'vertical', fontFamily: 'inherit',
+            background: FARGER.creamLys,
+            transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            outline: 'none',
+          }}
         />
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button onClick={analyser} disabled={loading || airbnbLoading || !input} style={{ flex: 1, background: (loading || airbnbLoading) ? '#888' : '#0e1726', color: 'white', border: 'none', padding: 14, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            {steg === 'analyserer' && '⏳ Analyserer bolig...'}
-            {steg === 'utleie' && '⏳ Kjører utleieanalyse (20–30 s)...'}
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button onClick={analyser} disabled={loading || airbnbLoading || !input} className="knapp-hover-loft" style={{
+            flex: 1, background: (loading || airbnbLoading) ? FARGER.tekstLys : FARGER.mork,
+            color: FARGER.creamLys, border: 'none', padding: 14, borderRadius: RADIUS.pill,
+            fontSize: 14, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: (loading || airbnbLoading) ? 'none' : SHADOW.sm,
+            transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+          }}>
+            {steg === 'analyserer' && '⏳ Analyserer bolig…'}
+            {steg === 'utleie' && '⏳ Kjører utleieanalyse (20–30 s)…'}
             {(steg === 'idle' || steg === 'ferdig') && '🚀 Kjør full analyse'}
           </button>
-          {(input || result) && <button onClick={nullstill} style={{ background: '#f0f0f0', color: '#444', border: 'none', padding: '14px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>🗑️ Nullstill</button>}
+          {(input || result) && <button onClick={nullstill} style={{
+            background: FARGER.hvit, color: FARGER.tekstMid,
+            border: `1px solid ${FARGER.kantUltralys}`,
+            padding: '14px 22px', borderRadius: RADIUS.pill,
+            fontSize: 14, fontWeight: 500, cursor: 'pointer',
+            letterSpacing: '-0.005em',
+          }}>🗑️ Nullstill</button>}
         </div>
       </div>
       {result && (
         <div>
-          <div style={{ background: '#0e1726', color: 'white', borderRadius: 6, padding: 24, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{result.type} · {result.beliggenhet}</div>
-            <h2 style={{ fontSize: 20, margin: '0 0 16px' }}>{result.tittel}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+          <div className="anim-fade-up" style={{
+            background: FARGER.mork, color: FARGER.creamLys,
+            borderRadius: RADIUS.xl, padding: 28, marginBottom: 16,
+            boxShadow: SHADOW.md,
+          }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{result.type} · {result.beliggenhet}</div>
+            <h2 style={{ fontSize: 'clamp(20px, 3vw, 26px)', margin: '0 0 22px', fontWeight: 500, letterSpacing: '-0.02em' }}>{result.tittel}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
               {[{ lbl: 'Pris', val: fmt(result.pris ?? 0) }, { lbl: 'Egenkapital', val: fmt(result.ek_krav ?? 0) }, { lbl: 'Mnd. betaling', val: fmt(result.mnd_betaling ?? 0) }, { lbl: 'Yield', val: fmtPct(result.yield_estimat ?? 0) }].map((item, i) => (
-                <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{item.lbl}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{item.val}</div>
+                <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.md, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{item.lbl}</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.015em' }}>{item.val}</div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 6 }}>🤖 AI-vurdering</div>
-            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', margin: 0 }}>{result.ai_vurdering}</p>
+          <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.18em' }}>🤖 AI-vurdering</div>
+            <p style={{ fontSize: 14.5, lineHeight: 1.75, color: FARGER.tekstMid, margin: 0 }}>{result.ai_vurdering}</p>
           </div>
           {result.vft_score !== undefined && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#888' }}>🏛️ VFT-turistlisens</div>
-                <div style={{ background: result.vft_score >= 60 ? '#e8f5ed' : result.vft_score >= 35 ? '#fff8e1' : '#fde8ec', color: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#B05E0A' : '#C8102E', padding: '3px 10px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{result.vft_score}/100</div>
+            <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 24, boxShadow: SHADOW.sm }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, textTransform: 'uppercase', letterSpacing: '0.18em' }}>🏛️ VFT-turistlisens</div>
+                <div style={{ background: result.vft_score >= 60 ? '#e8f5ed' : result.vft_score >= 35 ? '#fff8e1' : '#fde8ec', color: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#B05E0A' : '#C8102E', padding: '4px 12px', borderRadius: RADIUS.pill, fontSize: 13, fontWeight: 700 }}>{result.vft_score}/100</div>
               </div>
-              <div style={{ background: '#f0f0f0', borderRadius: 6, height: 8, overflow: 'hidden' }}>
-                <div style={{ width: result.vft_score + '%', height: 8, background: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#EF9F27' : '#C8102E', borderRadius: 6 }} />
+              <div style={{ background: FARGER.flateMid, borderRadius: RADIUS.pill, height: 8, overflow: 'hidden' }}>
+                <div style={{ width: result.vft_score + '%', height: 8, background: result.vft_score >= 60 ? '#2D7D46' : result.vft_score >= 35 ? '#EF9F27' : '#C8102E', borderRadius: RADIUS.pill, transition: 'width 0.4s ease' }} />
               </div>
             </div>
           )}
           {visSkjema && (
-            <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sjekk og korriger detaljer (valgfritt)</div>
-              <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Vi har fylt inn det vi fant. Hvis du korrigerer noe under, klikk &quot;Oppdater analyse&quot; nederst for å kjøre utleieanalysen på nytt med de nye verdiene.</p>
+            <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.18em' }}>Sjekk og korriger detaljer (valgfritt)</div>
+              <p style={{ fontSize: 13.5, color: FARGER.tekstMid, marginBottom: 18, lineHeight: 1.6 }}>Vi har fylt inn det vi fant. Hvis du korrigerer noe under, klikk «Oppdater analyse» nederst for å kjøre utleieanalysen på nytt med de nye verdiene.</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
                   { key: 'type', lbl: 'Type bolig', placeholder: 'Villa / Leilighet', type: 'text' },
@@ -404,66 +436,120 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
                   </div>
                 ))}
               </div>
-              <button onClick={() => kjørAirbnbAnalyse(bolig)} disabled={airbnbLoading}
-                style={{ width: '100%', background: airbnbLoading ? '#888' : '#0e1726', color: 'white', border: 'none', padding: 12, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: airbnbLoading ? 'not-allowed' : 'pointer', marginTop: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                {airbnbLoading ? '⏳ Oppdaterer...' : '🔄 Oppdater analyse med korrigerte verdier'}
+              <button onClick={() => kjørAirbnbAnalyse(bolig)} disabled={airbnbLoading} className="knapp-hover-loft"
+                style={{
+                  width: '100%', background: airbnbLoading ? FARGER.tekstLys : FARGER.mork,
+                  color: FARGER.creamLys, border: 'none', padding: 13,
+                  borderRadius: RADIUS.pill, fontSize: 13, fontWeight: 600,
+                  cursor: airbnbLoading ? 'not-allowed' : 'pointer', marginTop: 6,
+                  letterSpacing: '-0.005em',
+                  boxShadow: airbnbLoading ? 'none' : SHADOW.sm,
+                }}>
+                {airbnbLoading ? '⏳ Oppdaterer…' : '🔄 Oppdater analyse med korrigerte verdier'}
               </button>
             </div>
           )}
           {airbnbScore && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#b89a6f', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Score og trafikklys</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.18em' }}>Score og trafikklys</div>
               <ScoreKort s={airbnbScore} />
             </div>
           )}
           {airbnbAnalyse && (
-            <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 24, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 12 }}>📊 Fullstendig analyse</div>
-              <div style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: '#222' }}>{airbnbAnalyse}</div>
+            <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 26, marginBottom: 16, boxShadow: SHADOW.sm }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.18em' }}>📊 Fullstendig analyse</div>
+              <div style={{ fontSize: 14.5, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: FARGER.tekstMid }}>{airbnbAnalyse}</div>
             </div>
           )}
-          <div style={{ background: '#fdfcf7', border: '1px solid #b89a6f33', borderRadius: 6, padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legg til som bolig til vurdering</div>
-            <p style={{ fontSize: 13, color: '#666', marginBottom: 14, marginTop: 4 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
-              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — utleie</button>
-              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{ background: lagretId ? '#888' : 'transparent', color: lagretId ? 'white' : '#0e1726', border: '1px solid #b89a6f55', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Til vurdering — flipp</button>
+          <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.18em' }}>Legg til som bolig til vurdering</div>
+            <p style={{ fontSize: 13.5, color: FARGER.tekstMid, marginBottom: 16, marginTop: 6, lineHeight: 1.6 }}>Boligen lagres med status «Under vurdering» og en fullverdig PDF-analyse lastes ned automatisk. PDF-en kan sendes til megler/bank fra chat-roboten.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+              <button onClick={() => lagreAnalyseSomProsjekt('utleie')} disabled={!!lagretId} className="knapp-hover-loft" style={{
+                background: lagretId ? FARGER.tekstLys : FARGER.mork, color: FARGER.creamLys,
+                border: 'none', borderRadius: RADIUS.pill, padding: 14,
+                fontSize: 13, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer',
+                letterSpacing: '-0.005em',
+                boxShadow: lagretId ? 'none' : SHADOW.sm,
+              }}>Til vurdering — utleie</button>
+              <button onClick={() => lagreAnalyseSomProsjekt('flipp')} disabled={!!lagretId} style={{
+                background: lagretId ? FARGER.tekstLys : FARGER.hvit,
+                color: lagretId ? FARGER.creamLys : FARGER.mork,
+                border: `1px solid ${lagretId ? FARGER.tekstLys : FARGER.kantUltralys}`,
+                borderRadius: RADIUS.pill, padding: 14,
+                fontSize: 13, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer',
+                letterSpacing: '-0.005em',
+              }}>Til vurdering — flipp</button>
             </div>
-            <div style={{ borderTop: '1px solid #b89a6f33', paddingTop: 12 }}>
-              <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px', letterSpacing: '0.04em' }}>
+            <div style={{ borderTop: `1px solid ${FARGER.gull}22`, paddingTop: 14 }}>
+              <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '0 0 10px', letterSpacing: '0.04em' }}>
                 ELLER — auto-fyll alle portal-feltene fra Finn-annonsen i tillegg
               </p>
-              <button onClick={lagreTilPortal} disabled={!!lagretId}
-                style={{ width: '100%', background: lagretId ? '#888' : '#b89a6f', color: 'white', border: 'none', borderRadius: 6, padding: 14, fontSize: 12, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <button onClick={lagreTilPortal} disabled={!!lagretId} className="knapp-hover-loft"
+                style={{
+                  width: '100%',
+                  background: lagretId ? FARGER.tekstLys : FARGER.gull,
+                  color: FARGER.creamLys, border: 'none',
+                  borderRadius: RADIUS.pill, padding: 14,
+                  fontSize: 13, fontWeight: 600, cursor: lagretId ? 'not-allowed' : 'pointer',
+                  letterSpacing: '-0.005em',
+                  boxShadow: lagretId ? 'none' : SHADOW.sm,
+                }}>
                 🌐 Til portal — auto-fyll fra annonsen
               </button>
-              <p style={{ fontSize: 11, color: '#999', margin: '8px 0 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: FARGER.tekstLys, margin: '10px 0 0', lineHeight: 1.55 }}>
                 Lagrer + setter pris/uke/natt, beskrivelser, fasiliteter, byggeår og tomt fra annonsen. Du gjennomgår og publiserer i Portal-fanen i Regnskap.
               </p>
             </div>
             {lagreMelding && (
-              <div style={{ marginTop: 12, padding: 12, background: lagreMelding.startsWith('✅') ? '#e8f5ed' : '#fde8ec', border: `1.5px solid ${lagreMelding.startsWith('✅') ? '#2D7D46' : '#C8102E'}`, borderRadius: 8, fontSize: 13, color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500 }}>
+              <div className="anim-fade-up" style={{
+                marginTop: 14, padding: 14,
+                background: lagreMelding.startsWith('✅') ? FARGER.suksessBg : FARGER.feilBg,
+                border: `1px solid ${lagreMelding.startsWith('✅') ? '#2D7D4633' : '#C8102E33'}`,
+                borderRadius: RADIUS.md, fontSize: 13.5,
+                color: lagreMelding.startsWith('✅') ? '#1a4d2b' : '#7a0c1e', fontWeight: 500, lineHeight: 1.55,
+              }}>
                 {lagreMelding}
               </div>
             )}
             {lagretId && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #b89a6f33' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#0e1726', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send analysen videre</div>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${FARGER.gull}22` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.18em' }}>Send analysen videre</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                  <button onClick={() => lastNedPdf(lagretId)} disabled={pdfLaster}
-                    style={{ background: pdfLaster ? '#888' : '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: 12, fontSize: 12, fontWeight: 600, cursor: pdfLaster ? 'not-allowed' : 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    {pdfLaster ? '⏳ Bygger PDF...' : '📄 Last ned PDF igjen'}
+                  <button onClick={() => lastNedPdf(lagretId)} disabled={pdfLaster} className="knapp-hover-loft"
+                    style={{
+                      background: pdfLaster ? FARGER.tekstLys : FARGER.mork,
+                      color: FARGER.creamLys, border: 'none',
+                      borderRadius: RADIUS.pill, padding: 12,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: pdfLaster ? 'not-allowed' : 'pointer',
+                      letterSpacing: '-0.005em',
+                      boxShadow: pdfLaster ? 'none' : SHADOW.sm,
+                    }}>
+                    {pdfLaster ? '⏳ Bygger PDF…' : '📄 Last ned PDF igjen'}
                   </button>
-                  <button onClick={() => apneChatMedProsjekt(lagretId)}
-                    style={{ background: '#c9a876', color: 'white', border: 'none', borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={() => apneChatMedProsjekt(lagretId)} className="knapp-hover-loft"
+                    style={{
+                      background: FARGER.gull, color: FARGER.creamLys, border: 'none',
+                      borderRadius: RADIUS.pill, padding: 12,
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      letterSpacing: '-0.005em',
+                      boxShadow: SHADOW.sm,
+                    }}>
                     📧 Send til megler / bank
                   </button>
                 </div>
-                <div style={{ fontSize: 12, color: '#666', marginTop: 10, lineHeight: 1.5 }}>Chat-roboten åpnes med boligen pre-valgt. Be den om å lage e-postutkast til megler eller bank — du får godkjenne før det sendes, og PDF-en blir lagt ved automatisk.</div>
+                <div style={{ fontSize: 12.5, color: FARGER.tekstMid, marginTop: 12, lineHeight: 1.55 }}>Chat-roboten åpnes med boligen pre-valgt. Be den om å lage e-postutkast til megler eller bank — du får godkjenne før det sendes, og PDF-en blir lagt ved automatisk.</div>
               </div>
             )}
           </div>
-          <button onClick={nullstill} style={{ width: '100%', background: '#f0f0f0', color: '#444', border: 'none', padding: 14, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginTop: 8, marginBottom: 32 }}>🗑️ Nullstill og analyser ny eiendom</button>
+          <button onClick={nullstill} style={{
+            width: '100%', background: FARGER.hvit, color: FARGER.tekstMid,
+            border: `1px solid ${FARGER.kantUltralys}`, padding: 14,
+            borderRadius: RADIUS.pill, fontSize: 14, fontWeight: 500,
+            cursor: 'pointer', marginTop: 8, marginBottom: 32,
+            letterSpacing: '-0.005em',
+          }}>🗑️ Nullstill og analyser ny eiendom</button>
         </div>
       )}
     </div>
