@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
 import { tomtProsjekt, type Prosjekt } from '../types'
-import { FARGER, RADIUS } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
@@ -1104,47 +1104,61 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
   return (
     <div>
-      <button onClick={onTilbake}
-        style={{ background: FARGER.flateLys, border: 'none', borderRadius: RADIUS.sm, padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginBottom: 20, color: FARGER.tekstMid, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        ← Tilbake
+      <button onClick={onTilbake} className="nav-lenke"
+        style={{
+          background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+          borderRadius: RADIUS.pill, padding: '8px 16px 8px 12px',
+          fontSize: 13, cursor: 'pointer', marginBottom: 22,
+          color: FARGER.tekstMid, fontWeight: 500,
+          boxShadow: SHADOW.xs,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          letterSpacing: '-0.005em',
+        }}>
+        <span aria-hidden>←</span> Tilbake
       </button>
 
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 10 }}>NORGE — FLIPP</div>
-        <h2 style={{ fontSize: 28, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>Norske boliger</h2>
-        <p style={{ color: FARGER.tekstMid, margin: '6px 0 0', fontSize: 14, fontWeight: 300 }}>Analyser en Finn-annonse og kjør flippe-kalkulator</p>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Norge — Flipp</div>
+        <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 32px)', fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.025em' }}>Norske boliger</h2>
+        <p style={{ color: FARGER.tekstMid, margin: '8px 0 0', fontSize: 14.5, fontWeight: 300, lineHeight: 1.55 }}>Analyser en Finn-annonse og kjør flippe-kalkulator</p>
       </div>
 
       {/* Norge-spesifikt dashboard — separat fra Spania-dashboardet på admin/hjem */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>OVERSIKT — NORGE</div>
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase' }}>Oversikt — Norge</div>
         <Dashboard marked="norge" onApneProsjekt={(id) => { void lastInn(id) }} />
       </div>
 
-      <div style={{ background: 'white', border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: 14, marginBottom: 20 }}>
-        <div style={{ fontSize: 10, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Modus</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
-          <button onClick={() => setModus('ren')}
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 18, marginBottom: 22, boxShadow: SHADOW.sm }}>
+        <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 14 }}>Modus</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+          <button onClick={() => setModus('ren')} className="kort-loft"
             style={{
-              background: modus === 'ren' ? FARGER.mork : 'transparent',
-              color: modus === 'ren' ? 'white' : FARGER.mork,
-              border: `1px solid ${modus === 'ren' ? FARGER.mork : FARGER.gullSvak}`,
-              padding: '12px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              letterSpacing: '0.06em', textAlign: 'left',
+              background: modus === 'ren' ? FARGER.mork : FARGER.hvit,
+              color: modus === 'ren' ? FARGER.creamLys : FARGER.mork,
+              border: `1px solid ${modus === 'ren' ? FARGER.mork : FARGER.kantUltralys}`,
+              padding: '14px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em', textAlign: 'left',
+              borderRadius: RADIUS.md,
+              boxShadow: modus === 'ren' ? SHADOW.sm : 'none',
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
             }}>
-            <div>🏘️ REN FLIPP</div>
-            <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.75, marginTop: 4, letterSpacing: 'normal' }}>Kjøp, puss opp, selg</div>
+            <div>🏘️ Ren flipp</div>
+            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.75, marginTop: 4 }}>Kjøp, puss opp, selg</div>
           </button>
-          <button onClick={() => setModus('bo')}
+          <button onClick={() => setModus('bo')} className="kort-loft"
             style={{
-              background: modus === 'bo' ? FARGER.mork : 'transparent',
-              color: modus === 'bo' ? 'white' : FARGER.mork,
-              border: `1px solid ${modus === 'bo' ? FARGER.mork : FARGER.gullSvak}`,
-              padding: '12px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              letterSpacing: '0.06em', textAlign: 'left',
+              background: modus === 'bo' ? FARGER.mork : FARGER.hvit,
+              color: modus === 'bo' ? FARGER.creamLys : FARGER.mork,
+              border: `1px solid ${modus === 'bo' ? FARGER.mork : FARGER.kantUltralys}`,
+              padding: '14px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em', textAlign: 'left',
+              borderRadius: RADIUS.md,
+              boxShadow: modus === 'bo' ? SHADOW.sm : 'none',
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
             }}>
-            <div>🏡 BO OG FLIPP</div>
-            <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.75, marginTop: 4, letterSpacing: 'normal' }}>Selg eget hjem → kjøp ny → bo og puss → selg</div>
+            <div>🏡 Bo og flipp</div>
+            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.75, marginTop: 4 }}>Selg eget hjem → kjøp ny → bo og puss → selg</div>
           </button>
         </div>
       </div>
@@ -1174,25 +1188,55 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
         />
       )}
 
-      <div style={{ background: FARGER.creamLys, borderRadius: RADIUS.sm, padding: 20, marginBottom: 24, border: `1px solid ${FARGER.gullSvak}` }}>
-        <label style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Lim inn Finn-lenke eller annonsetekst</label>
+      <div style={{ background: FARGER.hvit, borderRadius: RADIUS.lg, padding: 22, marginBottom: 24, border: `1px solid ${FARGER.kantUltralys}`, boxShadow: SHADOW.sm }}>
+        <label style={{ fontSize: 11, color: FARGER.gull, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', display: 'block', marginBottom: 12 }}>Lim inn Finn-lenke eller annonsetekst</label>
         <textarea value={input} onChange={e => setInput(e.target.value)}
           placeholder="https://www.finn.no/realestate/homes/ad.html?finnkode=..."
-          style={{ width: '100%', height: 90, padding: 12, fontSize: 14, borderRadius: RADIUS.sm, border: `1px solid ${FARGER.kant}`, resize: 'vertical', fontFamily: 'sans-serif', boxSizing: 'border-box', background: 'white' }} />
-        <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-          <button onClick={() => analyser()} disabled={laster || !input}
-            style={{ flex: 1, minWidth: 200, background: laster ? '#888' : FARGER.mork, color: 'white', border: 'none', padding: 14, borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: laster ? 'not-allowed' : 'pointer', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            {laster ? 'Analyserer...' : 'Kjør analyse'}
+          style={{
+            width: '100%', height: 100, padding: 14, fontSize: 14,
+            borderRadius: RADIUS.md,
+            border: `1px solid ${FARGER.kant}`,
+            resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+            background: FARGER.creamLys,
+            transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            outline: 'none',
+          }} />
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+          <button onClick={() => analyser()} disabled={laster || !input} className="knapp-hover-loft"
+            style={{
+              flex: 1, minWidth: 200,
+              background: laster ? FARGER.tekstLys : FARGER.mork,
+              color: FARGER.creamLys, border: 'none',
+              padding: 14, borderRadius: RADIUS.pill,
+              fontSize: 14, fontWeight: 600,
+              cursor: laster ? 'not-allowed' : 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: laster ? 'none' : SHADOW.sm,
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            }}>
+            {laster ? '⏳ Analyserer…' : '🚀 Kjør analyse'}
           </button>
           {analyse && !laster && (
             <button onClick={regenerer}
               title="Sletter cache og kjører analysen på nytt mot AI"
-              style={{ background: 'transparent', color: FARGER.mork, border: `1px solid ${FARGER.gull}`, padding: '14px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              style={{
+                background: FARGER.hvit, color: FARGER.mork,
+                border: `1px solid ${FARGER.gull}55`,
+                padding: '14px 20px', borderRadius: RADIUS.pill,
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '-0.005em',
+              }}>
               🔄 Regenerer
             </button>
           )}
           {(input || analyse) && <button onClick={nullstill}
-            style={{ background: FARGER.flateLys, color: FARGER.tekstMid, border: 'none', padding: '14px 20px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            style={{
+              background: FARGER.hvit, color: FARGER.tekstMid,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              padding: '14px 22px', borderRadius: RADIUS.pill,
+              fontSize: 13, fontWeight: 500, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+            }}>
             Nullstill
           </button>}
         </div>
