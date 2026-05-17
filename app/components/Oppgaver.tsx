@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { Oppgave } from '../types'
 import { beregnEffektivPrioritet, fristTekst } from '../lib/oppgaver'
-import { prioritetFarge, prioritetLabel, inputStyle, selectStyle, labelStyle, fieldStyle } from '../lib/styles'
+import { prioritetFarge, prioritetLabel, inputStyle, selectStyle, labelStyle, fieldStyle, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 
 export function Oppgaver() {
   const [oppgaver, setOppgaver] = useState<Oppgave[]>([])
@@ -57,29 +57,43 @@ export function Oppgaver() {
 
   return (
     <div style={{
-      background: 'white',
-      border: '1px solid #e8e4d8',
-      borderRadius: 6,
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg,
       marginBottom: 24,
       overflow: 'hidden',
+      boxShadow: SHADOW.sm,
     }}>
       <div style={{
-        background: '#fdfcf7',
-        padding: '16px 20px',
-        borderBottom: '1px solid #e8e4d8',
+        background: FARGER.creamLys,
+        padding: '18px 22px',
+        borderBottom: `1px solid ${FARGER.kantUltralys}`,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: '#0e1726', letterSpacing: '0.06em' }}>Aktive oppgaver</h2>
-          <button onClick={() => setVisNyOppgave(!visNyOppgave)}
-            style={{ background: '#0e1726', color: 'white', border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: FARGER.mork, letterSpacing: '-0.005em' }}>Aktive oppgaver</h2>
+          <button onClick={() => setVisNyOppgave(!visNyOppgave)} className="knapp-hover-loft"
+            style={{
+              background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+              borderRadius: RADIUS.pill, padding: '9px 18px',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: SHADOW.sm,
+              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            }}>
             + Ny oppgave
           </button>
         </div>
       </div>
-      <div style={{ padding: 20 }}>
+      <div style={{ padding: 22 }}>
       {visNyOppgave && (
-        <div style={{ background: '#f8f8f8', borderRadius: 6, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
+        <div className="anim-fade-down" style={{
+          background: FARGER.flateLys,
+          borderRadius: RADIUS.md,
+          padding: 18,
+          marginBottom: 18,
+          border: `1px solid ${FARGER.kantUltralys}`,
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
             <div style={fieldStyle}><label style={labelStyle}>Oppgave</label><input style={inputStyle} value={nyTittel} onChange={e => setNyTittel(e.target.value)} placeholder="Hva skal gjøres?" onKeyDown={e => e.key === 'Enter' && leggTilOppgave()} /></div>
             <div style={fieldStyle}><label style={labelStyle}>Ansvar</label><input style={inputStyle} value={nyAnsvar} onChange={e => setNyAnsvar(e.target.value)} placeholder="Hvem?" /></div>
             <div style={fieldStyle}><label style={labelStyle}>Frist</label><input style={inputStyle} type="date" value={nyFrist} onChange={e => setNyFrist(e.target.value)} /></div>
@@ -90,29 +104,49 @@ export function Oppgaver() {
               </select>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={leggTilOppgave} style={{ flex: 1, background: '#0e1726', color: 'white', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>✅ Legg til</button>
-            <button onClick={() => setVisNyOppgave(false)} style={{ background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>Avbryt</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={leggTilOppgave} className="knapp-hover-loft" style={{
+              flex: 1, background: FARGER.mork, color: FARGER.creamLys,
+              border: 'none', borderRadius: RADIUS.pill, padding: 12,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: SHADOW.sm,
+            }}>Legg til</button>
+            <button onClick={() => setVisNyOppgave(false)} style={{
+              background: FARGER.hvit, color: FARGER.tekstMid,
+              border: `1px solid ${FARGER.kantUltralys}`,
+              borderRadius: RADIUS.pill, padding: '12px 20px',
+              fontSize: 13, cursor: 'pointer', fontWeight: 500,
+            }}>Avbryt</button>
           </div>
         </div>
       )}
-      {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 14 }}>Ingen oppgaver ennå!</div>}
+      {oppgaver.length === 0 && <div style={{ textAlign: 'center', padding: '24px 0', color: FARGER.tekstLys, fontSize: 14 }}>Ingen oppgaver ennå</div>}
       {oppgaver.map(o => {
         const ep = beregnEffektivPrioritet(o)
         const pf = prioritetFarge(ep, o.status)
         const ft = o.status === 'ferdig' ? '' : fristTekst(o.frist)
         return (
-          <div key={o.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', marginBottom: 8, background: pf.bg, border: `1.5px solid ${pf.border}`, borderRadius: 6, opacity: o.status === 'ferdig' ? 0.6 : 1 }}>
+          <div key={o.id} style={{
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+            padding: '12px 14px', marginBottom: 8,
+            background: pf.bg, border: `1px solid ${pf.border}`,
+            borderRadius: RADIUS.md,
+            opacity: o.status === 'ferdig' ? 0.6 : 1,
+            transition: `opacity ${MOTION.rask}`,
+          }}>
             <input type="checkbox" checked={o.status === 'ferdig'} onChange={() => toggleOppgave(o)} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? '#888' : '#0e1726', textDecoration: o.status === 'ferdig' ? 'line-through' : 'none' }}>{o.tittel}</div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
-                {o.ansvar && <div style={{ fontSize: 12, color: '#888' }}>👤 {o.ansvar}</div>}
+              <div style={{ fontSize: 14, fontWeight: 500, color: o.status === 'ferdig' ? FARGER.tekstLys : FARGER.mork, textDecoration: o.status === 'ferdig' ? 'line-through' : 'none', letterSpacing: '-0.005em' }}>{o.tittel}</div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                {o.ansvar && <div style={{ fontSize: 12, color: FARGER.tekstLys }}>👤 {o.ansvar}</div>}
                 {ft && <div style={{ fontSize: 12, fontWeight: 500, color: pf.color }}>{ft}</div>}
               </div>
             </div>
             <div style={{ fontSize: 12, fontWeight: 600, color: pf.color, whiteSpace: 'nowrap' }}>{o.status === 'ferdig' ? '🟢 Ferdig' : prioritetLabel(ep)}</div>
-            <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#ccc', flexShrink: 0 }}>🗑️</button>
+            <button onClick={() => slettOppgave(o.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: FARGER.tekstLys, flexShrink: 0, opacity: 0.6, transition: `opacity ${MOTION.rask}` }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}>🗑️</button>
           </div>
         )
       })}
