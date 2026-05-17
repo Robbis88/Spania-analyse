@@ -53,13 +53,16 @@ export function AgentChat() {
 
   useEffect(() => { bunnRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [meldinger])
 
+  // Refresh prosjektlisten hver gang chatten åpnes — slik at boliger som
+  // ble lagret etter at chatten ble mountet kommer opp i dropdown'en.
   useEffect(() => {
+    if (!apen) return
     let avbrutt = false
     supabase.from('prosjekter').select('id, navn, status, marked').order('opprettet', { ascending: false }).then(({ data }) => {
       if (!avbrutt && data) setProsjekter(data as ProsjektValg[])
     })
     return () => { avbrutt = true }
-  }, [])
+  }, [apen])
 
   // Lytter etter «åpne chat med pre-valgt prosjekt» — sendes f.eks. fra Boliganalyse
   // når brukeren har lagret en bolig til vurdering og vil sende den videre.
