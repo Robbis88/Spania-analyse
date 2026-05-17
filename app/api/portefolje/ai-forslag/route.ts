@@ -13,7 +13,7 @@ import {
 
 const klient = new Anthropic()
 
-const MODELL = 'claude-sonnet-4-5'
+const MODELL = 'claude-sonnet-4-6'
 
 const aiTool = {
   name: 'gi_portefolje_anbefaling',

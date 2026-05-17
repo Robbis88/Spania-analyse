@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 0,           // deterministisk — samme Finn-lenke skal gi (nesten) samme analyse
       messages: [{

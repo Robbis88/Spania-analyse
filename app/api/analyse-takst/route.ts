@@ -4,7 +4,7 @@ import { requireAuth } from '../../lib/requireAuth'
 
 const TILLATTE_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const
 const MAKS_BYTES = 25 * 1024 * 1024
-const MODELL = 'claude-sonnet-4-5'
+const MODELL = 'claude-sonnet-4-6'
 
 const takstTool = {
   name: 'les_takstrapport',

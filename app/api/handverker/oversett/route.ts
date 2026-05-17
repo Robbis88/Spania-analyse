@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '../../../lib/requireAuth'
 
-const MODELL = 'claude-sonnet-4-5'
+const MODELL = 'claude-sonnet-4-6'
 
 const SPRAK_NAVN: Record<string, string> = {
   no: 'Norwegian (Bokmål)',

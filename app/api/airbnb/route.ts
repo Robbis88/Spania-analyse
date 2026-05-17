@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const [analyseRes, scoreRes] = await Promise.all([
       // ANALYSE
       client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 0,
       messages: [{
@@ -90,7 +90,7 @@ Beregn for 5%, 6% og 7% yield.
     }),
       // SCORE
       client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 800,
       temperature: 0,
       messages: [{
@@ -165,7 +165,7 @@ Scoring-regler:
     // Bruker streaming på det største kallet (max 3000 tokens) så HTTP-forbindelsen
     // holdes varm gjennom hele genereringen.
     const dataStream = client.messages.stream({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 3000,
       temperature: 0,
       tools: [{

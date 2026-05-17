@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2500,
       temperature: 0,           // deterministisk — samme bolig skal gi konsistente tall
       messages: [{
@@ -173,7 +173,8 @@ Sett tall til 0 hvis ikke oppgitt. Sett strenger til "" hvis ikke oppgitt. Sett 
     return NextResponse.json(data)
 
   } catch (error) {
-    console.error('Feil:', error instanceof Error ? error.message : String(error))
-    return NextResponse.json({ error: 'Analyse feilet' }, { status: 500 })
+    const melding = error instanceof Error ? error.message : String(error)
+    console.error('Analyse feilet:', melding)
+    return NextResponse.json({ feil: melding }, { status: 500 })
   }
 }

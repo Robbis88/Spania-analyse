@@ -87,7 +87,7 @@ Returner KUN gyldig JSON uten markdown:
 }`
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       temperature: 0,
       system: `Du er ekspert på eiendomsinvestering og salg i Spania, spesielt Costa del Sol, Costa Blanca, Mallorca og Ibiza.

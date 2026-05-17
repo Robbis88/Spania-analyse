@@ -6,7 +6,7 @@ import type { BoligData, Prosjekt } from '../../../types'
 
 const client = new Anthropic()
 
-const MODELL = 'claude-sonnet-4-5'
+const MODELL = 'claude-sonnet-4-6'
 
 const salgsanalyseTool = {
   name: 'generer_salgsanalyse',

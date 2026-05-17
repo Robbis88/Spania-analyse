@@ -38,7 +38,7 @@ Return ONLY JSON in this exact shape (no markdown):
 { "no": "...", "en": "...", "es": "...", "fr": "...", "de": "...", "nl": "...", "da": "...", "sv": "..." }`
 
   const respons = await klient.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4000,
     temperature: 0,
     messages: [{ role: 'user', content: prompt }],
@@ -66,7 +66,7 @@ Return ONLY JSON in this exact shape (no markdown):
 { "no": [...], "en": [...], "es": [...], "fr": [...], "de": [...], "nl": [...], "da": [...], "sv": [...] }`
 
   const respons = await klient.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4000,
     temperature: 0,
     messages: [{ role: 'user', content: prompt }],

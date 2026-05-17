@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
     const fiksedeMeldinger = fiksToolUseKjede(meldinger as Melding[])
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2500,
       system,
       tools: [foreslaaEpostTool],
