@@ -8,6 +8,14 @@ import { validerEpostadresse } from '../../../lib/epost'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
+// Kunde-token = lang random streng. Brukes som "lenke-passord" til kunde-portalen.
+function nyKundeToken(): string {
+  const tegn = 'abcdefghjkmnpqrstuvwxyz23456789'   // utelater forvirrende tegn
+  let s = ''
+  for (let i = 0; i < 24; i++) s += tegn[Math.floor(Math.random() * tegn.length)]
+  return s
+}
+
 type Body = {
   kunde_navn?: string
   kunde_epost?: string
@@ -40,12 +48,25 @@ export async function POST(req: NextRequest) {
     const pris = beregnPris(storrelse, tjeneste)
 
     const id = nyId()
+    const epost = body.kunde_epost.trim().toLowerCase()
     const supabase = hentSupabaseAdmin()
+
+    // Gjenbruk eksisterende kunde-token hvis vi finner en tidligere bestilling
+    // fra samme e-post — da får kunden én enkelt portal-lenke for alle sine
+    // inspeksjoner i stedet for én lenke per booking.
+    const { data: tidligere } = await supabase
+      .from('inspeksjon_bestillinger')
+      .select('kunde_token')
+      .eq('kunde_epost', epost)
+      .not('kunde_token', 'is', null)
+      .limit(1)
+      .maybeSingle()
+    const kundeToken = tidligere?.kunde_token || nyKundeToken()
 
     const { error } = await supabase.from('inspeksjon_bestillinger').insert([{
       id,
       kunde_navn: body.kunde_navn.trim(),
-      kunde_epost: body.kunde_epost.trim().toLowerCase(),
+      kunde_epost: epost,
       kunde_telefon: body.kunde_telefon?.trim() || null,
       kunde_sprak: ['no', 'en', 'es'].includes(body.kunde_sprak || '') ? body.kunde_sprak : 'no',
       adresse: body.adresse.trim(),
@@ -59,6 +80,7 @@ export async function POST(req: NextRequest) {
       fleksibel: body.fleksibel ?? true,
       melding: body.melding?.trim() || null,
       status: 'ny',
+      kunde_token: kundeToken,
     }])
 
     if (error) {
@@ -66,7 +88,7 @@ export async function POST(req: NextRequest) {
       return svar('Kunne ikke lagre bestillingen. Prøv igjen, eller kontakt oss direkte.', 500)
     }
 
-    return NextResponse.json({ ok: true, id, pris_eur: pris })
+    return NextResponse.json({ ok: true, id, pris_eur: pris, kunde_token: kundeToken })
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
     console.error('Bestilling-feil:', m)

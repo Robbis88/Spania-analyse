@@ -31,6 +31,8 @@ type Bestilling = {
   status: BestillingStatus
   planlagt_tidspunkt: string | null
   intern_notat: string | null
+  abonnement_rot_id: string | null
+  kunde_token: string | null
 }
 
 type Rapport = {
@@ -73,6 +75,8 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
   const [utvidet, setUtvidet] = useState<string | null>(null)
   const [rapportFor, setRapportFor] = useState<string | null>(null)  // bestilling_id
   const [tilbudFor, setTilbudFor] = useState<string | null>(null)    // bestilling_id
+  const [visning, setVisning] = useState<'liste' | 'kalender'>('liste')
+  const [kalenderMnd, setKalenderMnd] = useState(() => new Date())
 
   const aktivBruker = (typeof window !== 'undefined' ? hentAktivBruker() : null) || 'inspektor'
 
@@ -178,24 +182,78 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
         })}
       </div>
 
-      {/* Filter */}
-      <div style={{
-        display: 'inline-flex', gap: 4, flexWrap: 'wrap',
-        background: FARGER.hvit, padding: 5, marginBottom: 18,
-        borderRadius: RADIUS.pill,
-        boxShadow: SHADOW.sm,
-        border: `1px solid ${FARGER.kantUltralys}`,
-      }}>
-        <button onClick={() => setFilter('alle')}
-          style={pillTab(filter === 'alle')}>Alle ({bestillinger.length})</button>
-        {(['ny', 'planlagt', 'utfort', 'tilbud_sendt', 'avsluttet', 'avlyst'] as BestillingStatus[]).map(s => (
-          <button key={s} onClick={() => setFilter(s)} style={pillTab(filter === s)}>
-            {BESTILLING_STATUS_ETIKETT[s].lbl} ({statusTeller[s] || 0})
-          </button>
-        ))}
+      {/* Visning-toggle: liste vs kalender */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'inline-flex', gap: 4,
+          background: FARGER.hvit, padding: 5,
+          borderRadius: RADIUS.pill, boxShadow: SHADOW.sm,
+          border: `1px solid ${FARGER.kantUltralys}`,
+        }}>
+          <button onClick={() => setVisning('liste')} style={pillTab(visning === 'liste')}>📋 Liste</button>
+          <button onClick={() => setVisning('kalender')} style={pillTab(visning === 'kalender')}>🗓 Kalender</button>
+        </div>
+        {visning === 'liste' && (
+          <div style={{
+            display: 'inline-flex', gap: 4, flexWrap: 'wrap',
+            background: FARGER.hvit, padding: 5,
+            borderRadius: RADIUS.pill, boxShadow: SHADOW.sm,
+            border: `1px solid ${FARGER.kantUltralys}`,
+          }}>
+            <button onClick={() => setFilter('alle')}
+              style={pillTab(filter === 'alle')}>Alle ({bestillinger.length})</button>
+            {(['ny', 'planlagt', 'utfort', 'tilbud_sendt', 'avsluttet', 'avlyst'] as BestillingStatus[]).map(s => (
+              <button key={s} onClick={() => setFilter(s)} style={pillTab(filter === s)}>
+                {BESTILLING_STATUS_ETIKETT[s].lbl} ({statusTeller[s] || 0})
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {laster && (
+      {visning === 'kalender' && (
+        <KalenderVisning
+          bestillinger={bestillinger}
+          mnd={kalenderMnd}
+          settMnd={setKalenderMnd}
+          onKlikk={id => { setVisning('liste'); setUtvidet(id) }}
+        />
+      )}
+
+      {visning === 'kalender' && (
+        <KommendeAbonnementer
+          bestillinger={bestillinger}
+          rapporter={rapporter}
+          onPlanlegg={async (kilde) => {
+            // Lag ny bestilling for kilde-kunden basert på abonnementstype
+            const id = nyId()
+            const erKvartalsvis = kilde.tjeneste_type === 'kvartalsvis_grundig'
+            const dagerFrem = erKvartalsvis ? 90 : 30
+            const neste = new Date()
+            neste.setDate(neste.getDate() + dagerFrem)
+
+            const { error } = await supabase.from('inspeksjon_bestillinger').insert([{
+              id,
+              kunde_navn: kilde.kunde_navn, kunde_epost: kilde.kunde_epost,
+              kunde_telefon: kilde.kunde_telefon, kunde_sprak: 'no',
+              adresse: kilde.adresse, kompleks: kilde.kompleks, leilighet_nr: kilde.leilighet_nr,
+              storrelse: kilde.storrelse, bra_m2: kilde.bra_m2,
+              tjeneste_type: kilde.tjeneste_type, pris_eur: kilde.pris_eur,
+              onsket_dato: neste.toISOString().slice(0, 10), fleksibel: true,
+              status: 'ny',
+              abonnement_rot_id: kilde.abonnement_rot_id || kilde.id,
+              kunde_token: kilde.kunde_token,
+            }])
+            if (error) { visToast('Kunne ikke lage neste besøk: ' + error.message, 'feil', 4000); return }
+            visToast('Neste besøk opprettet', 'suksess', 2500)
+            await hent()
+          }}
+        />
+      )}
+
+      {visning === 'liste' && null}
+
+      {visning === 'liste' && laster && (
         <div>
           {[0, 1].map(i => (
             <div key={i} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 14, boxShadow: SHADOW.sm }}>
@@ -206,7 +264,7 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
         </div>
       )}
 
-      {!laster && filtrert.length === 0 && (
+      {visning === 'liste' && !laster && filtrert.length === 0 && (
         <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 48, textAlign: 'center', color: FARGER.tekstMid }}>
           <div style={{ fontSize: 44, marginBottom: 14 }}>📋</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>Ingen bestillinger i dette filteret</div>
@@ -214,7 +272,7 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
         </div>
       )}
 
-      {!laster && filtrert.map((b, i) => {
+      {visning === 'liste' && !laster && filtrert.map((b, i) => {
         const rapport = rapporter[b.id]
         const tilbudListe = rapport ? (tilbud[rapport.id] || []) : []
         const f = BESTILLING_STATUS_ETIKETT[b.status]
@@ -719,4 +777,210 @@ function pillTab(aktiv: boolean): React.CSSProperties {
     letterSpacing: '-0.005em',
     transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
   }
+}
+
+// ============================================================================
+// KALENDER-VISNING — månedlig grid med planlagte besøk
+// ============================================================================
+
+function KalenderVisning({
+  bestillinger, mnd, settMnd, onKlikk,
+}: {
+  bestillinger: Bestilling[]
+  mnd: Date
+  settMnd: (d: Date) => void
+  onKlikk: (id: string) => void
+}) {
+  // Bygg en 6-uker grid for valgt måned (alltid 42 celler)
+  const aar = mnd.getFullYear()
+  const mndIndex = mnd.getMonth()
+  const forsteDag = new Date(aar, mndIndex, 1)
+  // Mandag-først: 0=man, 6=søn
+  const startDag = (forsteDag.getDay() + 6) % 7
+  const dager: Date[] = []
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(aar, mndIndex, 1 - startDag + i)
+    dager.push(d)
+  }
+
+  // Indekser bestillinger på dato-key (YYYY-MM-DD)
+  const planlagtePerDag: Record<string, Bestilling[]> = {}
+  for (const b of bestillinger) {
+    if (!b.planlagt_tidspunkt || b.status === 'avlyst') continue
+    const key = b.planlagt_tidspunkt.slice(0, 10)
+    if (!planlagtePerDag[key]) planlagtePerDag[key] = []
+    planlagtePerDag[key].push(b)
+  }
+
+  const ukedagNavn = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
+  const mndNavn = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember']
+  const idag = new Date(); idag.setHours(0, 0, 0, 0)
+
+  return (
+    <div style={{
+      background: FARGER.hvit,
+      border: `1px solid ${FARGER.kantUltralys}`,
+      borderRadius: RADIUS.lg, padding: 22, marginBottom: 18,
+      boxShadow: SHADOW.sm,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.015em' }}>
+          {mndNavn[mndIndex]} {aar}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => settMnd(new Date(aar, mndIndex - 1, 1))} style={pilKnapp}>←</button>
+          <button onClick={() => settMnd(new Date())} style={navKnapp}>I dag</button>
+          <button onClick={() => settMnd(new Date(aar, mndIndex + 1, 1))} style={pilKnapp}>→</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {ukedagNavn.map(u => (
+          <div key={u} style={{ fontSize: 11, color: FARGER.tekstLys, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, textAlign: 'center', padding: 8 }}>
+            {u}
+          </div>
+        ))}
+        {dager.map((d, i) => {
+          const erFraMnd = d.getMonth() === mndIndex
+          const erIdag = d.getTime() === idag.getTime()
+          const key = d.toISOString().slice(0, 10)
+          const besok = planlagtePerDag[key] || []
+          return (
+            <div key={i} style={{
+              background: erIdag ? FARGER.creamLys : (erFraMnd ? FARGER.hvit : FARGER.flateLys),
+              border: erIdag ? `1.5px solid ${FARGER.gull}` : `1px solid ${FARGER.kantUltralys}`,
+              borderRadius: RADIUS.md, padding: 8,
+              minHeight: 90, opacity: erFraMnd ? 1 : 0.45,
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: erIdag ? 700 : 500, color: FARGER.mork, letterSpacing: '-0.005em' }}>
+                {d.getDate()}
+              </div>
+              {besok.slice(0, 3).map(b => {
+                const f = BESTILLING_STATUS_ETIKETT[b.status]
+                const tid = b.planlagt_tidspunkt
+                  ? new Date(b.planlagt_tidspunkt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+                  : ''
+                return (
+                  <button key={b.id} onClick={() => onKlikk(b.id)} style={{
+                    background: f.bg, color: f.tekst, border: 'none',
+                    borderRadius: RADIUS.sm,
+                    padding: '3px 6px', fontSize: 10.5, fontWeight: 600,
+                    cursor: 'pointer', textAlign: 'left',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    letterSpacing: '-0.005em',
+                  }}>
+                    {tid} {b.kunde_navn.split(' ')[0]}
+                  </button>
+                )
+              })}
+              {besok.length > 3 && (
+                <div style={{ fontSize: 10, color: FARGER.tekstLys, padding: '2px 6px' }}>
+                  +{besok.length - 3} til
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// KOMMENDE ABONNEMENTER — viser abo-kunder som mangler neste-besøk
+// ============================================================================
+
+function KommendeAbonnementer({
+  bestillinger, rapporter, onPlanlegg,
+}: {
+  bestillinger: Bestilling[]
+  rapporter: Record<string, Rapport>
+  onPlanlegg: (kilde: Bestilling) => Promise<void>
+}) {
+  // For hver abo-rot: finn nyeste bestilling. Hvis den er utført/avsluttet og
+  // det ikke finnes en ny ufullført bestilling etter den, så er det på tide
+  // å planlegge neste.
+  const aboBestillinger = bestillinger.filter(b =>
+    b.tjeneste_type === 'manedlig_visuell' || b.tjeneste_type === 'kvartalsvis_grundig'
+  )
+
+  // Grupper per kunde-epost + adresse (samme leilighet)
+  const grupper: Record<string, Bestilling[]> = {}
+  for (const b of aboBestillinger) {
+    const key = `${b.kunde_epost}|${b.adresse}`
+    if (!grupper[key]) grupper[key] = []
+    grupper[key].push(b)
+  }
+
+  // For hver gruppe, finn siste utførte uten åpen oppfølger
+  const trengerNytt: Array<{ kilde: Bestilling; siste_besokt: string | null }> = []
+  for (const liste of Object.values(grupper)) {
+    const sortert = [...liste].sort((a, b) => b.opprettet.localeCompare(a.opprettet))
+    const nyeste = sortert[0]
+    const harAapen = nyeste && nyeste.status !== 'avsluttet' && nyeste.status !== 'avlyst' && nyeste.status !== 'utfort' && nyeste.status !== 'tilbud_sendt'
+    const nyligUtfort = nyeste && (nyeste.status === 'utfort' || nyeste.status === 'tilbud_sendt' || nyeste.status === 'avsluttet')
+    if (!harAapen && nyligUtfort) {
+      const r = rapporter[nyeste.id]
+      trengerNytt.push({ kilde: nyeste, siste_besokt: r?.besokt_dato || null })
+    }
+  }
+
+  if (trengerNytt.length === 0) return null
+
+  return (
+    <div style={{
+      background: FARGER.creamLys,
+      border: `1px solid ${FARGER.gull}33`,
+      borderRadius: RADIUS.lg, padding: 22, marginBottom: 18,
+      boxShadow: SHADOW.sm,
+    }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
+        🔁 Abonnement — klare for neste besøk
+      </div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, marginTop: 0, marginBottom: 16, lineHeight: 1.55 }}>
+        Disse kundene har avsluttet en runde og venter på neste planlagte besøk. Klikk «Planlegg neste» for å lage en ny bestilling med passende dato fremover.
+      </p>
+      {trengerNytt.map(({ kilde, siste_besokt }) => (
+        <div key={kilde.id} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          gap: 12, padding: '12px 0', borderTop: `1px solid ${FARGER.kantUltralys}`, flexWrap: 'wrap',
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>{kilde.kunde_navn}</div>
+            <div style={{ fontSize: 12, color: FARGER.tekstMid, marginTop: 2 }}>
+              {kilde.adresse}{kilde.leilighet_nr ? ` · ${kilde.leilighet_nr}` : ''} · {TJENESTE_ETIKETT[kilde.tjeneste_type]}
+            </div>
+            {siste_besokt && (
+              <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 2 }}>
+                Sist besøkt {fmtDato(siste_besokt)}
+              </div>
+            )}
+          </div>
+          <button onClick={() => onPlanlegg(kilde)} className="knapp-hover-loft" style={{
+            background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+            borderRadius: RADIUS.pill, padding: '9px 18px',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            letterSpacing: '-0.005em', boxShadow: SHADOW.sm,
+          }}>
+            🗓 Planlegg neste
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const pilKnapp: React.CSSProperties = {
+  background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+  borderRadius: RADIUS.pill, padding: '7px 14px', fontSize: 14,
+  cursor: 'pointer', color: FARGER.tekstMid, fontWeight: 500,
+  boxShadow: SHADOW.xs,
+}
+
+const navKnapp: React.CSSProperties = {
+  background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
+  borderRadius: RADIUS.pill, padding: '7px 16px', fontSize: 13,
+  cursor: 'pointer', color: FARGER.tekstMid, fontWeight: 500,
+  boxShadow: SHADOW.xs, letterSpacing: '-0.005em',
 }

@@ -29,7 +29,7 @@ export default function InspeksjonSide() {
   const [fleksibel, setFleksibel] = useState(true)
   const [melding, setMelding] = useState('')
   const [sender, setSender] = useState(false)
-  const [sendt, setSendt] = useState<{ id: string; pris: number } | null>(null)
+  const [sendt, setSendt] = useState<{ id: string; pris: number; kundeToken: string } | null>(null)
   const [feil, setFeil] = useState('')
 
   const pris = useMemo(() => beregnPris(storrelse, tjeneste), [storrelse, tjeneste])
@@ -59,7 +59,7 @@ export default function InspeksjonSide() {
       if (!res.ok || !data.ok) {
         setFeil(data.feil || 'Noe gikk galt. Prøv igjen.')
       } else {
-        setSendt({ id: data.id, pris: data.pris_eur })
+        setSendt({ id: data.id, pris: data.pris_eur, kundeToken: data.kunde_token })
       }
     } catch (e) {
       setFeil(e instanceof Error ? e.message : 'Noe gikk galt. Prøv igjen.')
@@ -170,17 +170,61 @@ export default function InspeksjonSide() {
               <p style={{ fontSize: 15, lineHeight: 1.65, color: FARGER.tekstMid, margin: '0 auto 22px', maxWidth: 540 }}>
                 Vi tar kontakt på <strong style={{ color: MØRK }}>{epost}</strong> innen 24 timer for å avtale tidspunkt. Pris bekreftet: <strong style={{ color: MØRK }}>€{sendt.pris}</strong>.
               </p>
+
+              {/* Min side-lenke */}
+              <div style={{
+                background: CREAM_LYS,
+                border: `1px solid ${GULL}33`,
+                borderRadius: RADIUS.lg,
+                padding: 22,
+                margin: '0 auto 28px',
+                maxWidth: 540,
+                textAlign: 'left',
+              }}>
+                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 10, textTransform: 'uppercase' }}>
+                  🔖 Lagre denne lenken
+                </div>
+                <p style={{ fontSize: 14, color: FARGER.tekstMid, margin: '0 0 14px', lineHeight: 1.55 }}>
+                  Du finner alltid status, rapporter og tilbud på din egen oversiktsside:
+                </p>
+                <Link href={`/inspeksjon/min/${sendt.kundeToken}`} style={{
+                  display: 'block',
+                  background: FARGER.hvit,
+                  border: `1px solid ${FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.md,
+                  padding: '12px 14px',
+                  fontSize: 12.5, color: MØRK,
+                  fontFamily: 'monospace',
+                  textDecoration: 'none',
+                  wordBreak: 'break-all',
+                  letterSpacing: '-0.005em',
+                }}>
+                  loeiendom.com/inspeksjon/min/{sendt.kundeToken}
+                </Link>
+                <button onClick={() => {
+                  navigator.clipboard.writeText(`https://www.loeiendom.com/inspeksjon/min/${sendt.kundeToken}`).catch(() => {})
+                }} style={{
+                  background: 'none', border: 'none',
+                  color: FARGER.tekstMid, fontSize: 12,
+                  cursor: 'pointer', marginTop: 10,
+                  padding: 0, textDecoration: 'underline',
+                  fontWeight: 500,
+                }}>
+                  📋 Kopier lenken
+                </button>
+              </div>
+
               <p style={{ fontSize: 13, color: FARGER.tekstLys, margin: '0 0 28px', fontStyle: 'italic' }}>
                 Referanse: {sendt.id}
               </p>
-              <Link href="/" style={{
+              <Link href={`/inspeksjon/min/${sendt.kundeToken}`} className="knapp-hover-loft" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: MØRK, color: CREAM_LYS, textDecoration: 'none',
                 padding: '14px 28px', fontSize: 13, fontWeight: 600,
                 letterSpacing: '-0.005em',
                 borderRadius: RADIUS.pill, boxShadow: SHADOW.sm,
               }}>
-                ← Tilbake til portalen
+                Åpne min side →
               </Link>
             </div>
           ) : (
