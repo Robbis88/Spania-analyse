@@ -35,6 +35,17 @@ const TYPE_ETIKETT: Record<DialogType, string> = {
   notat: '📝 Notat',
 }
 
+// Hvilken mottaker er det naturlig å skrive til når brukeren ber om en
+// oppfølging — gitt typen på innslaget vi logget.
+const OPPFOLGING_MOTTAKER: Record<DialogType, string> = {
+  megler_svar: 'megleren',
+  bank_svar: 'banken',
+  selger_svar: 'selgeren',
+  haandverker_svar: 'håndverkeren',
+  beslutning: 'relevant kontakt (megler, bank eller selger — vurder ut fra innholdet)',
+  notat: 'relevant kontakt (megler, bank eller selger — vurder ut fra innholdet)',
+}
+
 const TYPE_FARGE: Record<DialogType, { bg: string; tekst: string }> = {
   megler_svar:      { bg: '#fef3e8', tekst: '#7a4a08' },
   bank_svar:        { bg: '#e8f0fe', tekst: '#1a3a6e' },
@@ -138,6 +149,26 @@ export function ProsjektDialog({ prosjektId }: { prosjektId: string }) {
     if (error) { visToast('Kunne ikke slette: ' + error.message, 'feil', 4000); return }
     visToast('Slettet', 'suksess', 2000)
     await hent()
+  }
+
+  // Åpner chat-roboten med en ferdig forespørsel om oppfølgingsutkast,
+  // hvor svaret + min vurdering er flettet inn som kontekst.
+  function lagOppfolging(r: DialogRad) {
+    const mottaker = OPPFOLGING_MOTTAKER[r.type]
+    const koblet = r.relatert_epost_id ? epostMap[r.relatert_epost_id] : null
+    const kontekstBiter: string[] = []
+    if (koblet) kontekstBiter.push(`Jeg sendte tidligere en e-post med emne «${koblet.emne}».`)
+    kontekstBiter.push(`Jeg fikk dette svaret:\n\n"${r.innhold}"`)
+    if (r.notat) kontekstBiter.push(`Min vurdering / hva jeg vil oppnå med oppfølgingen:\n\n${r.notat}`)
+    const prompt = [
+      ...kontekstBiter,
+      '',
+      `Lag et profesjonelt oppfølgingsutkast til ${mottaker} basert på dette. Behold tonen vennlig men tydelig. Foreslå konkrete neste steg, og still oppfølgingsspørsmål hvis svaret etterlot uklarheter.`,
+    ].join('\n\n')
+
+    window.dispatchEvent(new CustomEvent<{ prosjektId: string; prompt?: string }>('app-open-chat', {
+      detail: { prosjektId, prompt },
+    }))
   }
 
   const epostMap = useMemo(() => {
@@ -325,6 +356,20 @@ export function ProsjektDialog({ prosjektId }: { prosjektId: string }) {
                 </div>
               </div>
             )}
+
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${FARGER.kantUltralys}`, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => lagOppfolging(r)} className="knapp-hover-loft"
+                style={{
+                  background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+                  borderRadius: RADIUS.pill, padding: '8px 18px',
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  letterSpacing: '-0.005em',
+                  boxShadow: SHADOW.sm,
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                📧 Lag oppfølging
+              </button>
+            </div>
           </div>
         )
       })}
