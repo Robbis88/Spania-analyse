@@ -23,8 +23,9 @@ const Dashboard = dynamic(() => import('../components/Dashboard').then(m => m.Da
 const Portefolje = dynamic(() => import('../components/portefolje/Portefolje').then(m => m.Portefolje), { ssr: false, loading: laster })
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
+const Inspeksjon = dynamic(() => import('../components/Inspeksjon').then(m => m.Inspeksjon), { ssr: false, loading: laster })
 
-type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'logg' | null
+type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'inspeksjon' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -48,6 +49,7 @@ const SEKSJONER: Snarvei[] = [
   { id: 'regnskap', ikon: '07', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport' },
   { id: 'timer', ikon: '08', tittel: 'Timer', beskrivelse: 'Loggfør arbeidstimer per prosjekt — felles oversikt' },
   { id: 'handverkere', ikon: '09', tittel: 'Håndverkere', beskrivelse: 'Nettverk av rørleggere, elektrikere, flisleggere osv.' },
+  { id: 'inspeksjon', ikon: '10', tittel: 'Boliginspeksjon', beskrivelse: 'Egen tjeneste — kunder bestiller inspeksjon på /inspeksjon' },
 ]
 
 const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
@@ -60,6 +62,7 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   regnskap: 'Regnskap',
   timer: 'Timer',
   handverkere: 'Håndverkere',
+  inspeksjon: 'Boliginspeksjon',
   logg: 'Aktivitetslogg',
 }
 
@@ -105,6 +108,7 @@ const NAV_LINKS: NavLink[] = [
   { id: 'regnskap', lbl: 'Regnskap' },
   { id: 'timer', lbl: 'Timer' },
   { id: 'handverkere', lbl: 'Håndverk' },
+  { id: 'inspeksjon', lbl: 'Inspeksjon' },
   { id: 'gjoremal', lbl: 'Gjøremål' },
   { id: 'logg', lbl: 'Logg' },
 ]
@@ -377,6 +381,7 @@ export default function Home() {
           {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
           {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
           {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
+          {aktivSeksjon === 'inspeksjon' && <Inspeksjon onTilbake={hjem} />}
           {aktivSeksjon === 'portefolje' && <Portefolje onTilbake={hjem} />}
           {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}

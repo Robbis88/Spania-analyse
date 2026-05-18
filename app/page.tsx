@@ -161,6 +161,54 @@ export default function Forside() {
         )}
       </section>
 
+      {/* TJENESTE — Boliginspeksjon */}
+      <section style={{ background: CREAM_LYS, padding: 'clamp(56px, 8vw, 96px) 0', borderTop: `1px solid ${GULL}22` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(28px, 5vw, 48px)', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14 }}>OGSÅ TILGJENGELIG</div>
+              <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 300, color: MØRK, margin: '0 0 18px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>
+                Boliginspeksjon — sov trygt mens du er hjemme
+              </h2>
+              <p style={{ fontSize: 16, lineHeight: 1.65, color: '#5a6171', margin: '0 0 26px', fontWeight: 300 }}>
+                Eier du en leilighet langs Costa del Sol? La en lokal håndverker med 30+ års erfaring sjekke leiligheten din regelmessig — lekkasjer, fukt og slitasje fanges før det blir dyrt. Du får skriftlig rapport med foto.
+              </p>
+              <a href="/inspeksjon" className="knapp-hover-loft" style={{
+                background: MØRK, color: CREAM_LYS, textDecoration: 'none',
+                padding: '14px 28px', fontSize: 13, fontWeight: 600,
+                letterSpacing: '-0.005em',
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                borderRadius: '999px',
+                boxShadow: '0 2px 6px rgba(14,23,38,0.08)',
+              }}>
+                Se priser og bestill
+                <span aria-hidden>→</span>
+              </a>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+              {[
+                { ikon: '🛁', t: 'Bad og kjøkken', b: 'Lekkasjer, fugemasse, avløp' },
+                { ikon: '🌅', t: 'Terrasse og balkong', b: 'Vann-tetning, fliser, rekkverk' },
+                { ikon: '⚡', t: 'Elektrisk og vent.', b: 'Sikringer, avtrekk, kondens' },
+                { ikon: '📋', t: 'Rapport med foto', b: 'Prioriterte funn — du velger neste steg' },
+              ].map((f, i) => (
+                <div key={i} style={{
+                  background: '#fff',
+                  border: `1px solid rgba(14, 23, 38, 0.06)`,
+                  borderRadius: 18,
+                  padding: 18,
+                  boxShadow: '0 1px 2px rgba(14, 23, 38, 0.04), 0 2px 6px rgba(14, 23, 38, 0.04)',
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>{f.ikon}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: MØRK, marginBottom: 4, letterSpacing: '-0.005em' }}>{f.t}</div>
+                  <div style={{ fontSize: 12, color: '#5a6171', lineHeight: 1.5 }}>{f.b}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <Footer onRegistrerInteresse={() => setModalApen(true)} />
 
       <InteresseModal apen={modalApen} onLukk={() => setModalApen(false)} />
