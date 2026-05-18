@@ -66,9 +66,11 @@ export function AgentChat() {
 
   // Lytter etter «åpne chat med pre-valgt prosjekt» — sendes f.eks. fra Boliganalyse
   // når brukeren har lagret en bolig til vurdering og vil sende den videre.
+  // Støtter også en ferdig `prompt`-tekst som pre-fylles i input — brukes av
+  // NesteSteg-baren for å åpne chatten med en kontekstuell forespørsel klar.
   useEffect(() => {
     function handler(e: Event) {
-      const detail = (e as CustomEvent<{ prosjektId?: string }>).detail
+      const detail = (e as CustomEvent<{ prosjektId?: string; prompt?: string }>).detail
       const id = detail?.prosjektId
       if (id) {
         // Refresh prosjektliste i tilfelle den nye boligen ikke er lastet inn enda
@@ -77,6 +79,7 @@ export function AgentChat() {
         })
         setProsjektId(id)
       }
+      if (detail?.prompt) setInput(detail.prompt)
       setApen(true)
     }
     window.addEventListener('app-open-chat', handler as EventListener)

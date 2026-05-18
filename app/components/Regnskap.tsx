@@ -14,6 +14,8 @@ import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
 import { TilbudHistorikk } from './TilbudHistorikk'
+import { ProsjektDialog } from './ProsjektDialog'
+import { NesteSteg } from './NesteSteg'
 import { lastNedPDF, byggProsjektPdf } from '../lib/pdf'
 import { visToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
@@ -59,7 +61,7 @@ export function Regnskap({
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter' | 'forespørsler'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter' | 'forespørsler' | 'dialog'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
   const [pdfFremdrift, setPdfFremdrift] = useState('')
   const [salgspakkeApen, setSalgspakkeApen] = useState(false)
@@ -285,6 +287,8 @@ export function Regnskap({
               </div>
             )}
 
+            <NesteSteg prosjekt={p} />
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
               {[
                 { lbl: '💰 Total investert', val: fmt(totalInvestering(p)), farge: FARGER.mork },
@@ -310,6 +314,7 @@ export function Regnskap({
             }}>
               {([
                 { id: 'oversikt' as const, lbl: '📊 Oversikt' },
+                { id: 'dialog' as const, lbl: '💬 Dialog' },
                 { id: 'arsrapport' as const, lbl: '📋 Årsrapport' },
                 { id: 'kvitteringer' as const, lbl: '💳 Kvitteringer' },
                 { id: 'dokumenter' as const, lbl: '📁 Dokumenter' },
@@ -332,6 +337,10 @@ export function Regnskap({
                 </button>
               ))}
             </div>
+
+            {aktivTab === 'dialog' && (
+              <ProsjektDialog prosjektId={p.id} />
+            )}
 
             {aktivTab === 'kvitteringer' && (
               <Kvitteringer prosjektId={p.id} valuta="EUR" />
