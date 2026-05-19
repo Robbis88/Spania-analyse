@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { visToast } from '../lib/toast'
@@ -47,6 +47,8 @@ type Rapport = {
   anbefalinger: string | null
   intern_notat: string | null
 }
+
+const TILLATTE_BILDE_MIME = 'image/jpeg,image/png,image/webp,image/heic'
 
 type Tilbud = {
   id: string
@@ -395,12 +397,80 @@ function RapportModal({
   onLukk: () => void
   onLagret: () => Promise<void>
 }) {
+  // Hvis vi har en eksisterende rapport, bruker vi dens id. Hvis ikke,
+  // genererer vi en ny id med en gang slik at bilde-opplastinger får
+  // stabile storage-stier under `rapport/<id>/`.
+  const [rapportId] = useState(() => eksisterende?.id || nyId())
   const [besokt, setBesokt] = useState(eksisterende?.besokt_dato || new Date().toISOString().slice(0, 10))
   const [sjekkliste, setSjekkliste] = useState<Sjekkliste>(eksisterende?.sjekkliste || {})
   const [oppsummering, setOppsummering] = useState(eksisterende?.oppsummering || '')
   const [anbefalinger, setAnbefalinger] = useState(eksisterende?.anbefalinger || '')
   const [internNotat, setInternNotat] = useState(eksisterende?.intern_notat || '')
+  const [bildeStier, setBildeStier] = useState<string[]>(eksisterende?.bilde_stier || [])
+  const [bildeUrler, setBildeUrler] = useState<Record<string, string>>({})
+  const [laster, setLaster] = useState(false)
+  const [draggar, setDraggar] = useState(false)
   const [lagrer, setLagrer] = useState(false)
+  const filInputRef = useRef<HTMLInputElement>(null)
+
+  // Hent signerte URL-er for bilder hver gang lista endrer seg
+  useEffect(() => {
+    if (bildeStier.length === 0) { setBildeUrler({}); return }
+    let avbrutt = false
+    fetch('/api/inspeksjon/rapport/signert-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stier: bildeStier }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!avbrutt && d.urler) setBildeUrler(d.urler) })
+      .catch(() => {})
+    return () => { avbrutt = true }
+  }, [bildeStier])
+
+  async function lastOpp(filer: File[]) {
+    if (filer.length === 0) return
+    setLaster(true)
+    const nyeStier: string[] = []
+    for (const f of filer) {
+      try {
+        const fd = new FormData()
+        fd.append('rapport_id', rapportId)
+        fd.append('fil', f)
+        const res = await fetch('/api/inspeksjon/rapport/last-opp', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (!res.ok || !data.ok || !data.sti) {
+          visToast(`Opplasting feilet: ${data.feil || 'ukjent feil'}`, 'feil', 4000)
+          continue
+        }
+        nyeStier.push(data.sti as string)
+      } catch (e) {
+        visToast(`Opplasting feilet: ${e instanceof Error ? e.message : 'ukjent feil'}`, 'feil', 4000)
+      }
+    }
+    if (nyeStier.length > 0) setBildeStier(s => [...s, ...nyeStier])
+    setLaster(false)
+  }
+
+  async function slettBilde(sti: string) {
+    if (!confirm('Slette dette bildet?')) return
+    setBildeStier(s => s.filter(x => x !== sti))
+    // Fjern fra storage. Hvis storage-slett feiler er det ikke kritisk —
+    // referansen er fjernet fra rapporten, så bildet er glemt funksjonelt.
+    try {
+      await fetch('/api/inspeksjon/rapport/signert-url', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sti }),
+      })
+    } catch {/* ignorer */}
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); setDraggar(false)
+    const filer = Array.from(e.dataTransfer.files)
+    if (filer.length > 0) void lastOpp(filer)
+  }
 
   function settSjekk(felt: string, status: SjekkpunktStatus, notat?: string) {
     setSjekkliste(s => ({ ...s, [felt]: { status, notat: notat ?? s[felt]?.notat } }))
@@ -411,14 +481,13 @@ function RapportModal({
     try {
       if (eksisterende) {
         const { error } = await supabase.from('inspeksjon_rapporter').update({
-          besokt_dato: besokt, sjekkliste, oppsummering, anbefalinger, intern_notat: internNotat,
+          besokt_dato: besokt, sjekkliste, oppsummering, anbefalinger, intern_notat: internNotat, bilde_stier: bildeStier,
         }).eq('id', eksisterende.id)
         if (error) { visToast('Kunne ikke oppdatere rapport', 'feil'); return }
       } else {
-        const id = nyId()
         const { error } = await supabase.from('inspeksjon_rapporter').insert([{
-          id, bestilling_id: bestilling.id, inspektor,
-          besokt_dato: besokt, sjekkliste, oppsummering, anbefalinger, intern_notat: internNotat,
+          id: rapportId, bestilling_id: bestilling.id, inspektor,
+          besokt_dato: besokt, sjekkliste, oppsummering, anbefalinger, intern_notat: internNotat, bilde_stier: bildeStier,
         }])
         if (error) { visToast('Kunne ikke lagre rapport', 'feil'); return }
         await supabase.from('inspeksjon_bestillinger').update({ status: 'utfort' }).eq('id', bestilling.id)
@@ -520,6 +589,68 @@ function RapportModal({
               })}
             </div>
           ))}
+        </div>
+
+        {/* BILDER */}
+        <div style={{ marginTop: 18, background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 18, boxShadow: SHADOW.xs }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, marginBottom: 12, letterSpacing: '-0.005em', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span>📸 Bilder fra inspeksjonen</span>
+            {bildeStier.length > 0 && <span style={{ fontSize: 12, color: FARGER.tekstLys, fontWeight: 400 }}>{bildeStier.length} bilder</span>}
+          </div>
+
+          <div
+            onDragOver={e => { e.preventDefault(); setDraggar(true) }}
+            onDragLeave={() => setDraggar(false)}
+            onDrop={onDrop}
+            onClick={() => filInputRef.current?.click()}
+            style={{
+              border: `1.5px dashed ${draggar ? FARGER.advarsel : FARGER.gull + '66'}`,
+              background: draggar ? '#fff8e1' : FARGER.flateLys,
+              borderRadius: RADIUS.lg, padding: 24, textAlign: 'center',
+              cursor: 'pointer', marginBottom: bildeStier.length > 0 ? 14 : 0,
+              transition: `background ${MOTION.rask}, border-color ${MOTION.rask}`,
+            }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{laster ? '⏳' : '📥'}</div>
+            <div style={{ fontSize: 13.5, color: FARGER.tekstMid, fontWeight: 500 }}>
+              {laster ? 'Laster opp…' : 'Dra-og-slipp eller klikk for å legge til'}
+            </div>
+            <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>
+              JPEG, PNG, WebP eller HEIC · maks 15 MB per bilde
+            </div>
+            <input ref={filInputRef} type="file" accept={TILLATTE_BILDE_MIME} multiple
+              onChange={e => {
+                const filer = Array.from(e.target.files || [])
+                if (filer.length > 0) void lastOpp(filer)
+                if (filInputRef.current) filInputRef.current.value = ''
+              }}
+              style={{ display: 'none' }} />
+          </div>
+
+          {bildeStier.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+              {bildeStier.map(sti => {
+                const url = bildeUrler[sti]
+                return (
+                  <div key={sti} style={{ position: 'relative', background: FARGER.flateMid, borderRadius: RADIUS.md, overflow: 'hidden', aspectRatio: '4/3', boxShadow: SHADOW.xs }}>
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: FARGER.tekstLys, fontSize: 20 }}>⏳</div>
+                    )}
+                    <button onClick={() => slettBilde(sti)} title="Slett bilde" style={{
+                      position: 'absolute', top: 6, right: 6,
+                      background: 'rgba(200, 16, 46, 0.92)', color: '#fff',
+                      border: 'none', borderRadius: RADIUS.pill,
+                      width: 26, height: 26, fontSize: 13,
+                      cursor: 'pointer', padding: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>✕</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ marginTop: 18 }}>

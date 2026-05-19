@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const [rRes, tRes] = await Promise.all([
       supabase
         .from('inspeksjon_rapporter')
-        .select('id, bestilling_id, opprettet, besokt_dato, oppsummering, anbefalinger')
+        .select('id, bestilling_id, opprettet, besokt_dato, oppsummering, anbefalinger, bilde_stier')
         .in('bestilling_id', bestillingIder)
         .order('opprettet', { ascending: false }),
       supabase
@@ -40,6 +40,20 @@ export async function GET(req: NextRequest, { params }: Params) {
         .order('opprettet', { ascending: false }),
     ])
 
+    // Hent signerte URL-er for alle rapport-bilder slik at kunden kan se dem
+    // i sin private side. Bucket er privat, så vi kan ikke bruke public URL.
+    const alleStier: string[] = []
+    for (const r of (rRes.data || []) as Array<{ bilde_stier: string[] | null }>) {
+      if (Array.isArray(r.bilde_stier)) alleStier.push(...r.bilde_stier)
+    }
+    const bildeUrler: Record<string, string> = {}
+    if (alleStier.length > 0) {
+      const { data: signerte } = await supabase.storage.from('inspeksjon').createSignedUrls(alleStier, 60 * 60)
+      for (const s of signerte || []) {
+        if (s.path && s.signedUrl) bildeUrler[s.path] = s.signedUrl
+      }
+    }
+
     return NextResponse.json({
       kunde: {
         navn: bestillinger[0].kunde_navn,
@@ -48,6 +62,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       bestillinger,
       rapporter: rRes.data || [],
       tilbud: tRes.data || [],
+      bildeUrler,
     })
   } catch (e) {
     console.error('Kunde-portal-feil:', e instanceof Error ? e.message : String(e))

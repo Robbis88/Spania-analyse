@@ -30,6 +30,7 @@ type Rapport = {
   besokt_dato: string
   oppsummering: string | null
   anbefalinger: string | null
+  bilde_stier: string[] | null
 }
 
 type Tilbud = {
@@ -49,6 +50,7 @@ type Svar = {
   bestillinger: Bestilling[]
   rapporter: Rapport[]
   tilbud: Tilbud[]
+  bildeUrler: Record<string, string>
 }
 
 const MØRK = FARGER.mork
@@ -205,6 +207,27 @@ export default function MinSide({ params }: { params: Promise<{ token: string }>
                           <div>
                             <div style={{ fontSize: 12, color: FARGER.tekstMid, marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Anbefalinger</div>
                             <div style={{ fontSize: 14, color: MØRK, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{rapport.anbefalinger}</div>
+                          </div>
+                        )}
+                        {Array.isArray(rapport.bilde_stier) && rapport.bilde_stier.length > 0 && (
+                          <div style={{ marginTop: 14 }}>
+                            <div style={{ fontSize: 12, color: FARGER.tekstMid, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Bilder fra inspeksjonen</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                              {rapport.bilde_stier.map(sti => {
+                                const url = data.bildeUrler[sti]
+                                if (!url) return null
+                                return (
+                                  <a key={sti} href={url} target="_blank" rel="noreferrer" style={{
+                                    background: FARGER.flateMid, borderRadius: RADIUS.md,
+                                    overflow: 'hidden', aspectRatio: '4/3',
+                                    boxShadow: SHADOW.xs, display: 'block',
+                                  }}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }} />
+                                  </a>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
