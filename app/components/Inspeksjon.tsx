@@ -79,6 +79,7 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
   const [tilbudFor, setTilbudFor] = useState<string | null>(null)    // bestilling_id
   const [visning, setVisning] = useState<'liste' | 'kalender'>('liste')
   const [kalenderMnd, setKalenderMnd] = useState(() => new Date())
+  const [planleggFor, setPlanleggFor] = useState<string | null>(null)
 
   const aktivBruker = (typeof window !== 'undefined' ? hentAktivBruker() : null) || 'inspektor'
 
@@ -114,11 +115,8 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
     else visToast(`Status: ${BESTILLING_STATUS_ETIKETT[status].lbl}`, 'suksess', 2000)
   }
 
-  async function settPlanlagt(b: Bestilling) {
-    const dato = prompt('Planlagt tidspunkt (ÅÅÅÅ-MM-DD HH:MM)', b.planlagt_tidspunkt?.slice(0, 16).replace('T', ' ') || '')
-    if (!dato) return
-    const iso = new Date(dato.replace(' ', 'T')).toISOString()
-    void settStatus(b.id, 'planlagt', { planlagt_tidspunkt: iso })
+  function settPlanlagt(b: Bestilling) {
+    setPlanleggFor(b.id)
   }
 
   const filtrert = useMemo(
@@ -315,7 +313,10 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
                 <button onClick={() => settPlanlagt(b)} style={primerKnapp}>🗓 Plan­legg besøk</button>
               )}
               {b.status === 'planlagt' && (
-                <button onClick={() => setRapportFor(b.id)} style={primerKnapp}>📋 Lag rapport</button>
+                <>
+                  <button onClick={() => setRapportFor(b.id)} style={primerKnapp}>📋 Lag rapport</button>
+                  <button onClick={() => settPlanlagt(b)} style={sekundærKnapp}>🗓 Endre tidspunkt</button>
+                </>
               )}
               {rapport && b.status !== 'avlyst' && (
                 <>
@@ -377,6 +378,21 @@ export function Inspeksjon({ onTilbake }: { onTilbake: () => void }) {
             rapport={r}
             onLukk={() => setTilbudFor(null)}
             onLagret={async () => { setTilbudFor(null); await hent() }}
+          />
+        )
+      })()}
+
+      {planleggFor && (() => {
+        const b = bestillinger.find(x => x.id === planleggFor)
+        if (!b) return null
+        return (
+          <PlanleggModal
+            bestilling={b}
+            onLukk={() => setPlanleggFor(null)}
+            onLagret={async (iso) => {
+              await settStatus(b.id, 'planlagt', { planlagt_tidspunkt: iso })
+              setPlanleggFor(null)
+            }}
           />
         )
       })()}
@@ -691,6 +707,168 @@ function RapportModal({
             {lagrer ? '⏳ Lagrer…' : eksisterende ? '💾 Oppdater rapport' : '💾 Lagre rapport og marker utført'}
           </button>
           <button onClick={onLukk} style={avbrytKnapp}>Avbryt</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// PLANLEGG-MODAL — sett dato + klokkeslett for besøket
+// ============================================================================
+
+function PlanleggModal({
+  bestilling, onLukk, onLagret,
+}: {
+  bestilling: Bestilling
+  onLukk: () => void
+  onLagret: (isoTidspunkt: string) => Promise<void>
+}) {
+  // Init: hvis allerede planlagt, bruk det. Ellers default til i morgen kl 10:00 lokal tid.
+  const init = useMemo(() => {
+    if (bestilling.planlagt_tidspunkt) {
+      // Konverter ISO til lokal datetime-local-format (YYYY-MM-DDTHH:MM)
+      const d = new Date(bestilling.planlagt_tidspunkt)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    const m = new Date()
+    m.setDate(m.getDate() + 1); m.setHours(10, 0, 0, 0)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}T${pad(m.getHours())}:${pad(m.getMinutes())}`
+  }, [bestilling.planlagt_tidspunkt])
+
+  const [tidspunkt, setTidspunkt] = useState(init)
+  const [lagrer, setLagrer] = useState(false)
+
+  // Hurtigvalg — gjør planlegging på sekunder for vanlige tidspunkter
+  const hurtigvalg = useMemo(() => {
+    const lag = (dager: number, time: number, min: number) => {
+      const d = new Date()
+      d.setDate(d.getDate() + dager); d.setHours(time, min, 0, 0)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    return [
+      { lbl: 'I morgen kl 09', val: lag(1, 9, 0) },
+      { lbl: 'I morgen kl 14', val: lag(1, 14, 0) },
+      { lbl: 'Om 2 dager kl 10', val: lag(2, 10, 0) },
+      { lbl: 'Om 1 uke kl 10', val: lag(7, 10, 0) },
+    ]
+  }, [])
+
+  async function lagre() {
+    if (!tidspunkt) { visToast('Velg dato og klokkeslett', 'feil', 2500); return }
+    setLagrer(true)
+    try {
+      const iso = new Date(tidspunkt).toISOString()
+      await onLagret(iso)
+    } finally {
+      setLagrer(false)
+    }
+  }
+
+  const valgtFormatert = useMemo(() => {
+    if (!tidspunkt) return ''
+    try {
+      return new Date(tidspunkt).toLocaleString('nb-NO', {
+        weekday: 'long', day: '2-digit', month: 'long',
+        hour: '2-digit', minute: '2-digit',
+      })
+    } catch { return '' }
+  }, [tidspunkt])
+
+  return (
+    <div onClick={onLukk} className="anim-fade-in" style={{
+      position: 'fixed', inset: 0, background: 'rgba(14,23,38,0.45)',
+      backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} className="anim-scale-in" style={{
+        background: FARGER.creamLys, borderRadius: RADIUS.xl, maxWidth: 520, width: '100%',
+        padding: 'clamp(24px, 4vw, 36px)', boxShadow: SHADOW.xl,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 22 }}>
+          <div>
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>🗓 Planlegg besøk</div>
+            <h2 style={{ fontSize: 'clamp(20px, 3vw, 24px)', fontWeight: 500, margin: 0, color: FARGER.mork, letterSpacing: '-0.02em' }}>
+              {bestilling.kunde_navn}
+            </h2>
+            <div style={{ fontSize: 13, color: FARGER.tekstMid, marginTop: 6 }}>
+              📍 {bestilling.adresse}{bestilling.leilighet_nr ? ` · ${bestilling.leilighet_nr}` : ''}
+            </div>
+          </div>
+          <button onClick={onLukk} aria-label="Lukk" style={lukkKnapp}>×</button>
+        </div>
+
+        {/* Hurtigvalg */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Hurtigvalg</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {hurtigvalg.map(h => {
+              const aktiv = tidspunkt === h.val
+              return (
+                <button key={h.lbl} onClick={() => setTidspunkt(h.val)} style={{
+                  background: aktiv ? FARGER.mork : FARGER.hvit,
+                  color: aktiv ? FARGER.creamLys : FARGER.tekstMid,
+                  border: `1px solid ${aktiv ? FARGER.mork : FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.pill, padding: '7px 14px',
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  letterSpacing: '-0.005em',
+                  boxShadow: aktiv ? SHADOW.sm : 'none',
+                  transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
+                }}>
+                  {h.lbl}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Native dato/tid-velger */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, color: FARGER.tekstMid, marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Eller velg dato og klokkeslett</div>
+          <input
+            type="datetime-local"
+            value={tidspunkt}
+            onChange={e => setTidspunkt(e.target.value)}
+            min={new Date().toISOString().slice(0, 16)}
+            step={300}  // 5-min granularitet
+            style={{
+              width: '100%', padding: '14px 16px', fontSize: 16,
+              borderRadius: RADIUS.md,
+              border: `1px solid ${FARGER.kant}`,
+              background: FARGER.hvit,
+              fontFamily: 'inherit', boxSizing: 'border-box',
+              outline: 'none',
+              transition: `border-color ${MOTION.rask}, box-shadow ${MOTION.rask}`,
+            }}
+          />
+        </div>
+
+        {/* Bekreftelse */}
+        {valgtFormatert && (
+          <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.md, padding: 14, marginBottom: 22, fontSize: 14, color: FARGER.mork, letterSpacing: '-0.005em' }}>
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Bekreftet tidspunkt</div>
+            {valgtFormatert.charAt(0).toUpperCase() + valgtFormatert.slice(1)}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={lagre} disabled={lagrer || !tidspunkt} className="knapp-hover-loft" style={{
+            flex: 1,
+            background: lagrer || !tidspunkt ? FARGER.tekstLys : FARGER.mork,
+            color: FARGER.creamLys, border: 'none',
+            padding: 14, borderRadius: RADIUS.pill,
+            fontSize: 14, fontWeight: 600,
+            cursor: lagrer || !tidspunkt ? 'not-allowed' : 'pointer',
+            letterSpacing: '-0.005em',
+            boxShadow: lagrer || !tidspunkt ? 'none' : SHADOW.md,
+          }}>
+            {lagrer ? '⏳ Lagrer…' : bestilling.planlagt_tidspunkt ? '💾 Oppdater tidspunkt' : '💾 Bekreft og planlegg'}
+          </button>
+          <button onClick={onLukk} disabled={lagrer} style={avbrytKnapp}>Avbryt</button>
         </div>
       </div>
     </div>
