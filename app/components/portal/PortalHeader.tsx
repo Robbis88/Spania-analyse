@@ -53,6 +53,7 @@ export function PortalHeader({ onRegistrerInteresse }: { onRegistrerInteresse: (
           <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Link href="/?type=leie" style={navLenkeStil} className="nav-lenke">{t.bolig_til_leie}</Link>
             <Link href="/?type=salgs" style={navLenkeStil} className="nav-lenke">{t.bolig_til_salgs}</Link>
+            <Link href="/inspeksjon" style={navLenkeStil} className="nav-lenke">{t.boliginspeksjon}</Link>
             <a href="#kontakt" style={navLenkeStil} className="nav-lenke">{t.kontakt}</a>
             <div style={{ width: 1, height: 20, background: FARGER.kantUltralys, margin: '0 12px' }} />
             <SprakDropdown sprak={sprak} onVelg={settSprak} />
@@ -100,6 +101,7 @@ export function PortalHeader({ onRegistrerInteresse }: { onRegistrerInteresse: (
         }}>
           <Link href="/?type=leie" onClick={() => setMenyApen(false)} style={mobilLenkeStil}>{t.bolig_til_leie}</Link>
           <Link href="/?type=salgs" onClick={() => setMenyApen(false)} style={mobilLenkeStil}>{t.bolig_til_salgs}</Link>
+          <Link href="/inspeksjon" onClick={() => setMenyApen(false)} style={mobilLenkeStil}>{t.boliginspeksjon}</Link>
           <a href="#kontakt" onClick={() => setMenyApen(false)} style={mobilLenkeStil}>{t.kontakt}</a>
           <button onClick={() => { setMenyApen(false); onRegistrerInteresse() }}
             style={{

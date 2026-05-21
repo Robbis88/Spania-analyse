@@ -21,6 +21,7 @@ type Strenger = {
   // Header / nav
   bolig_til_leie: string
   bolig_til_salgs: string
+  boliginspeksjon: string
   kontakt: string
   logg_inn: string
   registrer_interesse: string
@@ -100,7 +101,7 @@ type Strenger = {
 }
 
 const NO: Strenger = {
-  bolig_til_leie: 'Til leie', bolig_til_salgs: 'Til salgs', kontakt: 'Kontakt',
+  bolig_til_leie: 'Til leie', bolig_til_salgs: 'Til salgs', boliginspeksjon: 'Inspeksjon', kontakt: 'Kontakt',
   logg_inn: 'Logg inn', registrer_interesse: 'Registrer interesse',
   hero_eyebrow: 'EIENDOM I SPANIA', hero_tittel: 'Solfylte hjem ved Middelhavet',
   hero_undertittel: 'Eksklusive boliger til leie og salg i Spanias mest ettertraktede områder.',
@@ -132,7 +133,7 @@ const NO: Strenger = {
 }
 
 const EN: Strenger = {
-  bolig_til_leie: 'For rent', bolig_til_salgs: 'For sale', kontakt: 'Contact',
+  bolig_til_leie: 'For rent', bolig_til_salgs: 'For sale', boliginspeksjon: 'Inspection', kontakt: 'Contact',
   logg_inn: 'Sign in', registrer_interesse: 'Register interest',
   hero_eyebrow: 'PROPERTY IN SPAIN', hero_tittel: 'Sunlit homes by the Mediterranean',
   hero_undertittel: 'Exclusive properties for rent and sale in Spain’s most desirable locations.',
@@ -164,7 +165,7 @@ const EN: Strenger = {
 }
 
 const ES: Strenger = {
-  bolig_til_leie: 'En alquiler', bolig_til_salgs: 'En venta', kontakt: 'Contacto',
+  bolig_til_leie: 'En alquiler', bolig_til_salgs: 'En venta', boliginspeksjon: 'Inspección', kontakt: 'Contacto',
   logg_inn: 'Iniciar sesión', registrer_interesse: 'Registrar interés',
   hero_eyebrow: 'PROPIEDAD EN ESPAÑA', hero_tittel: 'Hogares soleados junto al Mediterráneo',
   hero_undertittel: 'Propiedades exclusivas en alquiler y venta en las zonas más codiciadas de España.',
@@ -200,35 +201,35 @@ const ES: Strenger = {
 const FR: Strenger = { ...EN, logg_inn: 'Connexion', registrer_interesse: 'Manifester intérêt',
   hero_tittel: 'Maisons ensoleillées sur la Méditerranée',
   hero_cta_se_boliger: 'Voir les biens', tilgjengelige_naa: 'Disponibles maintenant',
-  bolig_til_leie: 'À louer', bolig_til_salgs: 'À vendre',
+  bolig_til_leie: 'À louer', bolig_til_salgs: 'À vendre', boliginspeksjon: 'Inspection',
   per_natt: '/nuit', per_uke: '/semaine', send_foresporsel: 'Envoyer une demande',
   navn: 'Nom', epost: 'E-mail', telefon: 'Téléphone', send: 'Envoyer', avbryt: 'Annuler' }
 
 const DE: Strenger = { ...EN, logg_inn: 'Anmelden', registrer_interesse: 'Interesse bekunden',
   hero_tittel: 'Sonnige Häuser am Mittelmeer',
   hero_cta_se_boliger: 'Immobilien ansehen', tilgjengelige_naa: 'Jetzt verfügbar',
-  bolig_til_leie: 'Zu mieten', bolig_til_salgs: 'Zu verkaufen',
+  bolig_til_leie: 'Zu mieten', bolig_til_salgs: 'Zu verkaufen', boliginspeksjon: 'Inspektion',
   per_natt: '/Nacht', per_uke: '/Woche', send_foresporsel: 'Anfrage senden',
   navn: 'Name', epost: 'E-Mail', telefon: 'Telefon', send: 'Senden', avbryt: 'Abbrechen' }
 
 const NL: Strenger = { ...EN, logg_inn: 'Inloggen', registrer_interesse: 'Interesse registreren',
   hero_tittel: 'Zonnige huizen aan de Middellandse Zee',
   hero_cta_se_boliger: 'Bekijk woningen', tilgjengelige_naa: 'Nu beschikbaar',
-  bolig_til_leie: 'Te huur', bolig_til_salgs: 'Te koop',
+  bolig_til_leie: 'Te huur', bolig_til_salgs: 'Te koop', boliginspeksjon: 'Inspectie',
   per_natt: '/nacht', per_uke: '/week', send_foresporsel: 'Aanvraag versturen',
   navn: 'Naam', epost: 'E-mail', telefon: 'Telefoon', send: 'Verstuur', avbryt: 'Annuleren' }
 
 const DA: Strenger = { ...EN, logg_inn: 'Log ind', registrer_interesse: 'Registrér interesse',
   hero_tittel: 'Solfyldte hjem ved Middelhavet',
   hero_cta_se_boliger: 'Se boliger', tilgjengelige_naa: 'Tilgængelig nu',
-  bolig_til_leie: 'Til leje', bolig_til_salgs: 'Til salg',
+  bolig_til_leie: 'Til leje', bolig_til_salgs: 'Til salg', boliginspeksjon: 'Inspektion',
   per_natt: '/nat', per_uke: '/uge', send_foresporsel: 'Send forespørgsel',
   navn: 'Navn', epost: 'E-mail', telefon: 'Telefon', send: 'Send', avbryt: 'Annullér' }
 
 const SV: Strenger = { ...EN, logg_inn: 'Logga in', registrer_interesse: 'Anmäl intresse',
   hero_tittel: 'Soliga hem vid Medelhavet',
   hero_cta_se_boliger: 'Se bostäder', tilgjengelige_naa: 'Tillgängliga nu',
-  bolig_til_leie: 'Till uthyrning', bolig_til_salgs: 'Till salu',
+  bolig_til_leie: 'Till uthyrning', bolig_til_salgs: 'Till salu', boliginspeksjon: 'Inspektion',
   per_natt: '/natt', per_uke: '/vecka', send_foresporsel: 'Skicka förfrågan',
   navn: 'Namn', epost: 'E-post', telefon: 'Telefon', send: 'Skicka', avbryt: 'Avbryt' }
 
