@@ -63,6 +63,107 @@ export const BESTILLING_STATUS_ETIKETT: Record<BestillingStatus, { lbl: string; 
   avlyst:       { lbl: 'Avlyst', bg: '#fde8ec', tekst: '#7a0c1e' },
 }
 
+// Hva som inngår i hver tjeneste — vises på kunde-flaten /inspeksjon.
+// Oversatt til no/en/es slik at landing-siden følger språkvalget.
+export const TJENESTE_INNHOLD: Record<TjenesteType, Record<'no' | 'en' | 'es', string[]>> = {
+  engangs: {
+    no: [
+      'Bad: fugemasse, avløp, vannkraner, toalett, fuktskader',
+      'Kjøkken: avløp, kraner, hvitevarer, lekkasje under benk',
+      'Terrasse og balkong: fliser, avrenning, rekkverk, vann-tetning',
+      'Vinduer og dører: tetninger, lås, hengsler, glass',
+      'Elektrisk: stikkontakter, sikringsskap, jordfeilbryter',
+      'Ventilasjon og fuktbalanse i hele leiligheten',
+      'Sjekk av fellesarealer og bygningsmasse rundt leiligheten',
+      'Skriftlig rapport med foto og prioriterte funn',
+      'Anbefalinger med pris-estimat for hver utbedring',
+    ],
+    en: [
+      'Bathroom: grout, drains, taps, toilet, moisture damage',
+      'Kitchen: drains, taps, appliances, leaks under counter',
+      'Terrace and balcony: tiles, drainage, railings, waterproofing',
+      'Windows and doors: seals, locks, hinges, glass',
+      'Electrical: sockets, fuse box, ground-fault breaker',
+      'Ventilation and moisture balance throughout the apartment',
+      'Inspection of common areas and surrounding building',
+      'Written report with photos and prioritized findings',
+      'Recommendations with price estimate for each repair',
+    ],
+    es: [
+      'Baño: lechada, desagües, grifos, inodoro, daños por humedad',
+      'Cocina: desagües, grifos, electrodomésticos, fugas bajo encimera',
+      'Terraza y balcón: baldosas, drenaje, barandillas, impermeabilización',
+      'Ventanas y puertas: juntas, cerraduras, bisagras, cristales',
+      'Eléctrico: enchufes, cuadro de fusibles, diferencial',
+      'Ventilación y balance de humedad en todo el apartamento',
+      'Inspección de zonas comunes y estructura circundante',
+      'Informe escrito con fotos y hallazgos priorizados',
+      'Recomendaciones con presupuesto estimado para cada reparación',
+    ],
+  },
+  manedlig_visuell: {
+    no: [
+      'Visuell sjekk av bad og kjøkken — lekkasje-tegn',
+      'Fuktflekker på vegger, tak og under vask',
+      'Vinduer og dører — lukker de skikkelig?',
+      'Balkong — synlige skader, sluk og avrenning',
+      'Tegn på innbruddsforsøk eller skade',
+      'Generell tilstand og temperatur',
+      'Kort rapport med foto — vanligvis innen 24 timer',
+    ],
+    en: [
+      'Visual check of bathroom and kitchen — signs of leaks',
+      'Moisture spots on walls, ceilings, under sinks',
+      'Windows and doors — do they close properly?',
+      'Balcony — visible damage, drainage clear',
+      'Signs of break-in attempts or damage',
+      'General condition and temperature',
+      'Short report with photos — usually within 24 hours',
+    ],
+    es: [
+      'Comprobación visual de baño y cocina — signos de fugas',
+      'Manchas de humedad en paredes, techos, bajo fregaderos',
+      'Ventanas y puertas — ¿cierran correctamente?',
+      'Balcón — daños visibles, drenaje despejado',
+      'Signos de intentos de robo o daño',
+      'Estado general y temperatura',
+      'Informe breve con fotos — normalmente en 24 horas',
+    ],
+  },
+  kvartalsvis_grundig: {
+    no: [
+      'Alt som inngår i månedlig visuell sjekk, pluss:',
+      'Fukt-måling i bad og kjøkken med profesjonelt instrument',
+      'Funksjonstest av varmtvannsbereder',
+      'Sjekk av klimaanlegg og ventilasjonssystem',
+      'Vurdering av kondens- og mugg-risiko',
+      'Trykk-test av kraner og avløp',
+      'Skriftlig rapport med foto og anbefalinger',
+      'Tilbud på utbedringer hvis noe trenger oppmerksomhet',
+    ],
+    en: [
+      'Everything in the monthly visual check, plus:',
+      'Moisture measurement in bathroom and kitchen (professional instrument)',
+      'Function test of water heater',
+      'Inspection of air conditioning and ventilation system',
+      'Assessment of condensation and mold risk',
+      'Pressure test of taps and drains',
+      'Written report with photos and recommendations',
+      'Repair quotes if something needs attention',
+    ],
+    es: [
+      'Todo lo incluido en la comprobación mensual, además:',
+      'Medición de humedad en baño y cocina con instrumento profesional',
+      'Prueba de funcionamiento del calentador de agua',
+      'Inspección del aire acondicionado y sistema de ventilación',
+      'Evaluación del riesgo de condensación y moho',
+      'Prueba de presión de grifos y desagües',
+      'Informe escrito con fotos y recomendaciones',
+      'Presupuestos de reparación si algo necesita atención',
+    ],
+  },
+}
+
 // Sjekkliste-kategorier som inspektøren krysser av per besøk.
 export const SJEKK_KATEGORIER = [
   { id: 'bad',        lbl: '🛁 Bad', felter: ['Fugemasse', 'Avløp', 'Vannkraner', 'Toalett', 'Lekkasje under vask', 'Fuktskader på vegger/tak'] },

@@ -6,6 +6,7 @@ import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import {
   STORRELSE,
   TJENESTE_TYPE,
+  TJENESTE_INNHOLD,
   beregnPris,
   type Storrelse, type TjenesteType,
 } from '../lib/inspeksjon'
@@ -210,6 +211,52 @@ export default function InspeksjonSide() {
               </p>
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* HVA INNGÅR — detaljert sjekkliste per tjeneste */}
+      <section style={{ background: CREAM_LYS, padding: 'clamp(48px, 8vw, 80px) 0' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 clamp(16px, 4vw, 28px)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 'clamp(28px, 5vw, 44px)' }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 14, textTransform: 'uppercase' }}>{t('innhold_eyebrow')}</div>
+            <h2 style={{ fontSize: 'clamp(26px, 4vw, 36px)', fontWeight: 300, color: MØRK, margin: 0, letterSpacing: '-0.025em' }}>{t('innhold_tittel')}</h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 18 }}>
+            {TJENESTE_TYPE.map((tt, i) => {
+              const valgt = tjeneste === tt
+              const punkter = TJENESTE_INNHOLD[tt][sprak] || TJENESTE_INNHOLD[tt].no
+              return (
+                <div key={tt} className="anim-fade-up" style={{
+                  background: FARGER.hvit,
+                  border: `1px solid ${valgt ? FARGER.gull : FARGER.kantUltralys}`,
+                  borderRadius: RADIUS.lg, padding: 26,
+                  boxShadow: valgt ? SHADOW.md : SHADOW.sm,
+                  animationDelay: `${i * 60}ms`,
+                }}>
+                  <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase' }}>
+                    {t(TJENESTE_KORT_NOKKEL[tt])}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 16, color: MØRK, letterSpacing: '-0.015em', lineHeight: 1.3 }}>
+                    {t(TJENESTE_LBL_NOKKEL[tt])}
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {punkter.map((p, j) => (
+                      <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13.5, lineHeight: 1.55, color: FARGER.tekstMid }}>
+                        <span aria-hidden style={{
+                          flexShrink: 0, marginTop: 4,
+                          width: 18, height: 18, borderRadius: RADIUS.pill,
+                          background: `${GULL}18`,
+                          color: GULL, fontSize: 11, fontWeight: 700,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        }}>✓</span>
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </section>
 

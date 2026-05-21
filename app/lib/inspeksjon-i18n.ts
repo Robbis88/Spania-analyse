@@ -83,6 +83,14 @@ const TEKSTER = {
   storrelse_4: { no: '4-roms leilighet / penthouse', en: '4-bedroom apartment / penthouse', es: 'Apartamento de 4 dormitorios / ático' },
   storrelse_villa: { no: 'Villa / rekkehus', en: 'Villa / townhouse', es: 'Villa / casa adosada' },
 
+  // Innhold-seksjon (hva som inngår)
+  innhold_eyebrow: { no: 'HVA INNGÅR', en: 'WHAT\'S INCLUDED', es: 'QUÉ INCLUYE' },
+  innhold_tittel: {
+    no: 'Slik er hver tjeneste i detalj',
+    en: 'Each service in detail',
+    es: 'Cada servicio en detalle',
+  },
+
   // Bestilling
   bestill_eyebrow: { no: 'BESTILL', en: 'BOOK', es: 'RESERVAR' },
   bestill_tittel: { no: 'Klar på 60 sekunder', en: 'Ready in 60 seconds', es: 'Listo en 60 segundos' },
