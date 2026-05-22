@@ -69,10 +69,47 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
   const [bolig, setBolig] = useState<Bolig>(tomBolig())
   const [lagretId, setLagretId] = useState<string | null>(null)
   const [pdfLaster, setPdfLaster] = useState(false)
+  const [refcat, setRefcat] = useState('')
+  const [catastroLaster, setCatastroLaster] = useState(false)
+  const [catastroFeil, setCatastroFeil] = useState('')
+  const [catastro, setCatastro] = useState<{
+    refcat: string; areal_m2: number | null; byggear: number | null
+    brukstype: string | null; adresse: string | null; postnummer: string | null
+    kommune: string | null; provins: string | null
+  } | null>(null)
+
+  async function hentCatastro() {
+    if (!refcat.trim() || catastroLaster) return
+    setCatastroLaster(true); setCatastroFeil('')
+    try {
+      const res = await fetch('/api/catastro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refcat }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setCatastroFeil(data.feil || 'Fant ikke eiendommen i Catastro')
+        setCatastro(null)
+      } else {
+        setCatastro(data.eiendom)
+        // Pre-fyll skjemaet med autoritative verdier fra Catastro
+        setBolig(b => ({
+          ...b,
+          areal: data.eiendom.areal_m2 ? String(data.eiendom.areal_m2) : b.areal,
+          beliggenhet: b.beliggenhet || [data.eiendom.kommune, data.eiendom.provins].filter(Boolean).join(', '),
+        }))
+      }
+    } catch (e) {
+      setCatastroFeil(e instanceof Error ? e.message : 'Noe gikk galt')
+    }
+    setCatastroLaster(false)
+  }
 
   function nullstill() {
     setInput(''); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding(''); setSteg('idle')
     setLagretId(null); setPdfLaster(false)
+    setRefcat(''); setCatastro(null); setCatastroFeil('')
   }
 
   async function lastNedPdf(id: string) {
@@ -357,6 +394,65 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
             letterSpacing: '-0.005em',
           }}>🗑️ Nullstill</button>}
         </div>
+
+        {/* CATASTRO — autoritative eiendomsfakta fra spansk matrikkel */}
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${FARGER.kantUltralys}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.gull, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.18em' }}>🏛️ Catastro — offisielle data (valgfritt)</div>
+          <p style={{ fontSize: 12.5, color: FARGER.tekstMid, margin: '0 0 12px', lineHeight: 1.55 }}>
+            Lim inn <strong>referencia catastral</strong> (20 tegn — finnes ofte på Idealista, i nota simple eller escritura) for å hente autoritativt areal og byggeår fra det spanske matrikkelverket. Mye mer pålitelig enn annonsens m².
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input value={refcat} onChange={e => setRefcat(e.target.value)}
+              placeholder="F.eks. 6447903UF6564N0043HO"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void hentCatastro() } }}
+              style={{
+                flex: 1, minWidth: 220, padding: '12px 14px', fontSize: 14,
+                borderRadius: RADIUS.md, border: `1px solid ${FARGER.kant}`,
+                background: FARGER.creamLys, fontFamily: 'monospace',
+                letterSpacing: '0.02em', textTransform: 'uppercase',
+                outline: 'none', transition: `border-color ${MOTION.rask}`,
+              }} />
+            <button onClick={hentCatastro} disabled={catastroLaster || !refcat.trim()} className="knapp-hover-loft" style={{
+              background: catastroLaster || !refcat.trim() ? FARGER.tekstLys : FARGER.gull,
+              color: FARGER.creamLys, border: 'none',
+              padding: '12px 20px', borderRadius: RADIUS.pill,
+              fontSize: 13, fontWeight: 600,
+              cursor: catastroLaster || !refcat.trim() ? 'not-allowed' : 'pointer',
+              letterSpacing: '-0.005em',
+              boxShadow: catastroLaster || !refcat.trim() ? 'none' : SHADOW.sm,
+            }}>
+              {catastroLaster ? '⏳ Henter…' : '🏛️ Hent fra Catastro'}
+            </button>
+          </div>
+
+          {catastroFeil && (
+            <div className="anim-fade-up" style={{ marginTop: 12, background: FARGER.feilBg, border: `1px solid ${FARGER.feil}33`, color: '#7a0c1e', padding: 12, borderRadius: RADIUS.md, fontSize: 13 }}>
+              {catastroFeil}
+            </div>
+          )}
+
+          {catastro && (
+            <div className="anim-fade-up" style={{ marginTop: 12, background: '#e8f5ed', border: '1px solid #2D7D4633', borderRadius: RADIUS.md, padding: 16 }}>
+              <div style={{ fontSize: 11, color: '#1a4d2b', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>
+                ✓ Verifisert fra Catastro
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12 }}>
+                {catastro.areal_m2 != null && <CatFakta lbl="Areal" val={`${catastro.areal_m2} m²`} />}
+                {catastro.byggear != null && <CatFakta lbl="Byggeår" val={String(catastro.byggear)} />}
+                {catastro.brukstype && <CatFakta lbl="Type" val={catastro.brukstype} />}
+                {(catastro.kommune || catastro.provins) && <CatFakta lbl="Område" val={[catastro.kommune, catastro.provins].filter(Boolean).join(', ')} />}
+              </div>
+              {catastro.adresse && (
+                <div style={{ fontSize: 12.5, color: FARGER.tekstMid, marginTop: 10 }}>
+                  📍 {catastro.adresse}{catastro.postnummer ? ` · ${catastro.postnummer}` : ''}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: '#1a4d2b', marginTop: 10, fontStyle: 'italic' }}>
+                Areal er fylt inn i skjemaet under. Klikk «Oppdater analyse» etter at du har kjørt full analyse for å regne på de offisielle tallene.
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       {result && (
         <div>
@@ -552,6 +648,15 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           }}>🗑️ Nullstill og analyser ny eiendom</button>
         </div>
       )}
+    </div>
+  )
+}
+
+function CatFakta({ lbl, val }: { lbl: string; val: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#1a4d2b', opacity: 0.7, marginBottom: 3, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: '#1a4d2b', letterSpacing: '-0.01em' }}>{val}</div>
     </div>
   )
 }
