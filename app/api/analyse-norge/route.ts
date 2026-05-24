@@ -55,6 +55,11 @@ Vurder markedspris per m² for området basert på:
 - Beliggenhet (sentrum, sjø, kollektivdekning)
 - Aktuelle markedstrender 2025-2026
 
+KRITISK OM PRISANTYDNING:
+I Norge er prisantydning ofte en TAKTISK lav lokkepris satt for å trekke folk på visning. Faktisk salgspris ligger gjerne over — typisk 5-25 % over i populære bydeler i Bergen/Oslo (Bergenhus, Sandviken, Frogner, Majorstuen, etc.), og 0-10 % over i mindre attraktive eller mer komplette markeder. Boliger med åpenbart lav prisantydning, kjent attraktiv beliggenhet, eller "selgers marked" går jevnlig 15-30 % over.
+
+Din jobb er å gi kjøperen et REALISTISK estimat på hva boligen faktisk vil bli solgt for — ikke å gjenta prisantydningen. Bruk markedspris-per-m² du estimerer, faktiske salg i området, og din kunnskap om hvor mye over antydning som er normalt for denne bydelen.
+
 Estimer realistiske markedspriser for tre standard-nivåer:
 - Som er nå: aktuell stand
 - Bra: moderne kjøkken og bad, god kvalitet materialer
@@ -84,6 +89,9 @@ Returner dette (norsk språk i tekst-feltene, alle beløp i NOK):
   "markedspris_bra_m2_nok": 0,
   "markedspris_topp_m2_nok": 0,
   "markedspris_begrunnelse": "2-3 setninger om hvorfor du estimerer disse prisene basert på konkret bydel og standard",
+  "forventet_faktisk_salgspris_nok": 0,
+  "pst_over_prisantydning": 0,
+  "pris_realitet_kommentar": "1-2 setninger: er prisantydningen realistisk eller åpenbart lav? hva bør kjøper forvente at den faktisk selges for, og hvorfor — i denne konkrete bydelen, denne måneden?",
   "oppussing_vurdering": "2-3 setninger om oppussingspotensial — hva som faktisk gir verdiøkning her",
   "ai_vurdering": "4-5 setninger på norsk om denne boligen som flippe-prosjekt — er den under marked? hvilken oppussing løfter mest?",
   "anbefalt_strategi": "raskt-flipp / standard-flipp / luksus-flipp / la den ligge",
@@ -111,7 +119,7 @@ Returner dette (norsk språk i tekst-feltene, alle beløp i NOK):
     "startbud_pst_under_prisantydning": 0,
     "anbefalt_maks_bud_nok": 0,
     "maks_bud_pst_av_prisantydning": 0,
-    "begrunnelse": "2-3 setninger om budstrategi: hvor mye spillerom finnes mellom markedspris og prisantydning, hvor sterk konkurranse forventes (likviditet i området), og hvor det er verdt å gå over"
+    "begrunnelse": "2-3 setninger om budstrategi: hvor mye spillerom finnes mellom markedspris og prisantydning, hvor sterk konkurranse forventes (likviditet i området), og hvor det er verdt å gå over. anbefalt_maks_bud_nok må reflektere forventet faktisk salgspris — ikke prisantydning. Hvis bydelen typisk går 15 % over antydning, må maks-bud være tilsvarende høyt for å være konkurransedyktig."
   },
   "foreslatte_oppussingsposter": [
     {"navn": "Bad", "kostnad_nok": 0, "begrunnelse": "kort"},

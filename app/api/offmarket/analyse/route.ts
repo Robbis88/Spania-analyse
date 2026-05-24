@@ -55,7 +55,7 @@ const offmarketTool = {
       },
       sporsmal_til_selger: {
         type: 'array',
-        description: '8-15 konkrete spørsmål kjøper må stille selger — basert på det vi IKKE vet. Dette er hovedoutputten ved off-market hvor det ikke finnes salgsoppgave eller takstrapport.',
+        description: '6-15 konkrete spørsmål kjøper må stille selger — basert PÅ DET VI IKKE VET. Sjekk grunnlaget under "KJENTE FAKTA" — ikke spør om noe som står der. Hvis BRA, byggeår, type, eierform, fellesgjeld osv. er oppgitt, hopp over slike spørsmål helt. Fokuser i stedet på: tilstand, oppussinger utført, mangler/skader, dokumentasjon (FDV, takstrapporter, energiattest), heftelser, naboforhold, planer i nabolaget, hvorfor de selger nå, hva de forventer i pris og hvorfor.',
         items: { type: 'string' },
       },
       sporsmal_til_megler_eller_kommune: {
@@ -131,6 +131,9 @@ Dette gir kjøper noen fordeler (ingen budkrig, kan gå rolig til verks) og mang
 
 Din jobb: gjøre kjøperen i stand til å ta en informert beslutning til tross for mangelfullt grunnlag. Hovedoutputten er en god spørsmålsliste til selger — det er DEN som kompenserer for manglende takstrapport.
 
+VIKTIG OM SPØRSMÅL TIL SELGER:
+Du får en seksjon "KJENTE FAKTA" i grunnlaget. Disse skal IKKE spørres om — kjøper har allerede fått dem. Hvis du ser at BRA, byggeår, type, eierform, fellesgjeld, energimerke osv. er oppgitt der, ikke spør "hva er arealet" eller "når er den bygget" — det er sløsing av kjøpers troverdighet hos selger. Bruk i stedet de kjente fakta som inngang til DYPERE spørsmål: hvis byggeår er 1975, spør om kobberrørene er byttet, ikke om byggeår. Hvis BRA er 110m² men oppussingsgrad er "Original", spør om hva som er kostnaden de har estimert for oppgradering.
+
 Aldersregler (bruk når byggeår er kjent eller estimerbar fra bildene):
 - <1999: el-anlegg uten jordfeilbryter (30-80k utbedring)
 - 1960-80: asbest/PCB-risiko (sanering 100-300k)
@@ -168,6 +171,7 @@ export async function POST(req: NextRequest) {
 
     const omd = (prosjekt.off_market_data || {}) as Record<string, unknown>
     const selger = (omd.selger || {}) as Record<string, unknown>
+    const fakta = (omd.kjente_fakta || {}) as Record<string, unknown>
     const innhenting = (omd.innhenting || {}) as Record<string, unknown>
     const valgtIdx = typeof omd.valgt_treff_idx === 'number' ? omd.valgt_treff_idx : 0
     const treff = Array.isArray(innhenting.treff) ? innhenting.treff[valgtIdx] : null
@@ -191,6 +195,29 @@ export async function POST(req: NextRequest) {
       if (signert?.signedUrl) bildeUrler.push({ url: signert.signedUrl, kategori: b.kategori || 'ukjent', notat: b.notat || '' })
     }
 
+    // Bygg liste over kjente fakta — kun ikke-tomme verdier, så Claude vet hva som er bekreftet
+    const faktaLinjer: string[] = []
+    const visFakta = (lbl: string, v: unknown, suffiks = '') => {
+      if (v === undefined || v === null || v === '' || v === 0) return
+      faktaLinjer.push(`- ${lbl}: ${v}${suffiks}`)
+    }
+    visFakta('Boligtype', fakta.boligtype)
+    visFakta('Eierform', fakta.eierform)
+    visFakta('BRA', fakta.bra_m2, ' m²')
+    visFakta('P-rom', fakta.p_rom_m2, ' m²')
+    visFakta('Byggeår', fakta.byggear)
+    visFakta('Soverom', fakta.soverom)
+    visFakta('Bad', fakta.bad)
+    visFakta('Etasje', fakta.etasje)
+    visFakta('Energimerke', fakta.energimerke)
+    visFakta('Fellesgjeld', typeof fakta.fellesgjeld_nok === 'number' ? Number(fakta.fellesgjeld_nok).toLocaleString('nb-NO') + ' NOK' : null)
+    visFakta('Fellesutgifter/mnd', typeof fakta.fellesutg_mnd_nok === 'number' ? Number(fakta.fellesutg_mnd_nok).toLocaleString('nb-NO') + ' NOK' : null)
+    visFakta('Kommunale avgifter/år', typeof fakta.kommunale_avg_aar_nok === 'number' ? Number(fakta.kommunale_avg_aar_nok).toLocaleString('nb-NO') + ' NOK' : null)
+    visFakta('Tomt', fakta.tomt_m2, ' m²')
+    visFakta('Tomt-type', fakta.tomt_type)
+    visFakta('Oppussingsgrad', fakta.oppussingsgrad)
+    if (fakta.notater) faktaLinjer.push(`- Andre opplysninger fra selger: ${fakta.notater}`)
+
     // Bygg tekst-grunnlag
     const grunnlag = [
       `=== OFF-MARKET TILBUD ===`,
@@ -206,6 +233,10 @@ export async function POST(req: NextRequest) {
       `E-post: ${selger.epost || '(ukjent)'}`,
       `Prisindikasjon: ${selger.prisindikasjon_nok ? Number(selger.prisindikasjon_nok).toLocaleString('nb-NO') + ' NOK' : '(ikke oppgitt)'}`,
       `Bakgrunn: ${selger.bakgrunn || '(ingen)'}`,
+      ``,
+      faktaLinjer.length > 0
+        ? `=== KJENTE FAKTA (oppgitt av selger — IKKE spør om disse på nytt) ===\n${faktaLinjer.join('\n')}`
+        : `=== INGEN KJENTE FAKTA OPPGITT ===\nKjøper har ikke fått grunnleggende informasjon. Inkluder dette i spørsmålslisten.`,
       ``,
       sammenlignbare.length > 0 ? `=== SAMMENLIGNBARE SALG (${sammenlignbare.length}) ===` : `=== INGEN SAMMENLIGNBARE LIMT INN ===`,
       ...sammenlignbare.map((s, i) => `\n--- Sammenligning ${i + 1}: ${s.url} ---\n${s.tekst.slice(0, 3000)}`),

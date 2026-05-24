@@ -84,6 +84,9 @@ type Analyse = {
   markedspris_bra_m2_nok?: number
   markedspris_topp_m2_nok?: number
   markedspris_begrunnelse?: string
+  forventet_faktisk_salgspris_nok?: number
+  pst_over_prisantydning?: number
+  pris_realitet_kommentar?: string
   oppussing_vurdering?: string
   ai_vurdering?: string
   anbefalt_strategi?: string
@@ -1284,6 +1287,20 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
             onLeggTilOppussingsposter={poster => setOppussingsposter(eks => [...eks, ...poster])}
           />
           {analyse.score && <FlippeScore s={analyse.score} />}
+          {(analyse.forventet_faktisk_salgspris_nok || analyse.pris_realitet_kommentar) && (
+            <PrisRealitet
+              prisantydning={analyse.pris_antydning_nok || 0}
+              forventet={analyse.forventet_faktisk_salgspris_nok || 0}
+              pstOver={analyse.pst_over_prisantydning || 0}
+              kommentar={analyse.pris_realitet_kommentar || ''}
+              onBrukIKalk={() => {
+                if (analyse.forventet_faktisk_salgspris_nok) {
+                  setKalk(k => ({ ...k, kjopesum: analyse.forventet_faktisk_salgspris_nok! }))
+                  visToast('Realistisk salgspris satt som kjøpesum', 'suksess', 2500)
+                }
+              }}
+            />
+          )}
           {analyse.bud_strategi && <BudStrategi b={analyse.bud_strategi} prisantydning={analyse.pris_antydning_nok || 0} />}
           <OppussingsPoster
             poster={oppussingsposter}
@@ -3107,6 +3124,59 @@ function FlippeScore({ s }: { s: NonNullable<Analyse['score']> }) {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function PrisRealitet({ prisantydning, forventet, pstOver, kommentar, onBrukIKalk }: {
+  prisantydning: number; forventet: number; pstOver: number; kommentar: string; onBrukIKalk: () => void
+}) {
+  const avvik = forventet && prisantydning ? forventet - prisantydning : 0
+  const kritisk = pstOver >= 10
+  return (
+    <div style={{
+      background: kritisk ? '#fff8e1' : '#faf7ee',
+      border: `1px solid ${kritisk ? '#B05E0A44' : FARGER.gullSvak}`,
+      borderRadius: RADIUS.sm, padding: 22, marginBottom: 16,
+    }}>
+      <div style={{ fontSize: 11, color: kritisk ? '#7a4a08' : FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 14, textTransform: 'uppercase' }}>
+        {kritisk ? '⚠️ Pris-realitet — antydning er lav' : '📊 Pris-realitet'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 14 }}>
+        {prisantydning > 0 && (
+          <div style={{ background: FARGER.hvit, padding: 14, borderRadius: RADIUS.sm }}>
+            <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Prisantydning</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: FARGER.tekstMid }}>{fmtNok(prisantydning)}</div>
+          </div>
+        )}
+        {forventet > 0 && (
+          <div style={{ background: FARGER.hvit, padding: 14, borderRadius: RADIUS.sm, border: `1.5px solid ${kritisk ? '#B05E0A' : FARGER.gull}` }}>
+            <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+              Forventet faktisk salgspris
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: kritisk ? '#7a4a08' : FARGER.mork }}>{fmtNok(forventet)}</div>
+            {pstOver !== 0 && (
+              <div style={{ fontSize: 12, color: kritisk ? '#7a4a08' : FARGER.tekstMid, marginTop: 4, fontWeight: 600 }}>
+                {pstOver > 0 ? '+' : ''}{pstOver.toFixed(1)} % vs antydning
+                {avvik !== 0 && ` (${avvik > 0 ? '+' : ''}${fmtNok(avvik)})`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {kommentar && (
+        <p style={{ fontSize: 13, color: FARGER.tekstMork, lineHeight: 1.6, margin: '0 0 12px', fontWeight: 300 }}>{kommentar}</p>
+      )}
+      {forventet > 0 && (
+        <button onClick={onBrukIKalk}
+          style={{
+            background: FARGER.mork, color: FARGER.creamLys, border: 'none',
+            borderRadius: RADIUS.sm, padding: '10px 18px', fontSize: 12, fontWeight: 600,
+            cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}>
+          Bruk {fmtNok(forventet)} som kjøpesum i kalkulatoren
+        </button>
       )}
     </div>
   )

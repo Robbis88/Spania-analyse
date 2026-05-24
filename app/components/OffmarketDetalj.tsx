@@ -13,6 +13,16 @@ type SelgerInfo = {
   prisindikasjon_nok?: number; bakgrunn?: string
 }
 
+type KjenteFakta = {
+  boligtype?: string; eierform?: string
+  bra_m2?: number; p_rom_m2?: number
+  byggear?: number; soverom?: number; bad?: number
+  etasje?: string; energimerke?: string
+  fellesgjeld_nok?: number; fellesutg_mnd_nok?: number; kommunale_avg_aar_nok?: number
+  tomt_m2?: number; tomt_type?: string
+  oppussingsgrad?: string; notater?: string
+}
+
 type SammenlignbarData = { url: string; tekst: string; lagt_til: string }
 
 type RodtFlagg = { alvorlighet: 'kritisk' | 'advarsel' | 'info'; tittel: string; beskrivelse: string }
@@ -35,6 +45,7 @@ type AiAnalyse = {
 type OffmarketData = {
   adresse_input?: string
   selger?: SelgerInfo
+  kjente_fakta?: KjenteFakta
   innhenting?: { treff?: GeonorgeAdresse[]; valgt?: GeonorgeAdresse | null; lenker?: OffmarketLenker; hentet?: string }
   valgt_treff_idx?: number
   sammenlignbare_lenker?: string[]
@@ -69,6 +80,7 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [selger, setSelger] = useState<SelgerInfo>({})
+  const [fakta, setFakta] = useState<KjenteFakta>({})
   const [sammLenke, setSammLenke] = useState('')
   const [henterSamm, setHenterSamm] = useState(false)
   const [analyserer, setAnalyserer] = useState(false)
@@ -86,6 +98,7 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     const omd = (p.off_market_data || {}) as OffmarketData
     setData(omd)
     setSelger(omd.selger || {})
+    setFakta(omd.kjente_fakta || {})
     setLaster(false)
   }, [prosjektId])
 
@@ -97,6 +110,19 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
     setData(oppdatert)
     visToast('Selger-info lagret', 'suksess', 1800)
+  }
+
+  async function lagreFakta() {
+    const oppdatert = { ...data, kjente_fakta: fakta }
+    const oppdateringer: Record<string, unknown> = { off_market_data: oppdatert }
+    // Synk fellesutgifter til hovedraden så Min portefølje/Dashboard ser tallet
+    if (typeof fakta.fellesutg_mnd_nok === 'number') {
+      oppdateringer.fellesutgifter_mnd = fakta.fellesutg_mnd_nok
+    }
+    const { error } = await supabase.from('prosjekter').update(oppdateringer).eq('id', prosjektId)
+    if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
+    setData(oppdatert)
+    visToast('Fakta lagret', 'suksess', 1800)
   }
 
   async function leggTilSammenlignbar() {
@@ -281,6 +307,41 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
         <textarea value={selger.bakgrunn || ''} onChange={e => setSelger({ ...selger, bakgrunn: e.target.value })}
           rows={3} style={{ ...inputStil, fontFamily: 'inherit', resize: 'vertical' }} />
         <button onClick={lagreSelger} style={primKnapp}>💾 Lagre selger-info</button>
+      </Seksjon>
+
+      {/* Kjente fakta */}
+      <Seksjon tittel="📋 Kjente fakta om boligen">
+        <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 12px' }}>
+          Fyll inn alt selger har fortalt. AI hopper over å spørre om dette i spørsmålslisten.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <Velg lbl="Boligtype" val={fakta.boligtype || ''} onChange={v => setFakta({ ...fakta, boligtype: v })}
+            valg={['', 'Leilighet', 'Enebolig', 'Tomannsbolig', 'Rekkehus', 'Hytte', 'Annet']} />
+          <Velg lbl="Eierform" val={fakta.eierform || ''} onChange={v => setFakta({ ...fakta, eierform: v })}
+            valg={['', 'Selveier', 'Andel', 'Aksje', 'Obligasjon']} />
+          <InputTall lbl="BRA (m²)" val={fakta.bra_m2 || 0} onChange={v => setFakta({ ...fakta, bra_m2: v })} />
+          <InputTall lbl="P-rom (m²)" val={fakta.p_rom_m2 || 0} onChange={v => setFakta({ ...fakta, p_rom_m2: v })} />
+          <InputTall lbl="Byggeår" val={fakta.byggear || 0} onChange={v => setFakta({ ...fakta, byggear: v })} />
+          <InputTall lbl="Soverom" val={fakta.soverom || 0} onChange={v => setFakta({ ...fakta, soverom: v })} />
+          <InputTall lbl="Bad" val={fakta.bad || 0} onChange={v => setFakta({ ...fakta, bad: v })} />
+          <Input lbl="Etasje" val={fakta.etasje || ''} onChange={v => setFakta({ ...fakta, etasje: v })} />
+          <Velg lbl="Energimerke" val={fakta.energimerke || ''} onChange={v => setFakta({ ...fakta, energimerke: v })}
+            valg={['', 'A', 'B', 'C', 'D', 'E', 'F', 'G']} />
+          <InputTall lbl="Fellesgjeld (NOK)" val={fakta.fellesgjeld_nok || 0} onChange={v => setFakta({ ...fakta, fellesgjeld_nok: v })} />
+          <InputTall lbl="Fellesutg/mnd" val={fakta.fellesutg_mnd_nok || 0} onChange={v => setFakta({ ...fakta, fellesutg_mnd_nok: v })} />
+          <InputTall lbl="Komm. avg/år" val={fakta.kommunale_avg_aar_nok || 0} onChange={v => setFakta({ ...fakta, kommunale_avg_aar_nok: v })} />
+          <InputTall lbl="Tomt (m²)" val={fakta.tomt_m2 || 0} onChange={v => setFakta({ ...fakta, tomt_m2: v })} />
+          <Velg lbl="Tomt-type" val={fakta.tomt_type || ''} onChange={v => setFakta({ ...fakta, tomt_type: v })}
+            valg={['', 'Eier', 'Festet']} />
+          <Velg lbl="Oppussingsgrad" val={fakta.oppussingsgrad || ''} onChange={v => setFakta({ ...fakta, oppussingsgrad: v })}
+            valg={['', 'Original', 'Delvis pusset', 'Helt renovert', 'Trenger total renovering']} />
+        </div>
+        <label style={{ ...lblStil, marginTop: 10 }}>Andre opplysninger fra selger</label>
+        <textarea value={fakta.notater || ''} onChange={e => setFakta({ ...fakta, notater: e.target.value })}
+          rows={3}
+          placeholder="f.eks. bad rehabilitert 2018, nytt tak 2020, FDV-dokumentasjon foreligger"
+          style={{ ...inputStil, fontFamily: 'inherit', resize: 'vertical' }} />
+        <button onClick={lagreFakta} style={primKnapp}>💾 Lagre fakta</button>
       </Seksjon>
 
       {/* Bilder */}
@@ -737,6 +798,17 @@ function InputTall({ lbl, val, onChange }: { lbl: string; val: number; onChange:
     <div>
       <label style={lblStil}>{lbl}</label>
       <input type="number" value={val || ''} onChange={e => onChange(Number(e.target.value) || 0)} style={inputStil} />
+    </div>
+  )
+}
+
+function Velg({ lbl, val, onChange, valg }: { lbl: string; val: string; onChange: (v: string) => void; valg: string[] }) {
+  return (
+    <div>
+      <label style={lblStil}>{lbl}</label>
+      <select value={val} onChange={e => onChange(e.target.value)} style={{ ...inputStil, fontFamily: 'inherit' }}>
+        {valg.map(v => <option key={v} value={v}>{v || '— velg —'}</option>)}
+      </select>
     </div>
   )
 }
