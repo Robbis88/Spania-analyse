@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import { visToast } from '../lib/toast'
+import { hentAktivBruker } from '../lib/aktivBruker'
 import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ProsjektBilder } from './ProsjektBilder'
 import type { GeonorgeAdresse, OffmarketLenker } from '../lib/offmarket'
@@ -73,6 +74,8 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [analyserer, setAnalyserer] = useState(false)
   const [analyseFeil, setAnalyseFeil] = useState<string | null>(null)
   const [sletter, setSletter] = useState(false)
+  const [pdfLaster, setPdfLaster] = useState(false)
+  const [epostApen, setEpostApen] = useState(false)
 
   const hent = useCallback(async () => {
     setLaster(true); setFeil(null)
@@ -180,6 +183,31 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     await loggAktivitet({ handling: 'slettet off-market prosjekt', tabell: 'prosjekter', rad_id: prosjektId, detaljer: { navn } })
     visToast('Slettet', 'suksess', 2000)
     onTilbake()
+  }
+
+  async function lastNedPdf() {
+    if (pdfLaster) return
+    setPdfLaster(true)
+    try {
+      const res = await fetch('/api/offmarket/pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prosjektId }),
+      })
+      const resp = await res.json().catch(() => ({}))
+      if (!res.ok || !resp.base64) { visToast(resp?.feil || 'PDF feilet', 'feil', 4000); return }
+      const bin = atob(resp.base64)
+      const u8 = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+      const blob = new Blob([u8], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = resp.filnavn || 'offmarket.pdf'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      visToast('PDF lastet ned', 'suksess', 2000)
+    } finally {
+      setPdfLaster(false)
+    }
   }
 
   if (laster) return <div style={{ textAlign: 'center', padding: 60, color: FARGER.tekstLys }}>⏳ Laster off-market prosjekt…</div>
@@ -312,6 +340,31 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
               {data.ai_modell && ` · ${data.ai_modell}`}
             </span>
           )}
+          {ai && (
+            <>
+              <button onClick={lastNedPdf} disabled={pdfLaster}
+                style={{
+                  background: FARGER.hvit, color: FARGER.mork,
+                  border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm,
+                  padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                  cursor: pdfLaster ? 'not-allowed' : 'pointer',
+                  letterSpacing: '0.06em', textTransform: 'uppercase',
+                }}>
+                {pdfLaster ? '⏳ Lager…' : '📄 Last ned PDF'}
+              </button>
+              {ai.sporsmal_til_selger && ai.sporsmal_til_selger.length > 0 && (
+                <button onClick={() => setEpostApen(true)}
+                  style={{
+                    background: FARGER.gull, color: '#fff', border: 'none',
+                    borderRadius: RADIUS.sm, padding: '10px 16px',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    letterSpacing: '0.06em', textTransform: 'uppercase',
+                  }}>
+                  ✉️ Send til selger
+                </button>
+              )}
+            </>
+          )}
         </div>
         {analyseFeil && (
           <div style={{ background: FARGER.feilBg, padding: 10, borderRadius: RADIUS.sm, color: '#7a0c1e', fontSize: 12, marginBottom: 14 }}>
@@ -320,8 +373,162 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
         )}
         {ai && <AiVisning ai={ai} />}
       </Seksjon>
+
+      {epostApen && ai && (
+        <EpostModal
+          prosjektId={prosjektId}
+          adresse={valgt?.adressetekst || (data.adresse_input || '')}
+          mottakerEpost={data.selger?.epost || ''}
+          mottakerNavn={data.selger?.navn || ''}
+          sporsmal={ai.sporsmal_til_selger || []}
+          onLukk={() => setEpostApen(false)}
+        />
+      )}
     </div>
   )
+}
+
+function EpostModal({ prosjektId, adresse, mottakerEpost, mottakerNavn, sporsmal, onLukk }: {
+  prosjektId: string
+  adresse: string
+  mottakerEpost: string
+  mottakerNavn: string
+  sporsmal: string[]
+  onLukk: () => void
+}) {
+  const [til, setTil] = useState(mottakerEpost)
+  const [navn, setNavn] = useState(mottakerNavn)
+  const [emne, setEmne] = useState(adresse ? `Spørsmål om ${adresse}` : 'Spørsmål om eiendommen')
+  const [innhold, setInnhold] = useState(() => byggInnhold(sporsmal, adresse, mottakerNavn))
+  const [sender, setSender] = useState(false)
+  const [feilmelding, setFeilmelding] = useState<string | null>(null)
+
+  async function send() {
+    if (!til.trim() || !innhold.trim()) { setFeilmelding('E-post og innhold må fylles ut'); return }
+    setSender(true); setFeilmelding(null)
+    try {
+      const res = await fetch('/api/epost/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          til, emne, innhold,
+          formaal: 'selger_kontakt',
+          mottaker_navn: navn || null,
+          mottaker_type: 'selger',
+          sprak: 'nb',
+          relatert_prosjekt_id: prosjektId,
+          sendt_av: hentAktivBruker() || 'ukjent',
+          bruker_endret: innhold !== byggInnhold(sporsmal, adresse, mottakerNavn),
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.suksess) { setFeilmelding(json?.feil || 'Sending feilet'); setSender(false); return }
+      visToast('E-post sendt til selger', 'suksess', 2500)
+      onLukk()
+    } catch (e) {
+      setFeilmelding(e instanceof Error ? e.message : String(e))
+    }
+    setSender(false)
+  }
+
+  return (
+    <div onClick={onLukk} style={{
+      position: 'fixed', inset: 0, background: 'rgba(14,23,38,0.55)',
+      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: RADIUS.lg, width: '100%', maxWidth: 720,
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 24,
+      }}>
+        <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 6 }}>
+          ✉️ SEND SPØRSMÅLSLISTE
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: FARGER.mork }}>E-post til selger</h2>
+        <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '6px 0 18px' }}>
+          Spørsmålene fra AI-vurderingen er allerede satt inn. Rediger fritt før sending.
+        </p>
+        <div style={{ overflow: 'auto', flex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <ModalInput lbl="Mottakers navn" val={navn} onChange={setNavn} />
+            <ModalInput lbl="E-post" val={til} onChange={setTil} />
+          </div>
+          <ModalInput lbl="Emne" val={emne} onChange={setEmne} />
+          <div style={{ marginTop: 10 }}>
+            <label style={{ fontSize: 10, color: FARGER.tekstMid, marginBottom: 4, display: 'block', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>
+              Innhold
+            </label>
+            <textarea value={innhold} onChange={e => setInnhold(e.target.value)} rows={18}
+              style={{
+                width: '100%', padding: 12, fontSize: 13, fontFamily: 'inherit',
+                border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm,
+                background: '#fff', boxSizing: 'border-box', resize: 'vertical',
+                lineHeight: 1.5,
+              }} />
+          </div>
+          <p style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 8, fontStyle: 'italic' }}>
+            Signaturen din legges på automatisk når e-posten sendes.
+          </p>
+        </div>
+        {feilmelding && (
+          <div style={{ background: FARGER.feilBg, padding: 10, borderRadius: RADIUS.sm, color: '#7a0c1e', fontSize: 12, marginTop: 10 }}>
+            {feilmelding}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button onClick={send} disabled={sender || !til.trim()}
+            style={{
+              flex: 1, background: sender ? FARGER.tekstLys : FARGER.mork,
+              color: '#fff', border: 'none', borderRadius: RADIUS.sm,
+              padding: 12, fontSize: 13, fontWeight: 600,
+              cursor: sender || !til.trim() ? 'not-allowed' : 'pointer',
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+            {sender ? '⏳ Sender…' : '✉️ Send nå'}
+          </button>
+          <button onClick={onLukk} disabled={sender}
+            style={{
+              background: FARGER.flateMid, color: FARGER.tekstMid, border: 'none',
+              borderRadius: RADIUS.sm, padding: '12px 18px', fontSize: 13, fontWeight: 600,
+              cursor: sender ? 'not-allowed' : 'pointer',
+            }}>
+            Avbryt
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalInput({ lbl, val, onChange }: { lbl: string; val: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label style={{ fontSize: 10, color: FARGER.tekstMid, marginBottom: 4, display: 'block', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>
+        {lbl}
+      </label>
+      <input value={val} onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%', padding: '10px 12px', fontSize: 13,
+          border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm,
+          background: '#fff', boxSizing: 'border-box',
+        }} />
+    </div>
+  )
+}
+
+function byggInnhold(sporsmal: string[], adresse: string, mottakerNavn: string): string {
+  const hilsen = mottakerNavn ? `Hei ${mottakerNavn},` : 'Hei,'
+  const adresseLinje = adresse ? `eiendommen ${adresse}` : 'eiendommen'
+  const linjer = [
+    hilsen,
+    '',
+    `Takk for tilbudet om ${adresseLinje}. Før vi går videre med en konkret budgivning trenger vi noen avklaringer:`,
+    '',
+    ...sporsmal.map((s, i) => `${i + 1}. ${s}`),
+    '',
+    'Vi setter pris på et raskt svar, og er åpne for befaring eller telefonmøte hvis det er enklere.',
+    '',
+    'Mvh,',
+  ]
+  return linjer.join('\n')
 }
 
 function AiVisning({ ai }: { ai: AiAnalyse }) {
