@@ -23,7 +23,16 @@ type KjenteFakta = {
   oppussingsgrad?: string; notater?: string
 }
 
-type SammenlignbarData = { url: string; tekst: string; lagt_til: string }
+type SammenlignbarData = {
+  url: string
+  tekst: string
+  lagt_til: string
+  beskrivelse?: string          // f.eks. "Storgata 17, samme bygg, 2. etg"
+  prisantydning_nok?: number
+  faktisk_salgspris_nok?: number
+  bra_m2?: number               // areal — gir AI grunnlag for å regne m²-pris
+  notat?: string                // fritekst — "samme oppussingsnivå", "totalrenovert 2023"
+}
 
 type RodtFlagg = { alvorlighet: 'kritisk' | 'advarsel' | 'info'; tittel: string; beskrivelse: string }
 type AldersRisiko = { risiko: string; hvordan_sjekke: string; estimat_om_funnet_nok?: number }
@@ -37,7 +46,7 @@ type AiAnalyse = {
   sporsmal_til_megler_eller_kommune?: string[]
   aldersrelaterte_risikoer?: AldersRisiko[]
   mangler_i_grunnlag?: string[]
-  sammenlignbare_vurdering?: { antall?: number; gjennomsnitt_m2_pris_nok?: number; kommentar?: string }
+  sammenlignbare_vurdering?: { antall?: number; gjennomsnitt_m2_pris_nok?: number; typisk_avvik_antydning_pst?: number; kommentar?: string }
   forhandlingsposisjon?: { anbefalt_maksbud_nok?: number; anbefalt_startbud_nok?: number; begrunnelse?: string; spaker?: string[] }
   neste_steg?: string[]
 }
@@ -82,6 +91,11 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [selger, setSelger] = useState<SelgerInfo>({})
   const [fakta, setFakta] = useState<KjenteFakta>({})
   const [sammLenke, setSammLenke] = useState('')
+  const [sammBeskrivelse, setSammBeskrivelse] = useState('')
+  const [sammAntydning, setSammAntydning] = useState(0)
+  const [sammFaktisk, setSammFaktisk] = useState(0)
+  const [sammBra, setSammBra] = useState(0)
+  const [sammNotat, setSammNotat] = useState('')
   const [henterSamm, setHenterSamm] = useState(false)
   const [analyserer, setAnalyserer] = useState(false)
   const [analyseFeil, setAnalyseFeil] = useState<string | null>(null)
@@ -127,21 +141,51 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
 
   async function leggTilSammenlignbar() {
     const url = sammLenke.trim()
-    if (!/^https?:\/\//.test(url)) { setAnalyseFeil('Ugyldig URL'); return }
+    const beskrivelse = sammBeskrivelse.trim()
+    // Minst én av URL eller beskrivelse må finnes — ellers har vi ingenting å gå på
+    if (!url && !beskrivelse && !sammFaktisk && !sammAntydning) {
+      setAnalyseFeil('Legg inn enten URL, beskrivelse eller en pris')
+      return
+    }
+    if (url && !/^https?:\/\//.test(url)) {
+      setAnalyseFeil('Ugyldig URL — fjern den hvis du ikke har en')
+      return
+    }
     setHenterSamm(true); setAnalyseFeil(null)
     try {
-      const res = await fetch('/api/offmarket/sammenlignbar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      })
-      const json = await res.json()
-      if (!res.ok || json.feil) { setAnalyseFeil(json.feil || 'Henting feilet'); setHenterSamm(false); return }
-      const ny: SammenlignbarData = { url, tekst: json.tekst, lagt_til: new Date().toISOString() }
+      let scraped = ''
+      if (url) {
+        const res = await fetch('/api/offmarket/sammenlignbar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        })
+        const json = await res.json()
+        if (!res.ok || json.feil) {
+          // URL-scraping kan feile (Finn blokkerer) — la oss likevel lagre raden hvis vi har manuelle data
+          if (!beskrivelse && !sammFaktisk && !sammAntydning) {
+            setAnalyseFeil(json.feil || 'Henting feilet')
+            setHenterSamm(false)
+            return
+          }
+          visToast('Henting av URL feilet — lagrer manuelle data', 'info', 3000)
+        } else {
+          scraped = json.tekst || ''
+        }
+      }
+      const ny: SammenlignbarData = {
+        url, tekst: scraped, lagt_til: new Date().toISOString(),
+        beskrivelse: beskrivelse || undefined,
+        prisantydning_nok: sammAntydning || undefined,
+        faktisk_salgspris_nok: sammFaktisk || undefined,
+        bra_m2: sammBra || undefined,
+        notat: sammNotat.trim() || undefined,
+      }
       const eksisterende = data.sammenlignbare_data || []
       const oppdatert = { ...data, sammenlignbare_data: [...eksisterende, ny] }
       const { error } = await supabase.from('prosjekter').update({ off_market_data: oppdatert }).eq('id', prosjektId)
       if (error) { setAnalyseFeil('Lagring feilet: ' + error.message); setHenterSamm(false); return }
-      setData(oppdatert); setSammLenke('')
+      setData(oppdatert)
+      setSammLenke(''); setSammBeskrivelse(''); setSammAntydning(0); setSammFaktisk(0); setSammBra(0); setSammNotat('')
       visToast('Sammenligning lagt til', 'suksess', 1800)
     } catch (e) {
       setAnalyseFeil(e instanceof Error ? e.message : String(e))
@@ -352,33 +396,67 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
       {/* Sammenlignbare */}
       <Seksjon tittel="💰 Sammenlignbare salg">
         <p style={{ fontSize: 12, color: FARGER.tekstMid, marginTop: 0 }}>
-          Lim inn 2-5 Finn-lenker (gjerne solgte boliger i samme område). Vi henter teksten og bruker den i AI-vurderingen.
+          Legg inn tilsvarende boliger i området. Jo mer konkret jo bedre — særlig <strong>faktisk salgspris</strong> hvis du kjenner den (selv om Finn-annonsen viser bare prisantydning).
         </p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <input value={sammLenke} onChange={e => setSammLenke(e.target.value)}
-            placeholder="https://www.finn.no/realestate/…"
-            style={{ ...inputStil, flex: 1 }} />
-          <button onClick={leggTilSammenlignbar} disabled={henterSamm || !sammLenke.trim()}
-            style={{ ...primKnapp, opacity: henterSamm ? 0.6 : 1, padding: '0 18px' }}>
-            {henterSamm ? '⏳' : '+ Legg til'}
+        <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 12, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <Input lbl="Adresse / kort beskrivelse" val={sammBeskrivelse} onChange={setSammBeskrivelse} />
+            <Input lbl="Finn-URL (valgfri)" val={sammLenke} onChange={setSammLenke} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 8 }}>
+            <InputTall lbl="Prisantydning (NOK)" val={sammAntydning} onChange={setSammAntydning} />
+            <InputTall lbl="Faktisk salgspris (NOK)" val={sammFaktisk} onChange={setSammFaktisk} />
+            <InputTall lbl="BRA (m²)" val={sammBra} onChange={setSammBra} />
+          </div>
+          <Input lbl="Notat (likhet/forskjell, oppussingsnivå)" val={sammNotat} onChange={setSammNotat} />
+          {sammAntydning > 0 && sammFaktisk > 0 && (
+            <div style={{ fontSize: 11, color: FARGER.gull, fontWeight: 600, marginTop: 6 }}>
+              {((sammFaktisk - sammAntydning) / sammAntydning * 100).toFixed(1)} % {sammFaktisk > sammAntydning ? 'over' : 'under'} antydning
+              {sammBra > 0 && ` · ${Math.round(sammFaktisk / sammBra).toLocaleString('nb-NO')} kr/m²`}
+            </div>
+          )}
+          <button onClick={leggTilSammenlignbar} disabled={henterSamm}
+            style={{ ...primKnapp, opacity: henterSamm ? 0.6 : 1, marginTop: 10 }}>
+            {henterSamm ? '⏳ Lagrer…' : '+ Legg til sammenligning'}
           </button>
         </div>
         {samm.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {samm.map((s, i) => (
-              <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                padding: '8px 12px', background: FARGER.creamLys,
-                border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.sm,
-              }}>
-                <a href={s.url} target="_blank" rel="noopener noreferrer"
-                  style={{ flex: 1, fontSize: 12, color: FARGER.mork, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {s.url}
-                </a>
-                <span style={{ fontSize: 10, color: FARGER.tekstLys }}>{s.tekst.length} tegn</span>
-                <button onClick={() => slettSammenlignbar(i)} style={{ background: 'transparent', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14 }}>🗑</button>
-              </div>
-            ))}
+            {samm.map((s, i) => {
+              const tittel = s.beskrivelse || s.url || 'Uten lenke'
+              const avvik = s.prisantydning_nok && s.faktisk_salgspris_nok
+                ? ((s.faktisk_salgspris_nok - s.prisantydning_nok) / s.prisantydning_nok * 100)
+                : null
+              const m2pris = s.faktisk_salgspris_nok && s.bra_m2 ? Math.round(s.faktisk_salgspris_nok / s.bra_m2) : null
+              return (
+                <div key={i} style={{
+                  padding: 10, background: FARGER.creamLys,
+                  border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.sm,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {s.url ? (
+                        <a href={s.url} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize: 13, color: FARGER.mork, fontWeight: 600, textDecoration: 'none' }}>
+                          {tittel} ↗
+                        </a>
+                      ) : (
+                        <div style={{ fontSize: 13, color: FARGER.mork, fontWeight: 600 }}>{tittel}</div>
+                      )}
+                      <div style={{ fontSize: 11, color: FARGER.tekstMid, marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {s.prisantydning_nok != null && <span>Antydning: <strong>{fmtNok(s.prisantydning_nok)}</strong></span>}
+                        {s.faktisk_salgspris_nok != null && <span>Solgt: <strong style={{ color: FARGER.gull }}>{fmtNok(s.faktisk_salgspris_nok)}</strong></span>}
+                        {avvik != null && <span style={{ color: avvik > 0 ? FARGER.advarsel : FARGER.tekstMid }}>{avvik > 0 ? '+' : ''}{avvik.toFixed(1)} %</span>}
+                        {s.bra_m2 && <span>{s.bra_m2} m²</span>}
+                        {m2pris && <span>{m2pris.toLocaleString('nb-NO')} kr/m²</span>}
+                      </div>
+                      {s.notat && <div style={{ fontSize: 11, color: FARGER.tekstMid, marginTop: 4, fontStyle: 'italic' }}>{s.notat}</div>}
+                    </div>
+                    <button onClick={() => slettSammenlignbar(i)} style={{ background: 'transparent', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14 }}>🗑</button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </Seksjon>
@@ -685,11 +763,17 @@ function AiVisning({ ai }: { ai: AiAnalyse }) {
         </Underseksjon>
       )}
 
-      {ai.sammenlignbare_vurdering && (ai.sammenlignbare_vurdering.kommentar || ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok) && (
+      {ai.sammenlignbare_vurdering && (ai.sammenlignbare_vurdering.kommentar || ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok || ai.sammenlignbare_vurdering.typisk_avvik_antydning_pst != null) && (
         <Underseksjon tittel="💰 Sammenlignbare salg">
-          {ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok != null && (
-            <div style={{ marginBottom: 6 }}><strong>Gj.snitt m²-pris:</strong> {fmtNok(ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok)}</div>
-          )}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+            {ai.sammenlignbare_vurdering.antall != null && <Tag lbl={`${ai.sammenlignbare_vurdering.antall} salg`} />}
+            {ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok != null && (
+              <Tag lbl={`Gj.snitt: ${fmtNok(ai.sammenlignbare_vurdering.gjennomsnitt_m2_pris_nok)}/m²`} />
+            )}
+            {ai.sammenlignbare_vurdering.typisk_avvik_antydning_pst != null && (
+              <Tag lbl={`Typisk ${ai.sammenlignbare_vurdering.typisk_avvik_antydning_pst > 0 ? '+' : ''}${ai.sammenlignbare_vurdering.typisk_avvik_antydning_pst.toFixed(1)} % vs antydning`} />
+            )}
+          </div>
           {ai.sammenlignbare_vurdering.kommentar && <p style={tekstStil}>{ai.sammenlignbare_vurdering.kommentar}</p>}
         </Underseksjon>
       )}

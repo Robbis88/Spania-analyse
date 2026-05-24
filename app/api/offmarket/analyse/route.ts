@@ -83,11 +83,12 @@ const offmarketTool = {
       },
       sammenlignbare_vurdering: {
         type: 'object',
-        description: 'Vurdering av sammenlignbare salg brukeren har limt inn. Hopp over hvis ingen lenker er gitt.',
+        description: 'Vurdering av sammenlignbare salg brukeren har limt inn. Hopp over hvis ingen er gitt.',
         properties: {
           antall: { type: 'number' },
           gjennomsnitt_m2_pris_nok: { type: 'number' },
-          kommentar: { type: 'string', description: 'Hvordan tilbudet ligger an mot disse salgene.' },
+          typisk_avvik_antydning_pst: { type: 'number', description: 'Gjennomsnittlig % som faktisk salg lå OVER prisantydning, basert på sammenlignbare der både antydning og faktisk er oppgitt. Positivt = over, negativt = under. Hopp over hvis vi ikke har data på begge.' },
+          kommentar: { type: 'string', description: 'Hvordan tilbudet ligger an mot disse salgene — særlig pris/m² og avvik fra antydning.' },
         },
       },
       forhandlingsposisjon: {
@@ -144,9 +145,22 @@ Realistiske priser (NOK 2025):
 - Bad: 250-450k · Kjøkken: 150-350k · Drenering: 80-300k
 - Vinduer 10-15 stk: 150-300k · El-anlegg: 50-150k · Tak: 200-500k
 
+OM SAMMENLIGNBARE SALG:
+Hvis kjøperen har lagt inn sammenlignbare med FAKTISK salgspris, er disse den sterkeste signalet du har. Bruk dem aktivt:
+- Verdivurdering: anker «sannsynlig_nok» på faktisk solgte tilsvarende boliger justert for forskjeller (areal, byggeår, stand)
+- Sammenlignbare_vurdering: regn ut gjennomsnittlig m²-pris og typisk avvik mellom antydning og faktisk salg. Hvis sammenlignbare ble solgt 15-20 % over antydning, MÅ det reflekteres i ditt verdiestimat for off-market boligen — ellers er du naiv.
+- Forhandlingsposisjon: hvis kjøper kan kjøpe off-market for en pris under det sammenlignbare gikk for, er det reell upside å peke på.
+
 Skriv på norsk. Vær direkte og konkret. Ikke pynt på risikoer.`
 
-type SammenlignbarData = { url: string; tekst: string }
+type SammenlignbarData = {
+  url: string; tekst: string
+  beskrivelse?: string
+  prisantydning_nok?: number
+  faktisk_salgspris_nok?: number
+  bra_m2?: number
+  notat?: string
+}
 
 type Bilde = { id: string; storage_sti: string; kategori?: string | null; notat?: string | null }
 
@@ -238,8 +252,25 @@ export async function POST(req: NextRequest) {
         ? `=== KJENTE FAKTA (oppgitt av selger — IKKE spør om disse på nytt) ===\n${faktaLinjer.join('\n')}`
         : `=== INGEN KJENTE FAKTA OPPGITT ===\nKjøper har ikke fått grunnleggende informasjon. Inkluder dette i spørsmålslisten.`,
       ``,
-      sammenlignbare.length > 0 ? `=== SAMMENLIGNBARE SALG (${sammenlignbare.length}) ===` : `=== INGEN SAMMENLIGNBARE LIMT INN ===`,
-      ...sammenlignbare.map((s, i) => `\n--- Sammenligning ${i + 1}: ${s.url} ---\n${s.tekst.slice(0, 3000)}`),
+      sammenlignbare.length > 0 ? `=== SAMMENLIGNBARE SALG (${sammenlignbare.length}) ===\nDette er kjøperens egne nøkkeltall fra området — bruk disse som ankerpunkt for verdivurdering og «typisk avvik fra prisantydning», ikke bare den scrapede annonseteksten.` : `=== INGEN SAMMENLIGNBARE LIMT INN ===`,
+      ...sammenlignbare.map((s, i) => {
+        const tittel = s.beskrivelse || s.url || `Sammenligning ${i + 1}`
+        const linjer: string[] = [`\n--- ${tittel} ---`]
+        if (s.url) linjer.push(`URL: ${s.url}`)
+        if (s.bra_m2) linjer.push(`Areal (BRA): ${s.bra_m2} m²`)
+        if (s.prisantydning_nok) linjer.push(`Prisantydning: ${s.prisantydning_nok.toLocaleString('nb-NO')} NOK`)
+        if (s.faktisk_salgspris_nok) {
+          linjer.push(`FAKTISK SOLGT FOR: ${s.faktisk_salgspris_nok.toLocaleString('nb-NO')} NOK`)
+          if (s.prisantydning_nok) {
+            const pst = ((s.faktisk_salgspris_nok - s.prisantydning_nok) / s.prisantydning_nok * 100).toFixed(1)
+            linjer.push(`→ ${pst}% ${s.faktisk_salgspris_nok > s.prisantydning_nok ? 'over' : 'under'} antydning`)
+          }
+          if (s.bra_m2) linjer.push(`→ ${Math.round(s.faktisk_salgspris_nok / s.bra_m2).toLocaleString('nb-NO')} kr/m²`)
+        }
+        if (s.notat) linjer.push(`Notat: ${s.notat}`)
+        if (s.tekst) linjer.push(`\nAnnonse-tekst (klippet):\n${s.tekst.slice(0, 2500)}`)
+        return linjer.join('\n')
+      }),
       ``,
       bilder.length > 0 ? `=== BILDER ===\n${bilder.length} bilder vedlagt for vision-analyse. Kategorier: ${bilder.map(b => b.kategori || '?').join(', ')}` : `=== INGEN BILDER ===`,
     ].filter(Boolean).join('\n')
