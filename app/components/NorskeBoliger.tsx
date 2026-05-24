@@ -15,6 +15,7 @@ import { Salgspakke } from './Salgspakke'
 import { TilbudHistorikk } from './TilbudHistorikk'
 import { Dashboard } from './Dashboard'
 import { TakstAnalyse, type TakstData } from './TakstAnalyse'
+import { Offmarket } from './Offmarket'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -425,7 +426,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     // Eide eiendommer vises i Min portefølje-fanen.
     const { data } = await supabase
       .from('prosjekter')
-      .select('id, navn, opprettet, bolig_data, norsk_kalkulator_data, skjult_for, er_portefolje')
+      .select('id, navn, opprettet, bolig_data, norsk_kalkulator_data, skjult_for, er_portefolje, off_market')
       .eq('marked', 'norge')
       .or('er_portefolje.is.null,er_portefolje.eq.false')
       .order('opprettet', { ascending: false })
@@ -1175,6 +1176,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
           onMarkerSomKjopt={markerSomKjopt}
         />
       )}
+
+      <Offmarket onLagret={() => { void hentLagrede() }} />
 
       {modus === 'bo' && (
         <SalgEgenBolig
@@ -2223,7 +2226,7 @@ function ScoreBoks({ lbl, val, score, farge, undertekst }: { lbl: string; val: s
 }
 
 function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId, adminBrukere, aktivBruker, onOppdaterSkjult, onMarkerSomKjopt }: {
-  prosjekter: Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>
+  prosjekter: Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null; off_market?: boolean }>
   onLastInn: (p: { id: string; norsk_kalkulator_data?: Record<string, unknown> | null }) => void
   onSlett: (id: string, navn: string) => void
   aktivId: string | null
@@ -2256,8 +2259,13 @@ function LagredeProsjekter({ prosjekter, onLastInn, onSlett, aktivId, adminBruke
               position: 'relative',
             }}>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: FARGER.mork }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: FARGER.mork, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {erAktiv && '★ '}{p.navn}
+                  {p.off_market && (
+                    <span title="Off-market vurdering" style={{ fontSize: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gull}`, color: FARGER.gull, padding: '2px 6px', borderRadius: RADIUS.pill, fontWeight: 700, letterSpacing: '0.06em' }}>
+                      🔍 OFF-MARKET
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 2 }}>
                   {beliggenhet ? beliggenhet + ' · ' : ''}Lagret {dato}

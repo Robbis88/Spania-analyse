@@ -33,6 +33,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/portefolje') ||
     pathname.startsWith('/api/husholdning-default') ||
     pathname.startsWith('/api/handverker') ||
+    pathname.startsWith('/api/offmarket') ||
     pathname.startsWith('/_next') ||
     pathname === '/logo.png' ||
     pathname === '/favicon.ico'

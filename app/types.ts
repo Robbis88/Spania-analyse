@@ -130,6 +130,9 @@ export type Prosjekt = {
   portefolje_ai_data?: Record<string, unknown> | null
   portefolje_ai_generert?: string | null
   portefolje_ai_modell_versjon?: string | null
+  // Off-market vurdering (utvidelse 2026-05-24)
+  off_market?: boolean
+  off_market_data?: Record<string, unknown> | null
 }
 
 export type EiendomLaan = {
