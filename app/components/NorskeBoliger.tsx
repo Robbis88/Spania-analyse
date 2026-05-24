@@ -16,6 +16,7 @@ import { TilbudHistorikk } from './TilbudHistorikk'
 import { Dashboard } from './Dashboard'
 import { TakstAnalyse, type TakstData } from './TakstAnalyse'
 import { Offmarket } from './Offmarket'
+import { OffmarketDetalj } from './OffmarketDetalj'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).
@@ -305,7 +306,8 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
   const [meglerVurderinger, setMeglerVurderinger] = useState<MeglerVurdering[]>([])
   const [pdfLaster, setPdfLaster] = useState(false)
   const [fraCache, setFraCache] = useState<number | null>(null)
-  const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null }>>([])
+  const [lagrede, setLagrede] = useState<Array<{ id: string; navn: string; opprettet: string; bolig_data?: { beliggenhet?: string }; norsk_kalkulator_data?: Record<string, unknown> | null; skjult_for?: string[] | null; off_market?: boolean }>>([])
+  const [offmarketDetaljId, setOffmarketDetaljId] = useState<string | null>(null)
   const [adminBrukere, setAdminBrukere] = useState<string[]>([])
   const [portefoljeListe, setPortefoljeListe] = useState<Array<{ id: string; navn: string; bolig_data?: { beliggenhet?: string } | null }>>([])
   // Takst-analyse — lagres sammen med prosjektet og lastes inn igjen
@@ -566,15 +568,15 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
 
   // Aksepterer enten et helt prosjekt-objekt eller bare id (sistnevnte fra Dashboard-klikk).
   // Når bare id sendes, slår vi opp prosjektet i listen `lagrede`.
-  async function lastInn(p: string | { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null }) {
-    let prosjekt: { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null } | null = null
+  async function lastInn(p: string | { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null; off_market?: boolean }) {
+    let prosjekt: { id: string; navn?: string; norsk_kalkulator_data?: Record<string, unknown> | null; off_market?: boolean } | null = null
     if (typeof p === 'string') {
       prosjekt = lagrede.find(l => l.id === p) || null
       if (!prosjekt) {
         // Prosjektet kan være nyere enn cachet liste — hent direkte
         const { data } = await supabase
           .from('prosjekter')
-          .select('id, navn, norsk_kalkulator_data')
+          .select('id, navn, norsk_kalkulator_data, off_market')
           .eq('id', p).maybeSingle()
         prosjekt = data as typeof prosjekt
       }
@@ -583,6 +585,13 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     }
     if (!prosjekt) {
       visToast('Fant ikke prosjektet', 'feil', 4000)
+      return
+    }
+    // Off-market prosjekter har egen detaljvisning — ruter dit i stedet for
+    // å forsøke å laste norsk_kalkulator_data (som ikke finnes for disse).
+    if (prosjekt.off_market) {
+      setOffmarketDetaljId(prosjekt.id)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     const d = prosjekt.norsk_kalkulator_data
@@ -1101,6 +1110,18 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       salgspris: 0, meglerhonorar_pst: 2.0, marknadsforing: 25000,
       skattefri: false, skattesats_pst: 22,
     })
+  }
+
+  // Off-market detaljvisning tar over hele NorskeBoliger-flyten når aktiv —
+  // har egen header, slett-knapp, AI-vurdering osv. Tilbake-knappen der
+  // tømmer staten og bringer brukeren til Norske boliger-listen.
+  if (offmarketDetaljId) {
+    return (
+      <OffmarketDetalj
+        prosjektId={offmarketDetaljId}
+        onTilbake={() => { setOffmarketDetaljId(null); void hentLagrede() }}
+      />
+    )
   }
 
   return (
