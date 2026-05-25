@@ -30,8 +30,8 @@ const analyserBildeTool = {
           required: ['navn', 'kostnad_estimat_lav', 'kostnad_estimat_hoy', 'begrunnelse'],
           properties: {
             navn: { type: 'string', description: 'F.eks. "Bad – flislegging + nytt vvs"' },
-            kostnad_estimat_lav: { type: 'number', description: 'EUR, nedre del av intervall' },
-            kostnad_estimat_hoy: { type: 'number', description: 'EUR, øvre del av intervall' },
+            kostnad_estimat_lav: { type: 'number', description: 'Nedre del av kostnadsintervall i lokal valuta (se system-instruks)' },
+            kostnad_estimat_hoy: { type: 'number', description: 'Øvre del av kostnadsintervall i lokal valuta' },
             begrunnelse: { type: 'string', description: 'Kort hvorfor dette anbefales' },
           },
         },
@@ -47,7 +47,7 @@ const analyserBildeTool = {
             beskrivelse: { type: 'string' },
             kostnad_estimat_lav: { type: 'number' },
             kostnad_estimat_hoy: { type: 'number' },
-            verdiokning_estimat: { type: 'string', description: 'F.eks. "€30 000–50 000 ved salg"' },
+            verdiokning_estimat: { type: 'string', description: 'F.eks. "300 000–500 000 kr ved salg" — bruk samme valuta som system-instruks angir' },
             regulering_vurdering: { type: 'string', enum: ['sannsynlig_ok', 'ma_sjekkes', 'sannsynlig_problematisk'] },
             regulering_begrunnelse: { type: 'string' },
             ma_sjekkes_videre: { type: 'array', items: { type: 'string' }, description: 'Konkrete punkter for ayuntamiento/arkitekt' },
@@ -61,7 +61,7 @@ const analyserBildeTool = {
   },
 }
 
-const SYSTEM = `Du er ekspert på spansk eiendomsmarked og oppussing. Du analyserer bilder av boliger og returnerer strukturert data via analyser_bilde-verktøyet.
+const SYSTEM_SPANIA = `Du er ekspert på spansk eiendomsmarked og oppussing. Du analyserer bilder av boliger og returnerer strukturert data via analyser_bilde-verktøyet.
 
 Retningslinjer:
 - Alle kostnader i EUR som intervall (lav–hoy), basert på typiske spanske håndverker-priser
@@ -77,6 +77,25 @@ Retningslinjer:
 - salgbarhet_score 0–10 basert på helhetsinntrykk
 - Alle tekster på norsk`
 
+const SYSTEM_NORGE = `Du er ekspert på norsk eiendomsmarked og oppussing. Du analyserer bilder av boliger og returnerer strukturert data via analyser_bilde-verktøyet.
+
+Retningslinjer:
+- Alle kostnader i NOK som intervall (lav–hoy), basert på typiske norske håndverker-priser 2025-26
+- Realistiske norske priser:
+  - Bad: 250–450 000 kr · Kjøkken: 150–350 000 kr · Maling/overflater: 30–80 000 kr per rom
+  - Gulv: 800–1500 kr/m² · Vinduer: 12–20 000 kr per stk · El-anlegg: 50–150 000 kr
+  - Tak: 200–500 000 kr · Drenering: 80–300 000 kr · Fasade: 150–400 000 kr
+- Kun konkrete synlige forhold — ikke gjetning om det du ikke ser
+- Potensielle tillegg (utleiedel i kjeller/loft, takterrasse, garasje osv.): kun hvis bildet tydelig viser plass eller potensial
+- Regulering — VÆR KONSERVATIV. Ved tvil velg "ma_sjekkes":
+  - Utleiedel: krever rømningsvei, brannskille, godkjent etasjehøyde — søk kommunen
+  - Tilbygg/påbygg: krever byggesøknad til kommunen
+  - Takterrasse: borettslag/sameie krever vedtak fra styret
+  - Bruksendring (kjeller, loft): krever godkjenning fra kommunen
+- ma_sjekkes_videre: konkrete punkter brukeren må sjekke med kommune, takstmann eller arkitekt
+- salgbarhet_score 0–10 basert på helhetsinntrykk i det norske markedet
+- Alle tekster på norsk`
+
 async function hentBilde(admin: ReturnType<typeof hentSupabaseAdmin>, sti: string): Promise<string | null> {
   const { data: blob } = await admin.storage.from(BUCKET_BILDER).download(sti)
   if (!blob) return null
@@ -88,6 +107,7 @@ async function analyserEttBilde(
   admin: ReturnType<typeof hentSupabaseAdmin>,
   bildeRad: { id: string; storage_sti: string; kategori: string | null; tilleggsnotat: string | null; prosjekt_id: string },
   boligKontekst: string,
+  marked: 'norge' | 'spania',
 ): Promise<{ ok: boolean; feil?: string }> {
   const base64 = await hentBilde(admin, bildeRad.storage_sti)
   if (!base64) return { ok: false, feil: 'Kunne ikke hente bilde fra Storage' }
@@ -98,18 +118,19 @@ async function analyserEttBilde(
     bildeRad.tilleggsnotat ? `Bruker-notat: ${bildeRad.tilleggsnotat}` : null,
   ].filter(Boolean).join('\n')
 
+  const erNorge = marked === 'norge'
   const response = await client.messages.create({
     model: AI_MODELL_VERSJON,
     max_tokens: 2000,
     temperature: 0,
-    system: SYSTEM,
+    system: erNorge ? SYSTEM_NORGE : SYSTEM_SPANIA,
     tools: [analyserBildeTool],
     tool_choice: { type: 'tool', name: 'analyser_bilde' },
     messages: [{
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-        { type: 'text', text: 'Analyser dette bildet av en bolig i Spania.\n\n' + kontekstLinjer },
+        { type: 'text', text: `Analyser dette bildet av en bolig i ${erNorge ? 'Norge' : 'Spania'}.\n\n${kontekstLinjer}` },
       ],
     }],
   })
@@ -198,9 +219,11 @@ export async function POST(req: NextRequest) {
     for (const p of (prosjekter || []) as Prosjekt[]) prosjektMap.set(p.id, p)
 
     const resultater = await parallelBegrenset(bildeRader, 3, async b => {
-      const kontekst = byggBoligKontekst(prosjektMap.get(b.prosjekt_id) || null)
+      const p = prosjektMap.get(b.prosjekt_id) || null
+      const kontekst = byggBoligKontekst(p)
+      const marked = p?.marked === 'norge' ? 'norge' : 'spania'
       try {
-        return await analyserEttBilde(admin, b, kontekst)
+        return await analyserEttBilde(admin, b, kontekst, marked)
       } catch (e) {
         const m = e instanceof Error ? e.message : String(e)
         return { ok: false, feil: m }

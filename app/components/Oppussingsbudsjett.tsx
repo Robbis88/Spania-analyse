@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { AIForslagOppussing, AIForslagTillegg, LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt, Prosjektbilde } from '../types'
-import { FARGER, RADIUS, SHADOW, MOTION, inputStyle, labelStyle, fieldStyle, fmt } from '../lib/styles'
+import { FARGER, RADIUS, SHADOW, MOTION, inputStyle, labelStyle, fieldStyle } from '../lib/styles'
 import {
   LOPENDE_FELTER, POSTE_FORSLAG, STANDARD_LABEL,
   bruttoFortjeneste, erEstimatUtdatert, lopendePerManed, lopendeTotal,
@@ -53,6 +53,11 @@ function tomtBudsjett(boligId: string): OppussingBudsjett {
 
 export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt: Prosjekt; onProsjektOppdatert?: () => void }) {
   const boligId = prosjekt.id
+  // Valuta-helpers — Norge bruker NOK (suffiks), Spania bruker EUR (prefiks)
+  const erNorge = prosjekt.marked === 'norge'
+  const valSym = erNorge ? 'kr' : '€'
+  const valForan = !erNorge
+  const fmtVal = (n: number) => valForan ? `${valSym}${Math.round(n).toLocaleString('nb-NO')}` : `${Math.round(n).toLocaleString('nb-NO')} ${valSym}`
   const [budsjett, setBudsjett] = useState<OppussingBudsjett | null>(null)
   const [poster, setPoster] = useState<OppussingPost[]>([])
   const [kvitteringSum, setKvitteringSum] = useState<Record<string, number>>({})
@@ -311,6 +316,8 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
               </div>
               {forslagOppussing.map(f => (
                 <ForslagOppussingKort key={f.bildeId + '-' + f.index} forslag={f}
+                  valutaSymbol={prosjekt.marked === 'norge' ? 'kr' : '€'}
+                  valutaForan={prosjekt.marked !== 'norge'}
                   onGodta={(navn, kost) => godtaOppussingForslag(f, navn, kost)}
                   onAvvis={() => avvisForslag(f.bildeId, f.index, 'oppussing', f.data.navn)} />
               ))}
@@ -324,6 +331,8 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
               </div>
               {forslagTillegg.map(f => (
                 <ForslagTilleggKort key={f.bildeId + '-' + f.index} forslag={f}
+                  valutaSymbol={prosjekt.marked === 'norge' ? 'kr' : '€'}
+                  valutaForan={prosjekt.marked !== 'norge'}
                   onGodta={(navn, kost) => godtaTilleggForslag(f, navn, kost)}
                   onAvvis={() => avvisForslag(f.bildeId, f.index, 'tillegg', f.data.tillegg)} />
               ))}
@@ -375,7 +384,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
               {/* Linje 1: navn / budsjett / notat / slett */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: 8, alignItems: 'center', marginBottom: 6 }}>
                 <input style={inputStyle} value={p.navn} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, navn: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { navn: e.target.value })} placeholder="Navn" />
-                <input style={inputStyle} type="number" value={p.kostnad || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, kostnad: Number(e.target.value) } : pp))} onBlur={e => oppdaterPost(p.id, { kostnad: Number(e.target.value) || 0 })} placeholder="Budsjett €" />
+                <input style={inputStyle} type="number" value={p.kostnad || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, kostnad: Number(e.target.value) } : pp))} onBlur={e => oppdaterPost(p.id, { kostnad: Number(e.target.value) || 0 })} placeholder={`Budsjett ${valSym}`} />
                 <input style={inputStyle} value={p.notat || ''} onChange={e => setPoster(poster.map(pp => pp.id === p.id ? { ...pp, notat: e.target.value } : pp))} onBlur={e => oppdaterPost(p.id, { notat: e.target.value || null })} placeholder="Notat (valgfritt)" />
                 <button onClick={() => slettPost(p.id)} style={{ background: FARGER.feilBg, color: FARGER.feil, border: 'none', borderRadius: RADIUS.pill, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✕</button>
               </div>
@@ -398,7 +407,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
                   <input
                     style={{ ...inputStyle, color: overskredet ? '#7a0c1e' : '#0e1726', fontWeight: harManuell ? 600 : 400 }}
                     type="number"
-                    placeholder={kvSum > 0 ? `Auto: €${Math.round(kvSum).toLocaleString('nb-NO')}` : 'Faktisk €'}
+                    placeholder={kvSum > 0 ? `Auto: ${fmtVal(kvSum)}` : `Faktisk ${valSym}`}
                     defaultValue={p.faktisk_kostnad ?? ''}
                     key={`fk-${p.id}-${p.faktisk_kostnad ?? 'null'}`}
                     onBlur={e => {
@@ -412,7 +421,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
                   {kvSum > 0 && harManuell && Math.abs(kvSum - (p.faktisk_kostnad || 0)) > 1 && (
                     <button
                       onClick={() => oppdaterPost(p.id, { faktisk_kostnad: null })}
-                      title={`Bytt til kvittering-sum: €${Math.round(kvSum).toLocaleString('nb-NO')}`}
+                      title={`Bytt til kvittering-sum: ${fmtVal(kvSum)}`}
                       style={{ background: 'none', border: 'none', fontSize: 11, color: FARGER.gull, cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}>
                       ↺ kvitt.
                     </button>
@@ -438,11 +447,11 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
               {fk > 0 && p.kostnad > 0 && (
                 <div style={{ marginTop: 8, fontSize: 11, color: overskredet ? '#7a0c1e' : diff > 0 ? '#7a4a08' : '#1a4d2b', display: 'flex', justifyContent: 'space-between' }}>
                   <span>
-                    Faktisk: <strong>€{Math.round(fk).toLocaleString('nb-NO')}</strong> {' '}
-                    vs budsjett €{Math.round(p.kostnad).toLocaleString('nb-NO')}
+                    Faktisk: <strong>{fmtVal(fk)}</strong> {' '}
+                    vs budsjett {fmtVal(p.kostnad)}
                   </span>
                   <span style={{ fontWeight: 600 }}>
-                    {diff > 0 ? '+' : ''}€{Math.round(diff).toLocaleString('nb-NO')} ({p.kostnad > 0 ? ((diff / p.kostnad) * 100).toFixed(0) : 0}%)
+                    {diff > 0 ? '+' : ''}{fmtVal(diff)} ({p.kostnad > 0 ? ((diff / p.kostnad) * 100).toFixed(0) : 0}%)
                     {overskredet && ' ⚠️'}
                   </span>
                 </div>
@@ -461,13 +470,13 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         })}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', marginTop: 6, fontSize: 14, fontWeight: 700 }}>
-          <span title="Oppdaterer automatisk 'Oppussing faktisk' på prosjektet">Sum budsjett</span><span>{fmt(posterSum)}</span>
+          <span title="Oppdaterer automatisk 'Oppussing faktisk' på prosjektet">Sum budsjett</span><span>{fmtVal(posterSum)}</span>
         </div>
         {fremdrift.sumFaktisk > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
             <span style={{ color: '#666' }}>Sum faktisk så langt</span>
             <span style={{ fontWeight: 600, color: fremdrift.sumFaktisk > posterSum ? '#7a0c1e' : '#1a4d2b' }}>
-              {fmt(fremdrift.sumFaktisk)}
+              {fmtVal(fremdrift.sumFaktisk)}
               {posterSum > 0 && <span style={{ fontSize: 11, color: '#888', marginLeft: 6 }}>({Math.round((fremdrift.sumFaktisk / posterSum) * 100)}% av budsjett)</span>}
             </span>
           </div>
@@ -534,16 +543,16 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 10 }}>
           {LOPENDE_FELTER.map(f => (
             <div key={f.key} style={fieldStyle}>
-              <label style={labelStyle}>{f.lbl} (€/mnd)</label>
+              <label style={labelStyle}>{f.lbl} ({valSym}/mnd)</label>
               <input style={inputStyle} type="number" value={budsjett.lopende_per_maned[f.key] || ''} onBlur={e => settLopende(f.key, Number(e.target.value) || 0)} onChange={e => setBudsjett({ ...budsjett, lopende_per_maned: { ...budsjett.lopende_per_maned, [f.key]: Number(e.target.value) || 0 } })} />
             </div>
           ))}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #eee', fontSize: 13 }}>
-          <span style={{ color: '#666' }}>Per måned</span><span style={{ fontWeight: 600 }}>{fmt(lopendeMnd)}</span>
+          <span style={{ color: '#666' }}>Per måned</span><span style={{ fontWeight: 600 }}>{fmtVal(lopendeMnd)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #eee', fontSize: 14, fontWeight: 700 }}>
-          <span>Totalt over {budsjett.antall_maneder} mnd</span><span>{fmt(lopendeSum)}</span>
+          <span>Totalt over {budsjett.antall_maneder} mnd</span><span>{fmtVal(lopendeSum)}</span>
         </div>
       </div>
 
@@ -553,7 +562,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         {budsjett.estimert_salgspris ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#0e1726' }}>{fmt(budsjett.estimert_salgspris)}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#0e1726' }}>{fmtVal(budsjett.estimert_salgspris)}</div>
               {budsjett.estimat_usikkerhet && (
                 <span style={{ background: '#fff', border: '1px solid #0e172644', borderRadius: 8, padding: '3px 10px', fontSize: 12, color: '#0e1726', fontWeight: 600 }}>
                   Usikkerhet: {budsjett.estimat_usikkerhet}
@@ -599,25 +608,25 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
       <div style={{ background: '#fff', border: '1.5px solid #eee', borderRadius: 6, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📊 Beregning</div>
         {[
-          { lbl: 'Kjøpesum', val: fmt(prosjekt.kjøpesum) },
-          { lbl: 'Kjøpskostnader', val: fmt(prosjekt.kjøpskostnader) },
-          { lbl: 'Sum oppussingsposter (budsjett)', val: fmt(posterSum) },
-          ...(fremdrift.sumFaktisk > 0 ? [{ lbl: '↳ Faktisk så langt', val: fmt(fremdrift.sumFaktisk) }] : []),
-          { lbl: `Løpende kostnader (${budsjett.antall_maneder} mnd)`, val: fmt(lopendeSum) },
+          { lbl: 'Kjøpesum', val: fmtVal(prosjekt.kjøpesum) },
+          { lbl: 'Kjøpskostnader', val: fmtVal(prosjekt.kjøpskostnader) },
+          { lbl: 'Sum oppussingsposter (budsjett)', val: fmtVal(posterSum) },
+          ...(fremdrift.sumFaktisk > 0 ? [{ lbl: '↳ Faktisk så langt', val: fmtVal(fremdrift.sumFaktisk) }] : []),
+          { lbl: `Løpende kostnader (${budsjett.antall_maneder} mnd)`, val: fmtVal(lopendeSum) },
         ].map((r, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: i > 0 ? '1px solid #f0f0f0' : 'none', fontSize: 13 }}>
             <span style={{ color: '#666' }}>{r.lbl}</span><span style={{ fontWeight: 600 }}>{r.val}</span>
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #eee', fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-          <span>Totalkostnad</span><span>{fmt(tk)}</span>
+          <span>Totalkostnad</span><span>{fmtVal(tk)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', fontSize: 14 }}>
-          <span style={{ color: '#666' }}>Estimert salgspris (AI)</span><span style={{ fontWeight: 600 }}>{budsjett.estimert_salgspris ? fmt(budsjett.estimert_salgspris) : '–'}</span>
+          <span style={{ color: '#666' }}>Estimert salgspris (AI)</span><span style={{ fontWeight: 600 }}>{budsjett.estimert_salgspris ? fmtVal(budsjett.estimert_salgspris) : '–'}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', fontSize: 15, fontWeight: 700 }}>
           <span>Brutto fortjeneste</span>
-          <span style={{ color: bf >= 0 ? '#2D7D46' : '#C8102E' }}>{budsjett.estimert_salgspris ? fmt(bf) : '–'}</span>
+          <span style={{ color: bf >= 0 ? '#2D7D46' : '#C8102E' }}>{budsjett.estimert_salgspris ? fmtVal(bf) : '–'}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #eee', fontSize: 15, fontWeight: 700 }}>
           <span>ROI</span>
@@ -630,7 +639,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         oppussingPostId={sendModal.post?.id || null}
         forhandsvalgteBildeIds={sendModal.post?.kilde_bilde_id ? [sendModal.post.kilde_bilde_id] : []}
         initialTittel={sendModal.post ? `Tilbud på ${sendModal.post.navn}` : ''}
-        initialBeskrivelse={sendModal.post ? `${sendModal.post.navn}\n\n${sendModal.post.notat || ''}\n\nEstimert budsjett: €${Math.round(sendModal.post.kostnad || 0).toLocaleString('nb-NO')}`.trim() : ''}
+        initialBeskrivelse={sendModal.post ? `${sendModal.post.navn}\n\n${sendModal.post.notat || ''}\n\nEstimert budsjett: ${fmtVal(sendModal.post.kostnad || 0)}`.trim() : ''}
         apen={sendModal.apen}
         onLukk={() => setSendModal({ apen: false, post: null })}
       />
@@ -638,8 +647,15 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
   )
 }
 
-function ForslagOppussingKort({ forslag, onGodta, onAvvis }: {
+function fmtBelop(n: number, sym: string, foran: boolean): string {
+  const tall = n.toLocaleString('nb-NO')
+  return foran ? `${sym}${tall}` : `${tall} ${sym}`
+}
+
+function ForslagOppussingKort({ forslag, valutaSymbol, valutaForan, onGodta, onAvvis }: {
   forslag: { bildeId: string; index: number; data: AIForslagOppussing }
+  valutaSymbol: string
+  valutaForan: boolean
   onGodta: (navn: string, kostnad: number) => Promise<void>
   onAvvis: () => Promise<void>
 }) {
@@ -652,7 +668,7 @@ function ForslagOppussingKort({ forslag, onGodta, onAvvis }: {
   return (
     <div style={{ background: 'white', border: '1px solid #c5d9f4', borderRadius: 6, padding: 12, marginBottom: 8 }}>
       <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
-        AI foreslår <strong>€{d.kostnad_estimat_lav.toLocaleString('nb-NO')} – €{d.kostnad_estimat_hoy.toLocaleString('nb-NO')}</strong>
+        AI foreslår <strong>{fmtBelop(d.kostnad_estimat_lav, valutaSymbol, valutaForan)} – {fmtBelop(d.kostnad_estimat_hoy, valutaSymbol, valutaForan)}</strong>
       </div>
       {d.begrunnelse && (
         <div style={{ fontSize: 12, color: '#555', lineHeight: 1.5, marginBottom: 10 }}>{d.begrunnelse}</div>
@@ -675,8 +691,10 @@ function ForslagOppussingKort({ forslag, onGodta, onAvvis }: {
   )
 }
 
-function ForslagTilleggKort({ forslag, onGodta, onAvvis }: {
+function ForslagTilleggKort({ forslag, valutaSymbol, valutaForan, onGodta, onAvvis }: {
   forslag: { bildeId: string; index: number; data: AIForslagTillegg }
+  valutaSymbol: string
+  valutaForan: boolean
   onGodta: (navn: string, kostnad: number) => Promise<void>
   onAvvis: () => Promise<void>
 }) {
@@ -706,7 +724,7 @@ function ForslagTilleggKort({ forslag, onGodta, onAvvis }: {
       {d.beskrivelse && <div style={{ fontSize: 12, color: '#555', lineHeight: 1.5, marginBottom: 8 }}>{d.beskrivelse}</div>}
       {(d.kostnad_estimat_lav || d.kostnad_estimat_hoy) && (
         <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
-          Kostnad: <strong>€{(d.kostnad_estimat_lav || 0).toLocaleString('nb-NO')} – €{(d.kostnad_estimat_hoy || 0).toLocaleString('nb-NO')}</strong>
+          Kostnad: <strong>{fmtBelop(d.kostnad_estimat_lav || 0, valutaSymbol, valutaForan)} – {fmtBelop(d.kostnad_estimat_hoy || 0, valutaSymbol, valutaForan)}</strong>
         </div>
       )}
       {d.regulering_begrunnelse && (
