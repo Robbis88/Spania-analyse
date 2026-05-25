@@ -7,7 +7,11 @@ import type { TilleggType } from '../../../lib/bilder'
 
 const replicate = new Replicate()
 
-const MODELL = 'black-forest-labs/flux-kontext-max'
+// Modell-valg: Google Nano Banana (Gemini 2.5 Flash Image) er vesentlig bedre
+// enn Flux Kontext på «total renovering» — bytter faktisk ut gamle sanitær-
+// utstyr, fliser og møbler i stedet for å bare endre farger. Flux Kontext beholdes
+// som fallback via env-variabel hvis man vil ha mer konservative edits.
+const MODELL = process.env.BILDE_MODELL || 'google/nano-banana'
 const SIGNERT_URL_TTL = 60 * 60
 
 type PostRad = { navn: string; notat: string | null }
@@ -147,15 +151,25 @@ export async function POST(req: NextRequest) {
     const prompt = byggPrompt(p, t, bilde.kategori, effektivStilPrompt)
     const visualiseringType = utledVisualiseringType(p.length, t.length)
 
+    // Nano Banana bruker image_input (array), Flux Kontext bruker input_image (string)
+    const erNanoBanana = MODELL.startsWith('google/nano-banana')
+    const input: Record<string, unknown> = erNanoBanana
+      ? {
+          prompt,
+          image_input: [signert.signedUrl],
+          output_format: 'jpg',
+        }
+      : {
+          prompt,
+          input_image: signert.signedUrl,
+          aspect_ratio: 'match_input_image',
+          output_format: 'jpg',
+          safety_tolerance: 2,
+        }
+
     const prediction = await replicate.predictions.create({
       model: MODELL,
-      input: {
-        prompt,
-        input_image: signert.signedUrl,
-        aspect_ratio: 'match_input_image',
-        output_format: 'jpg',
-        safety_tolerance: 2,
-      },
+      input,
     })
 
     return NextResponse.json({
