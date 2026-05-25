@@ -62,17 +62,21 @@ function byggPrompt(poster: PostRad[], tillegg: TilleggRad[], kategori: string |
     }
     linjer.push('You have full creative freedom to:')
     linjer.push('- Replace ALL cabinets, fixtures, countertops, appliances, flooring, lighting, furniture and décor with new ones that fit the style')
-    linjer.push('- Rearrange the layout (e.g. island vs peninsula, L-shape vs U-shape, different furniture placement)')
     linjer.push('- Change wall colors, tile patterns, backsplashes, materials, and surface finishes')
     linjer.push('- Modernize or completely swap appliance models, sinks, faucets, hardware')
     linjer.push('- Add or remove decorative elements (plants, art, accessories) to fit the style')
     linjer.push('')
-    linjer.push('Only preserve: the camera angle and viewing direction, the room\'s overall footprint (walls and windows at roughly the same positions), and the natural light direction.')
+    linjer.push('CRITICAL — spatial constraints (DO NOT VIOLATE):')
+    linjer.push('- The room dimensions, ceiling height, wall positions, window positions, and door positions MUST remain IDENTICAL to the input image. Do not make the room larger, wider, taller, or more spacious than it is.')
+    linjer.push('- Camera position, focal length, and field of view MUST remain identical. Do not switch to a wider-angle lens or move the camera backward.')
+    linjer.push('- The floor area visible in the frame must match the input — do not extend the floor or add space that does not exist in the original.')
+    linjer.push('- Keep the same kitchen layout type (L-shape stays L-shape, U-shape stays U-shape, galley stays galley). Do not add a kitchen island unless the original had one. Do not add cabinets, walls, or appliances that would not fit in the existing footprint.')
+    linjer.push('- Furniture must fit within the original room\'s actual size. A small living room must stay a small living room — just with nicer furniture.')
   } else {
     linjer.push(`Edit this ${romNavn} to show these renovations applied:`)
     linjer.push(endringer)
     linjer.push('')
-    linjer.push('Keep the same camera angle, composition, and existing elements that are not being changed.')
+    linjer.push('CRITICAL — preserve exact room dimensions, ceiling height, wall/window/door positions, camera position, focal length and field of view. Only change the existing elements that are being renovated. Do not make the room appear larger or use a wider camera angle than the input.')
   }
 
   // Kvalitets- og realisme-direktiver. Kritisk for å unngå Flux Kontext sine
