@@ -1,16 +1,13 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
+import { fmtEur, fmtNok, fmtBelop } from '../lib/format'
 import type { DashboardData, DashboardProsjekt, DashboardVarsel } from '../api/dashboard/route'
 
 type Props = {
   onApneProsjekt: (prosjektId: string) => void
   marked?: 'spania' | 'norge'  // hvis satt, viser dashboardet kun det markedet
 }
-
-const fmtEur = (n: number) => n ? '€' + Math.round(n).toLocaleString('nb-NO') : '–'
-const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
-const fmtBelop = (n: number, valuta: 'EUR' | 'NOK') => valuta === 'EUR' ? fmtEur(n) : fmtNok(n)
 
 const ANBEFALING_FARGE: Record<DashboardProsjekt['anbefaling']['type'], { bg: string; tekst: string; emoji: string }> = {
   leie:                { bg: '#e8f5ed', tekst: '#1a4d2b', emoji: '🏖️' },

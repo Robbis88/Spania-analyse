@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import { visToast } from '../lib/toast'
 import { FARGER, RADIUS } from '../lib/styles'
+import { fmtNok } from '../lib/format'
 
 export type TakstData = {
   vurdert_markedsverdi_nok?: number
@@ -35,8 +36,6 @@ export type TakstData = {
   }
   ai_oppsummering?: string
 }
-
-const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 
 const TG_FARGE: Record<number, { bg: string; tekst: string; lbl: string }> = {
   0: { bg: '#e8f5ed', tekst: '#1a4d2b', lbl: 'TG0 — Ingen anmerkning' },

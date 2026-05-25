@@ -1,6 +1,7 @@
 'use client'
 import { FARGER, RADIUS } from '../../lib/styles'
 import { EIERETAPPE_ETIKETT, cashflowFarge } from '../../lib/portefolje'
+import { fmtNok } from '../../lib/format'
 import type { Prosjekt } from '../../types'
 
 export type EiendomKortData = Prosjekt & {
@@ -15,8 +16,6 @@ export type EiendomKortData = Prosjekt & {
   verdiokning_pct: number | null   // prosent
   yield_pct: number                 // brutto yield (årlig leie / verdi)
 }
-
-const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 
 const FARGE_FOR_CF: Record<'gronn' | 'gul' | 'rod', { bg: string; tekst: string; ramme: string }> = {
   gronn: { bg: '#e8f5ed', tekst: '#1a4d2b', ramme: '#2D7D4644' },

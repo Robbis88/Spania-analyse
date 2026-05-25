@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { visToast } from '../lib/toast'
 import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
+import { fmtEur } from '../lib/format'
 import { HANDVERKER_FAG_ETIKETT, type Handverker, type HandverkerFag, type Tilbudsforesporsel } from '../types'
 
 const STATUS_VALG: Array<{ id: Tilbudsforesporsel['status']; lbl: string; bg: string; tekst: string }> = [
@@ -16,9 +17,6 @@ const STATUS_VALG: Array<{ id: Tilbudsforesporsel['status']; lbl: string; bg: st
 
 const fmtDato = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
-
-const fmtEur = (n: number | null) =>
-  (n === null || !Number.isFinite(n) || n === 0) ? '–' : '€' + Math.round(n).toLocaleString('nb-NO')
 
 type Props = { prosjektId: string }
 

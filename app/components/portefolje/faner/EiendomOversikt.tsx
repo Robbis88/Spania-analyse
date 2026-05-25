@@ -4,9 +4,9 @@ import {
   belaningsgrad, bruttoYield, cashflowMnd, gjeldendeLeieMnd, sisteVerdi,
   sumKostnaderPerMnd, totalLaanKostnadMnd, totalRestgjeld,
 } from '../../../lib/portefolje'
+import { fmtNok } from '../../../lib/format'
 import type { EiendomData } from '../useEiendomData'
 
-const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '–'
 
 export function EiendomOversikt({ data }: { data: EiendomData }) {

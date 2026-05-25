@@ -2,9 +2,9 @@
 import { useMemo } from 'react'
 import { FARGER, RADIUS } from '../../lib/styles'
 import { belaningsgrad } from '../../lib/portefolje'
+import { fmtNok } from '../../lib/format'
 import type { EiendomKortData } from './EiendomKort'
 
-const fmtNok = (n: number) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 const fmtPct = (n: number | null) => n === null || !Number.isFinite(n) ? '–' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%'
 
 type Props = {

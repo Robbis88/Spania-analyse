@@ -7,6 +7,7 @@ import { hentAktivBruker } from '../lib/aktivBruker'
 import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ProsjektBilder } from './ProsjektBilder'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
+import { fmtNok } from '../lib/format'
 import type { Prosjekt } from '../types'
 import type { GeonorgeAdresse, OffmarketLenker } from '../lib/offmarket'
 
@@ -80,8 +81,6 @@ const FLAGG_FARGE: Record<RodtFlagg['alvorlighet'], { bg: string; tekst: string;
   advarsel: { bg: '#fff8e1', tekst: '#7a4a08', ramme: '#B05E0A44' },
   info: { bg: '#faf7ee', tekst: '#5a6171', ramme: '#b89a6f33' },
 }
-
-const fmtNok = (n: number | undefined | null) => n ? Math.round(n).toLocaleString('nb-NO') + ' kr' : '–'
 
 type Props = { prosjektId: string; onTilbake: () => void }
 
