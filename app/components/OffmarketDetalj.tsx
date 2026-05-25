@@ -6,6 +6,8 @@ import { visToast } from '../lib/toast'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ProsjektBilder } from './ProsjektBilder'
+import { Oppussingsbudsjett } from './Oppussingsbudsjett'
+import type { Prosjekt } from '../types'
 import type { GeonorgeAdresse, OffmarketLenker } from '../lib/offmarket'
 
 type SelgerInfo = {
@@ -85,6 +87,7 @@ type Props = { prosjektId: string; onTilbake: () => void }
 
 export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [navn, setNavn] = useState('')
+  const [prosjekt, setProsjekt] = useState<Prosjekt | null>(null)
   const [data, setData] = useState<OffmarketData>({})
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
@@ -106,10 +109,12 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const hent = useCallback(async () => {
     setLaster(true); setFeil(null)
     const { data: p, error } = await supabase
-      .from('prosjekter').select('id, navn, off_market_data').eq('id', prosjektId).maybeSingle()
+      .from('prosjekter').select('*').eq('id', prosjektId).maybeSingle()
     if (error || !p) { setFeil(error?.message || 'Prosjekt ikke funnet'); setLaster(false); return }
-    setNavn(p.navn)
-    const omd = (p.off_market_data || {}) as OffmarketData
+    const pr = p as Prosjekt
+    setProsjekt(pr)
+    setNavn(pr.navn)
+    const omd = (pr.off_market_data || {}) as OffmarketData
     setData(omd)
     setSelger(omd.selger || {})
     setFakta(omd.kjente_fakta || {})
@@ -392,6 +397,17 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
       <Seksjon tittel="📸 Bilder">
         <ProsjektBilder prosjektId={prosjektId} />
       </Seksjon>
+
+      {/* Oppussingsbudsjett */}
+      {prosjekt && (
+        <Seksjon tittel="🔨 Oppussingsbudsjett">
+          <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 12px' }}>
+            Bygg opp et budsjett (rom for rom + løpende kostnader) før budgivning. AI-vurderingen
+            kan trekke inn estimerte oppussingsposter — eller du kan legge til manuelt.
+          </p>
+          <Oppussingsbudsjett prosjekt={prosjekt} onProsjektOppdatert={() => { void hent() }} />
+        </Seksjon>
+      )}
 
       {/* Sammenlignbare */}
       <Seksjon tittel="💰 Sammenlignbare salg">
