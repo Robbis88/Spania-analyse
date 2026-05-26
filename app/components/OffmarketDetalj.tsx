@@ -8,8 +8,9 @@ import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ProsjektBilder } from './ProsjektBilder'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { fmtNok } from '../lib/format'
+import { beregnBudkalkyle } from '../lib/offmarket'
 import type { Prosjekt } from '../types'
-import type { GeonorgeAdresse, OffmarketLenker } from '../lib/offmarket'
+import type { GeonorgeAdresse, OffmarketLenker, Budkalkyle } from '../lib/offmarket'
 
 type SelgerInfo = {
   navn?: string; telefon?: string; epost?: string
@@ -62,6 +63,7 @@ type OffmarketData = {
   valgt_treff_idx?: number
   sammenlignbare_lenker?: string[]
   sammenlignbare_data?: SammenlignbarData[]
+  budkalkyle?: Budkalkyle
   ai_analyse?: AiAnalyse
   ai_generert?: string
   ai_modell?: string
@@ -103,6 +105,8 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [analyseFeil, setAnalyseFeil] = useState<string | null>(null)
   const [sletter, setSletter] = useState(false)
   const [pdfLaster, setPdfLaster] = useState(false)
+  const [bankPdfLaster, setBankPdfLaster] = useState(false)
+  const [budkalkyle, setBudkalkyle] = useState<Budkalkyle>({})
   const [epostApen, setEpostApen] = useState(false)
 
   const hent = useCallback(async () => {
@@ -117,6 +121,21 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     setData(omd)
     setSelger(omd.selger || {})
     setFakta(omd.kjente_fakta || {})
+    // Forhåndsutfyll budkalkylen fra prosjekt-tall der bruker ikke har lagret egne.
+    const bk = (omd.budkalkyle || {}) as Budkalkyle
+    setBudkalkyle({
+      bud_nok: pr.kjøpesum || omd.selger?.prisindikasjon_nok || 0,
+      kjopskostnader_nok: pr.kjøpskostnader || 0,
+      oppussing_nok: pr.oppussing_faktisk || 0,
+      forventet_salgspris_nok: 0,
+      meglerhonorar_pst: 1.5,
+      meglerhonorar_fast_nok: 0,
+      styling_nok: 0,
+      lan_nok: 0,
+      rente_pst: 6,
+      periode_mnd: 6,
+      ...bk,
+    })
     setLaster(false)
   }, [prosjektId])
 
@@ -151,6 +170,14 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
     setData(oppdatert)
     visToast('Fakta lagret', 'suksess', 1800)
+  }
+
+  async function lagreBudkalkyle() {
+    const oppdatert = { ...data, budkalkyle }
+    const { error } = await supabase.from('prosjekter').update({ off_market_data: oppdatert }).eq('id', prosjektId)
+    if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
+    setData(oppdatert)
+    visToast('Budkalkyle lagret', 'suksess', 1800)
   }
 
   async function leggTilSammenlignbar() {
@@ -294,6 +321,35 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     }
   }
 
+  async function lastNedBankPdf() {
+    if (bankPdfLaster) return
+    setBankPdfLaster(true)
+    try {
+      // Lagre nyeste kalkyle først så PDF-en (som leser fra DB) ikke blir utdatert.
+      const oppdatert = { ...data, budkalkyle }
+      await supabase.from('prosjekter').update({ off_market_data: oppdatert }).eq('id', prosjektId)
+      setData(oppdatert)
+      const res = await fetch('/api/offmarket/bank-pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prosjektId }),
+      })
+      const resp = await res.json().catch(() => ({}))
+      if (!res.ok || !resp.base64) { visToast(resp?.feil || 'PDF feilet', 'feil', 4000); return }
+      const bin = atob(resp.base64)
+      const u8 = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+      const blob = new Blob([u8], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = resp.filnavn || 'bankvedlegg.pdf'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      visToast('Bankvennlig PDF lastet ned', 'suksess', 2000)
+    } finally {
+      setBankPdfLaster(false)
+    }
+  }
+
   if (laster) return <div style={{ textAlign: 'center', padding: 60, color: FARGER.tekstLys }}>⏳ Laster off-market prosjekt…</div>
   if (feil) return (
     <div>
@@ -306,6 +362,7 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const lenker = data.innhenting?.lenker
   const samm = data.sammenlignbare_data || []
   const ai = data.ai_analyse
+  const kalk = beregnBudkalkyle(budkalkyle)
 
   return (
     <div>
@@ -417,6 +474,67 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
           <Oppussingsbudsjett prosjekt={prosjekt} onProsjektOppdatert={oppdaterProsjekt} />
         </Seksjon>
       )}
+
+      {/* Budkalkyle / lønnsomhet */}
+      <Seksjon tittel="💰 Budkalkyle / lønnsomhet">
+        <p style={{ fontSize: 12, color: FARGER.tekstMid, margin: '0 0 12px' }}>
+          Legg inn bud, meglerens forventede salgspris etter oppussing og kostnadene.
+          Du ser netto fortjeneste, egenkapital og avkastning live — og kan laste ned en
+          bankvennlig PDF til finansieringssøknaden.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <InputTall lbl="Bud / kjøpesum (NOK)" val={budkalkyle.bud_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, bud_nok: v })} />
+          <InputTall lbl="Kjøpskostnader (NOK)" val={budkalkyle.kjopskostnader_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, kjopskostnader_nok: v })} />
+          <InputTall lbl="Oppussing (NOK)" val={budkalkyle.oppussing_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, oppussing_nok: v })} />
+          <InputTall lbl="Forventet salgspris — megler (NOK)" val={budkalkyle.forventet_salgspris_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, forventet_salgspris_nok: v })} />
+          <InputTall lbl="Meglerhonorar (%)" val={budkalkyle.meglerhonorar_pst || 0} onChange={v => setBudkalkyle({ ...budkalkyle, meglerhonorar_pst: v })} />
+          <InputTall lbl="Meglerhonorar — faste tillegg (NOK)" val={budkalkyle.meglerhonorar_fast_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, meglerhonorar_fast_nok: v })} />
+          <InputTall lbl="Styling (NOK)" val={budkalkyle.styling_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, styling_nok: v })} />
+          <InputTall lbl="Lån (NOK)" val={budkalkyle.lan_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, lan_nok: v })} />
+          <InputTall lbl="Rente (% p.a.)" val={budkalkyle.rente_pst || 0} onChange={v => setBudkalkyle({ ...budkalkyle, rente_pst: v })} />
+          <InputTall lbl="Eierperiode (mnd)" val={budkalkyle.periode_mnd || 0} onChange={v => setBudkalkyle({ ...budkalkyle, periode_mnd: v })} />
+        </div>
+        <button
+          onClick={() => setBudkalkyle({ ...budkalkyle, oppussing_nok: prosjekt?.oppussing_faktisk || 0 })}
+          style={{ background: 'transparent', border: `1px solid ${FARGER.kantLys}`, color: FARGER.tekstMid, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: 'pointer', marginTop: 8 }}>
+          ↻ Hent oppussing fra budsjett ({fmtNok(prosjekt?.oppussing_faktisk || 0)})
+        </button>
+
+        {/* Resultat */}
+        <div style={{ marginTop: 14, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 14 }}>
+          <KalkRad lbl="Forventet salgspris (megler)" val={fmtNok(kalk.salgspris)} sterk />
+          <KalkRad lbl="− Bud / kjøpesum" val={'−' + fmtNok(kalk.bud)} />
+          <KalkRad lbl="− Kjøpskostnader" val={'−' + fmtNok(kalk.kjopskostnader)} />
+          <KalkRad lbl="− Oppussing" val={'−' + fmtNok(kalk.oppussing)} />
+          <KalkRad lbl={`− Meglerhonorar (${budkalkyle.meglerhonorar_pst || 0} %${budkalkyle.meglerhonorar_fast_nok ? ' + fast' : ''})`} val={'−' + fmtNok(kalk.meglerhonorar)} />
+          <KalkRad lbl="− Styling" val={'−' + fmtNok(kalk.styling)} />
+          <KalkRad lbl={`− Lånekostnad (renter, ${budkalkyle.periode_mnd || 0} mnd)`} val={'−' + fmtNok(kalk.lanekostnad)} />
+          <div style={{ borderTop: `2px solid ${FARGER.gull}55`, marginTop: 8, paddingTop: 8 }}>
+            <KalkRad lbl="= Netto fortjeneste" val={fmtNok(kalk.nettoFortjeneste)} sterk farge={kalk.nettoFortjeneste >= 0 ? '#2D7D46' : FARGER.feil} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 12 }}>
+            <KpiMini lbl="Lån" val={fmtNok(budkalkyle.lan_nok || 0)} />
+            <KpiMini lbl="Egenkapital" val={fmtNok(kalk.egenkapital)} farge={kalk.egenkapital < 0 ? FARGER.feil : undefined} />
+            <KpiMini lbl="Avkastning på EK" val={kalk.avkastningEkPst != null ? kalk.avkastningEkPst.toFixed(0) + ' %' : '–'} farge={kalk.nettoFortjeneste >= 0 ? '#2D7D46' : FARGER.feil} />
+            <KpiMini lbl="Margin av salgssum" val={kalk.margiPst != null ? kalk.margiPst.toFixed(1) + ' %' : '–'} />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <label style={lblStil}>Notat til banken (valgfritt)</label>
+          <textarea value={budkalkyle.notat || ''} onChange={e => setBudkalkyle({ ...budkalkyle, notat: e.target.value })}
+            rows={2} placeholder="f.eks. konservativt salgsestimat, bud forhandlet ned, erfaring fra tidligere flipp"
+            style={{ ...inputStil, fontFamily: 'inherit', resize: 'vertical' }} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={lagreBudkalkyle} style={primKnapp}>💾 Lagre kalkyle</button>
+          <button onClick={lastNedBankPdf} disabled={bankPdfLaster}
+            style={{ ...primKnapp, background: FARGER.hvit, color: FARGER.mork, border: `1px solid ${FARGER.kantLys}`, cursor: bankPdfLaster ? 'not-allowed' : 'pointer' }}>
+            {bankPdfLaster ? '⏳ Lager…' : '📄 Bankvennlig PDF'}
+          </button>
+        </div>
+      </Seksjon>
 
       {/* Sammenlignbare */}
       <Seksjon tittel="💰 Sammenlignbare salg">
@@ -857,6 +975,15 @@ function Fakta({ lbl, val }: { lbl: string; val: string }) {
     <div>
       <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</div>
       <div style={{ fontSize: 13, color: FARGER.mork, fontWeight: 500, marginTop: 2 }}>{val}</div>
+    </div>
+  )
+}
+
+function KalkRad({ lbl, val, sterk, farge }: { lbl: string; val: string; sterk?: boolean; farge?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0', fontSize: sterk ? 14 : 13 }}>
+      <span style={{ color: sterk ? FARGER.mork : FARGER.tekstMid, fontWeight: sterk ? 700 : 400 }}>{lbl}</span>
+      <span style={{ color: farge || FARGER.mork, fontWeight: sterk ? 700 : 500 }}>{val}</span>
     </div>
   )
 }

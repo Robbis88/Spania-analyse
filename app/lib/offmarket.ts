@@ -144,3 +144,60 @@ export async function sokAdresse(query: string): Promise<OffmarketInnhenting | {
 export function regenererLenker(a: GeonorgeAdresse | null): OffmarketLenker {
   return lenkerFor(a)
 }
+
+// === Budkalkyle / lønnsomhet ===
+// Flippe-case for off-market: bud, forventet salgspris (megler), oppussing,
+// salgskostnader (meglerhonorar + styling) og lånekostnad → netto fortjeneste
+// og avkastning på egenkapital. Delt mellom UI (live-visning) og bank-PDF så
+// tallene alltid stemmer overens. Alle beløp i NOK.
+export type Budkalkyle = {
+  bud_nok?: number                  // planlagt bud / kjøpesum
+  bud_lav_nok?: number              // valgfritt budintervall (lav)
+  bud_hoy_nok?: number              // valgfritt budintervall (høy)
+  forventet_salgspris_nok?: number  // meglerens forventede salgspris etter oppussing
+  kjopskostnader_nok?: number       // dok.avgift, tinglysing osv.
+  oppussing_nok?: number            // hentes fra oppussingsbudsjettet, overstyrbar
+  meglerhonorar_pst?: number        // % av salgssum
+  meglerhonorar_fast_nok?: number   // faste tillegg (markedspakke, oppgjør, foto)
+  styling_nok?: number              // styling/møblering for visning
+  lan_nok?: number                  // lånebeløp
+  rente_pst?: number                // årlig nominell rente %
+  periode_mnd?: number              // eierperiode i måneder (rentekostnad-grunnlag)
+  notat?: string
+}
+
+export type BudkalkyleResultat = {
+  salgspris: number
+  bud: number
+  kjopskostnader: number
+  oppussing: number
+  meglerhonorar: number
+  styling: number
+  lanekostnad: number
+  totalKostnad: number            // sum av alle kostnader (eks. salgspris)
+  nettoFortjeneste: number
+  egenkapital: number             // kapital du selv legger inn
+  avkastningEkPst: number | null  // null hvis egenkapital ≤ 0
+  margiPst: number | null         // netto fortjeneste / salgspris
+}
+
+export function beregnBudkalkyle(k: Budkalkyle): BudkalkyleResultat {
+  const salgspris = k.forventet_salgspris_nok || 0
+  const bud = k.bud_nok || 0
+  const kjopskostnader = k.kjopskostnader_nok || 0
+  const oppussing = k.oppussing_nok || 0
+  const styling = k.styling_nok || 0
+  const meglerhonorar = Math.round(salgspris * ((k.meglerhonorar_pst || 0) / 100)) + (k.meglerhonorar_fast_nok || 0)
+  // Enkel renteberegning: lån × årsrente × andel av året eiet.
+  const lanekostnad = Math.round((k.lan_nok || 0) * ((k.rente_pst || 0) / 100) * ((k.periode_mnd || 0) / 12))
+  const totalKostnad = bud + kjopskostnader + oppussing + styling + meglerhonorar + lanekostnad
+  const nettoFortjeneste = salgspris - totalKostnad
+  // Egenkapital = det du selv finansierer av kapitalbehovet (kjøp + oppussing + styling) minus lån.
+  const egenkapital = (bud + kjopskostnader + oppussing + styling) - (k.lan_nok || 0)
+  return {
+    salgspris, bud, kjopskostnader, oppussing, meglerhonorar, styling, lanekostnad,
+    totalKostnad, nettoFortjeneste, egenkapital,
+    avkastningEkPst: egenkapital > 0 ? (nettoFortjeneste / egenkapital) * 100 : null,
+    margiPst: salgspris > 0 ? (nettoFortjeneste / salgspris) * 100 : null,
+  }
+}
