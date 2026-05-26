@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { loggAktivitet } from '../lib/logg'
 import type { AIForslagOppussing, AIForslagTillegg, LopendePerManed, OppussingBudsjett, OppussingPost, OppussingStandard, Prosjekt, Prosjektbilde } from '../types'
@@ -69,6 +69,15 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
   const [forslagTillegg, setForslagTillegg] = useState<Array<{ bildeId: string; index: number; data: AIForslagTillegg }>>([])
   const [sendModal, setSendModal] = useState<{ apen: boolean; post: OppussingPost | null }>({ apen: false, post: null })
 
+  // Hold siste callback/verdi i refs så laste-effekten IKKE re-trigges når
+  // forelderen re-rendrer (ny onProsjektOppdatert-referanse) eller oppdaterer
+  // oppussing_faktisk. Ellers oppstår en reload-løkke som flasher «Laster…»
+  // og hopper siden til toppen ved hver post-endring.
+  const onProsjektOppdatertRef = useRef(onProsjektOppdatert)
+  const oppussingFaktiskRef = useRef(prosjekt.oppussing_faktisk)
+  useEffect(() => { onProsjektOppdatertRef.current = onProsjektOppdatert }, [onProsjektOppdatert])
+  useEffect(() => { oppussingFaktiskRef.current = prosjekt.oppussing_faktisk }, [prosjekt.oppussing_faktisk])
+
   const hentKvitteringSum = useCallback(async () => {
     const { data } = await supabase
       .from('kvitteringer')
@@ -128,13 +137,13 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
 
     // Retroaktiv synk: hvis sum ikke matcher lagret oppussing_faktisk, fiks det.
     const sum = lastedePosters.reduce((s, p) => s + (p.kostnad || 0), 0)
-    if (sum > 0 && sum !== prosjekt.oppussing_faktisk) {
+    if (sum > 0 && sum !== oppussingFaktiskRef.current) {
       await supabase.from('prosjekter').update({ oppussing_faktisk: sum }).eq('id', boligId)
-      onProsjektOppdatert?.()
+      onProsjektOppdatertRef.current?.()
     }
 
     setLaster(false)
-  }, [boligId, hentAIForslag, hentKvitteringSum, prosjekt.oppussing_faktisk, onProsjektOppdatert])
+  }, [boligId, hentAIForslag, hentKvitteringSum])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
