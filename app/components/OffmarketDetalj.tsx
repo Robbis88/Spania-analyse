@@ -120,7 +120,17 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     setLaster(false)
   }, [prosjektId])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
+
+  // Stille oppdatering av prosjekt-raden (f.eks. når Oppussingsbudsjett synker
+  // oppussing_faktisk). Setter IKKE laster=true, så vi unngår at hele
+  // off-market-siden blankes og hopper til toppen ved hver post-endring.
+  const oppdaterProsjekt = useCallback(async () => {
+    const { data: p } = await supabase
+      .from('prosjekter').select('*').eq('id', prosjektId).maybeSingle()
+    if (p) setProsjekt(p as Prosjekt)
+  }, [prosjektId])
 
   async function lagreSelger() {
     const oppdatert = { ...data, selger }
@@ -404,7 +414,7 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
             Bygg opp et budsjett (rom for rom + løpende kostnader) før budgivning. AI-vurderingen
             kan trekke inn estimerte oppussingsposter — eller du kan legge til manuelt.
           </p>
-          <Oppussingsbudsjett prosjekt={prosjekt} onProsjektOppdatert={() => { void hent() }} />
+          <Oppussingsbudsjett prosjekt={prosjekt} onProsjektOppdatert={oppdaterProsjekt} />
         </Seksjon>
       )}
 
