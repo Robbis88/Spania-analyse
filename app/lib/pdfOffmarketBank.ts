@@ -19,11 +19,20 @@ type KjenteFakta = {
   byggear?: number; soverom?: number; bad?: number; energimerke?: string
   fellesgjeld_nok?: number; tomt_m2?: number
 }
+type SammenlignbarData = {
+  url?: string
+  beskrivelse?: string
+  prisantydning_nok?: number
+  faktisk_salgspris_nok?: number
+  bra_m2?: number
+  notat?: string
+}
 type OffmarketData = {
   adresse_input?: string
   kjente_fakta?: KjenteFakta
   innhenting?: { treff?: GeonorgeAdresse[]; valgt?: GeonorgeAdresse | null }
   valgt_treff_idx?: number
+  sammenlignbare_data?: SammenlignbarData[]
   budkalkyle?: Budkalkyle
 }
 
@@ -45,6 +54,7 @@ export async function byggBankPdf(
   const treff = (omd.innhenting?.treff || [])[omd.valgt_treff_idx ?? 0] || omd.innhenting?.valgt || null
   const k = (omd.budkalkyle || {}) as Budkalkyle
   const r = beregnBudkalkyle(k)
+  const samm = (omd.sammenlignbare_data || []) as SammenlignbarData[]
 
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF()
@@ -147,6 +157,52 @@ export async function byggBankPdf(
   belop('Avkastning pa egenkapital', r.avkastningEkPst != null ? r.avkastningEkPst.toFixed(0) + ' %' : '-', { bold: true })
   belop('Margin av salgssum', r.margiPst != null ? r.margiPst.toFixed(1) + ' %' : '-')
   y += 4
+
+  // === Sammenlignbare salg ===
+  if (samm.length) {
+    seksjon('Sammenlignbare salg i omradet')
+    // Snitt-tall som underbygger forventet salgspris.
+    const medM2 = samm.filter(s => s.faktisk_salgspris_nok && s.bra_m2)
+    const snittM2 = medM2.length
+      ? Math.round(medM2.reduce((a, s) => a + (s.faktisk_salgspris_nok! / s.bra_m2!), 0) / medM2.length)
+      : null
+    const medAvvik = samm.filter(s => s.prisantydning_nok && s.faktisk_salgspris_nok)
+    const snittAvvik = medAvvik.length
+      ? medAvvik.reduce((a, s) => a + ((s.faktisk_salgspris_nok! - s.prisantydning_nok!) / s.prisantydning_nok! * 100), 0) / medAvvik.length
+      : null
+    if (snittM2 != null || snittAvvik != null) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(90, 97, 113)
+      const deler: string[] = []
+      if (snittM2 != null) deler.push(`Snitt oppnadd: ${fmtNok(snittM2)}/m2`)
+      if (snittAvvik != null) deler.push(`snitt ${snittAvvik >= 0 ? '+' : ''}${snittAvvik.toFixed(1)} % vs antydning`)
+      sjekkPlass(6)
+      doc.text(deler.join('  -  '), MARG, y); y += 7
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(0, 0, 0)
+    }
+    for (const s of samm) {
+      sjekkPlass(13)
+      const tittel = s.beskrivelse || s.url || 'Sammenlignbar bolig'
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5)
+      doc.text(doc.splitTextToSize(tittel, INNHOLD_BREDDE)[0] as string, MARG, y); y += 5
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90, 97, 113)
+      const detaljer: string[] = []
+      if (s.prisantydning_nok) detaljer.push(`Antydning: ${fmtNok(s.prisantydning_nok)}`)
+      if (s.faktisk_salgspris_nok) detaljer.push(`Solgt: ${fmtNok(s.faktisk_salgspris_nok)}`)
+      if (s.prisantydning_nok && s.faktisk_salgspris_nok) {
+        const avvik = (s.faktisk_salgspris_nok - s.prisantydning_nok) / s.prisantydning_nok * 100
+        detaljer.push(`${avvik >= 0 ? '+' : ''}${avvik.toFixed(1)} %`)
+      }
+      if (s.bra_m2) detaljer.push(`${s.bra_m2} m2`)
+      if (s.faktisk_salgspris_nok && s.bra_m2) detaljer.push(`${Math.round(s.faktisk_salgspris_nok / s.bra_m2).toLocaleString('nb-NO')} kr/m2`)
+      if (detaljer.length) { doc.text(detaljer.join('  -  '), MARG, y); y += 5 }
+      if (s.notat) {
+        for (const l of doc.splitTextToSize(s.notat, INNHOLD_BREDDE) as string[]) { sjekkPlass(5); doc.text(l, MARG, y); y += 4.5 }
+      }
+      doc.setTextColor(0, 0, 0)
+      y += 2
+    }
+    y += 4
+  }
 
   // === Notat ===
   if (k.notat) {
