@@ -181,6 +181,29 @@ export type BudkalkyleResultat = {
   margiPst: number | null         // netto fortjeneste / salgspris
 }
 
+// Norske kjøpskostnader (estimat). Dokumentavgift er den store posten:
+// 2,5 % av kjøpesum på SELVEIER (tinglyst fast eiendom). Borettslag/andel og
+// aksjeleilighet har IKKE dokumentavgift, men et eierskiftegebyr til
+// forretningsfører. Tinglysingsgebyr til Kartverket kommer i tillegg (skjøte
+// + evt. pantedokument om man tar opp lån). Tallene kan overstyres i UI.
+const DOKUMENTAVGIFT_SATS = 0.025
+const TINGLYSING_SKJOTE = 545      // Kartverket — tinglysing av skjøte
+const TINGLYSING_PANT = 545        // Kartverket — tinglysing av pantedokument
+const EIERSKIFTEGEBYR_ANDEL = 5000 // typisk borettslag/aksje (varierer med forretningsfører)
+
+export function erSelveier(eierform?: string | null): boolean {
+  // Tom/ukjent eierform behandles som selveier (vanligst for enebolig/tomt).
+  return !eierform || /selv/i.test(eierform)
+}
+
+export function beregnKjopskostnader(opts: { bud: number; eierform?: string | null; harLan?: boolean }): number {
+  const pant = opts.harLan ? TINGLYSING_PANT : 0
+  if (erSelveier(opts.eierform)) {
+    return Math.round((opts.bud || 0) * DOKUMENTAVGIFT_SATS) + TINGLYSING_SKJOTE + pant
+  }
+  return EIERSKIFTEGEBYR_ANDEL + pant
+}
+
 export function beregnBudkalkyle(k: Budkalkyle): BudkalkyleResultat {
   const salgspris = k.forventet_salgspris_nok || 0
   const bud = k.bud_nok || 0

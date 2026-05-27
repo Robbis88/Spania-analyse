@@ -8,7 +8,7 @@ import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { ProsjektBilder } from './ProsjektBilder'
 import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { fmtNok } from '../lib/format'
-import { beregnBudkalkyle } from '../lib/offmarket'
+import { beregnBudkalkyle, beregnKjopskostnader, erSelveier } from '../lib/offmarket'
 import type { Prosjekt } from '../types'
 import type { GeonorgeAdresse, OffmarketLenker, Budkalkyle } from '../lib/offmarket'
 
@@ -123,9 +123,12 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     setFakta(omd.kjente_fakta || {})
     // Forhåndsutfyll budkalkylen fra prosjekt-tall der bruker ikke har lagret egne.
     const bk = (omd.budkalkyle || {}) as Budkalkyle
+    const bud0 = pr.kjøpesum || omd.selger?.prisindikasjon_nok || 0
     setBudkalkyle({
-      bud_nok: pr.kjøpesum || omd.selger?.prisindikasjon_nok || 0,
-      kjopskostnader_nok: pr.kjøpskostnader || 0,
+      bud_nok: bud0,
+      // Off-market starter med kjøpskostnader = 0 på prosjektet, så estimer
+      // dokumentavgift (2,5 % selveier) + tinglysing når bruker ikke har et eget tall.
+      kjopskostnader_nok: pr.kjøpskostnader || beregnKjopskostnader({ bud: bud0, eierform: omd.kjente_fakta?.eierform, harLan: true }),
       oppussing_nok: pr.oppussing_faktisk || 0,
       forventet_salgspris_nok: 0,
       meglerhonorar_pst: 1.5,
@@ -494,11 +497,19 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
           <InputTall lbl="Rente (% p.a.)" val={budkalkyle.rente_pst || 0} onChange={v => setBudkalkyle({ ...budkalkyle, rente_pst: v })} />
           <InputTall lbl="Eierperiode (mnd)" val={budkalkyle.periode_mnd || 0} onChange={v => setBudkalkyle({ ...budkalkyle, periode_mnd: v })} />
         </div>
-        <button
-          onClick={() => setBudkalkyle({ ...budkalkyle, oppussing_nok: prosjekt?.oppussing_faktisk || 0 })}
-          style={{ background: 'transparent', border: `1px solid ${FARGER.kantLys}`, color: FARGER.tekstMid, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: 'pointer', marginTop: 8 }}>
-          ↻ Hent oppussing fra budsjett ({fmtNok(prosjekt?.oppussing_faktisk || 0)})
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          <button
+            onClick={() => setBudkalkyle({ ...budkalkyle, oppussing_nok: prosjekt?.oppussing_faktisk || 0 })}
+            style={{ background: 'transparent', border: `1px solid ${FARGER.kantLys}`, color: FARGER.tekstMid, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+            ↻ Hent oppussing fra budsjett ({fmtNok(prosjekt?.oppussing_faktisk || 0)})
+          </button>
+          <button
+            onClick={() => setBudkalkyle({ ...budkalkyle, kjopskostnader_nok: beregnKjopskostnader({ bud: budkalkyle.bud_nok || 0, eierform: fakta.eierform, harLan: (budkalkyle.lan_nok || 0) > 0 }) })}
+            title="Dokumentavgift 2,5 % (selveier) eller eierskiftegebyr (andel/aksje) + tinglysing. Eierform hentes fra «Kjente fakta»."
+            style={{ background: 'transparent', border: `1px solid ${FARGER.kantLys}`, color: FARGER.tekstMid, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+            ↻ Beregn kjøpskostnader ({erSelveier(fakta.eierform) ? '2,5 % dok.avgift' : 'andel/aksje'})
+          </button>
+        </div>
 
         {/* Resultat */}
         <div style={{ marginTop: 14, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 14 }}>
