@@ -493,7 +493,8 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
           <InputTall lbl="Meglerhonorar (%)" val={budkalkyle.meglerhonorar_pst || 0} onChange={v => setBudkalkyle({ ...budkalkyle, meglerhonorar_pst: v })} />
           <InputTall lbl="Meglerhonorar — faste tillegg (NOK)" val={budkalkyle.meglerhonorar_fast_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, meglerhonorar_fast_nok: v })} />
           <InputTall lbl="Styling (NOK)" val={budkalkyle.styling_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, styling_nok: v })} />
-          <InputTall lbl="Lån (NOK)" val={budkalkyle.lan_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, lan_nok: v })} />
+          <InputTall lbl="Egenkapital ved start (NOK)" val={budkalkyle.egenkapital_nok ?? kalk.egenkapital} onChange={v => setBudkalkyle({ ...budkalkyle, egenkapital_nok: v })} />
+          <InputTall lbl="Lån gjennom prosessen (NOK)" val={budkalkyle.lan_nok || 0} onChange={v => setBudkalkyle({ ...budkalkyle, lan_nok: v })} />
           <InputTall lbl="Rente (% p.a.)" val={budkalkyle.rente_pst || 0} onChange={v => setBudkalkyle({ ...budkalkyle, rente_pst: v })} />
           <InputTall lbl="Eierperiode (mnd)" val={budkalkyle.periode_mnd || 0} onChange={v => setBudkalkyle({ ...budkalkyle, periode_mnd: v })} />
         </div>
@@ -523,9 +524,19 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
           <div style={{ borderTop: `2px solid ${FARGER.gull}55`, marginTop: 8, paddingTop: 8 }}>
             <KalkRad lbl="= Netto fortjeneste" val={fmtNok(kalk.nettoFortjeneste)} sterk farge={kalk.nettoFortjeneste >= 0 ? '#2D7D46' : FARGER.feil} />
           </div>
+          {/* Finansiering — egenkapital ved start + lån gjennom prosessen vs kapitalbehov */}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${FARGER.kantUltralys}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Finansiering</div>
+            <KalkRad lbl="Kapitalbehov (kjøp + kostnader + oppussing + styling)" val={fmtNok(kalk.kapitalbehov)} />
+            <KalkRad lbl="Egenkapital ved start" val={fmtNok(kalk.egenkapital)} />
+            <KalkRad lbl="+ Lån gjennom prosessen" val={fmtNok(kalk.lan)} />
+            <KalkRad lbl="= Finansiering totalt" val={fmtNok(kalk.finansieringTotal)} sterk />
+            <KalkRad
+              lbl={kalk.finansieringsdiff >= 0 ? 'Buffer (overfinansiert)' : 'Manko (underfinansiert)'}
+              val={(kalk.finansieringsdiff >= 0 ? '+' : '') + fmtNok(kalk.finansieringsdiff)}
+              farge={kalk.finansieringsdiff >= 0 ? '#2D7D46' : FARGER.feil} />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 12 }}>
-            <KpiMini lbl="Lån" val={fmtNok(budkalkyle.lan_nok || 0)} />
-            <KpiMini lbl="Egenkapital" val={fmtNok(kalk.egenkapital)} farge={kalk.egenkapital < 0 ? FARGER.feil : undefined} />
             <KpiMini lbl="Avkastning på EK" val={kalk.avkastningEkPst != null ? kalk.avkastningEkPst.toFixed(0) + ' %' : '–'} farge={kalk.nettoFortjeneste >= 0 ? '#2D7D46' : FARGER.feil} />
             <KpiMini lbl="Margin av salgssum" val={kalk.margiPst != null ? kalk.margiPst.toFixed(1) + ' %' : '–'} />
           </div>

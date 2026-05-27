@@ -56,6 +56,16 @@ export async function byggBankPdf(
   const r = beregnBudkalkyle(k)
   const samm = (omd.sammenlignbare_data || []) as SammenlignbarData[]
 
+  // Hent oppussingspostene så banken ser hva totalen består av, ikke bare summen.
+  type OppPost = { navn: string | null; kostnad: number | null; notat: string | null }
+  let oppussingPoster: OppPost[] = []
+  const { data: budRad } = await admin.from('oppussing_budsjett').select('id').eq('bolig_id', prosjektId).maybeSingle()
+  if (budRad) {
+    const { data: pr } = await admin.from('oppussing_poster')
+      .select('navn, kostnad, notat').eq('budsjett_id', (budRad as { id: string }).id).order('rekkefolge')
+    oppussingPoster = (pr || []) as OppPost[]
+  }
+
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF()
   const SIDE_BREDDE = 210
@@ -148,10 +158,35 @@ export async function byggBankPdf(
   })
   y += 4
 
+  // === Oppussingsbudsjett (detaljert) ===
+  if (oppussingPoster.length) {
+    seksjon('Oppussingsbudsjett - poster')
+    let sum = 0
+    for (const post of oppussingPoster) {
+      const kost = post.kostnad || 0
+      sum += kost
+      belop(post.navn || 'Post', fmtNok(kost))
+      if (post.notat) {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(120, 120, 120)
+        for (const l of doc.splitTextToSize(post.notat, INNHOLD_BREDDE - 6) as string[]) { sjekkPlass(5); doc.text(l, MARG + 4, y); y += 4.3 }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0)
+      }
+    }
+    belop('Sum oppussingsbudsjett', fmtNok(sum), { bold: true, strek: true })
+    y += 4
+  }
+
   // === Finansiering ===
   seksjon('Finansiering og avkastning')
-  belop('Lanebehov', fmtNok(k.lan_nok || 0))
-  belop('Egenkapital', fmtNok(r.egenkapital), r.egenkapital < 0 ? { farge: [200, 16, 46] } : undefined)
+  belop('Kapitalbehov (opp front)', fmtNok(r.kapitalbehov))
+  belop('Egenkapital ved start', fmtNok(r.egenkapital), r.egenkapital < 0 ? { farge: [200, 16, 46] } : undefined)
+  belop('+ Lan gjennom prosessen', fmtNok(r.lan))
+  belop('= Finansiering totalt', fmtNok(r.finansieringTotal), { bold: true, strek: true })
+  belop(
+    r.finansieringsdiff >= 0 ? 'Buffer (overfinansiert)' : 'Manko (underfinansiert)',
+    (r.finansieringsdiff >= 0 ? '+' : '') + fmtNok(r.finansieringsdiff),
+    { farge: r.finansieringsdiff >= 0 ? [45, 125, 70] : [200, 16, 46] },
+  )
   belop('Nominell rente', (k.rente_pst || 0) + ' % p.a.')
   belop('Eierperiode', (k.periode_mnd || 0) + ' mnd')
   belop('Avkastning pa egenkapital', r.avkastningEkPst != null ? r.avkastningEkPst.toFixed(0) + ' %' : '-', { bold: true })

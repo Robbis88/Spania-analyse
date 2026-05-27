@@ -160,7 +160,8 @@ export type Budkalkyle = {
   meglerhonorar_pst?: number        // % av salgssum
   meglerhonorar_fast_nok?: number   // faste tillegg (markedspakke, oppgjør, foto)
   styling_nok?: number              // styling/møblering for visning
-  lan_nok?: number                  // lånebeløp
+  egenkapital_nok?: number          // egenkapital tilgjengelig ved start
+  lan_nok?: number                  // lånebeløp gjennom prosessen
   rente_pst?: number                // årlig nominell rente %
   periode_mnd?: number              // eierperiode i måneder (rentekostnad-grunnlag)
   notat?: string
@@ -176,7 +177,11 @@ export type BudkalkyleResultat = {
   lanekostnad: number
   totalKostnad: number            // sum av alle kostnader (eks. salgspris)
   nettoFortjeneste: number
-  egenkapital: number             // kapital du selv legger inn
+  kapitalbehov: number            // bud + kjøpskostnader + oppussing + styling (opp front)
+  egenkapital: number             // egenkapital ved start (bruker-oppgitt eller utledet)
+  lan: number                     // lånebeløp
+  finansieringTotal: number       // egenkapital + lån
+  finansieringsdiff: number       // finansieringTotal − kapitalbehov (+ buffer / − manko)
   avkastningEkPst: number | null  // null hvis egenkapital ≤ 0
   margiPst: number | null         // netto fortjeneste / salgspris
 }
@@ -211,15 +216,21 @@ export function beregnBudkalkyle(k: Budkalkyle): BudkalkyleResultat {
   const oppussing = k.oppussing_nok || 0
   const styling = k.styling_nok || 0
   const meglerhonorar = Math.round(salgspris * ((k.meglerhonorar_pst || 0) / 100)) + (k.meglerhonorar_fast_nok || 0)
+  const lan = k.lan_nok || 0
   // Enkel renteberegning: lån × årsrente × andel av året eiet.
-  const lanekostnad = Math.round((k.lan_nok || 0) * ((k.rente_pst || 0) / 100) * ((k.periode_mnd || 0) / 12))
+  const lanekostnad = Math.round(lan * ((k.rente_pst || 0) / 100) * ((k.periode_mnd || 0) / 12))
   const totalKostnad = bud + kjopskostnader + oppussing + styling + meglerhonorar + lanekostnad
   const nettoFortjeneste = salgspris - totalKostnad
-  // Egenkapital = det du selv finansierer av kapitalbehovet (kjøp + oppussing + styling) minus lån.
-  const egenkapital = (bud + kjopskostnader + oppussing + styling) - (k.lan_nok || 0)
+  // Kapitalbehov = det som må finansieres opp front (kjøp + kostnader + oppussing + styling).
+  const kapitalbehov = bud + kjopskostnader + oppussing + styling
+  // Egenkapital: bruk brukerens oppgitte tall, ellers utled (kapitalbehov − lån).
+  const egenkapital = k.egenkapital_nok != null ? k.egenkapital_nok : Math.max(0, kapitalbehov - lan)
+  const finansieringTotal = egenkapital + lan
   return {
     salgspris, bud, kjopskostnader, oppussing, meglerhonorar, styling, lanekostnad,
-    totalKostnad, nettoFortjeneste, egenkapital,
+    totalKostnad, nettoFortjeneste,
+    kapitalbehov, egenkapital, lan, finansieringTotal,
+    finansieringsdiff: finansieringTotal - kapitalbehov,
     avkastningEkPst: egenkapital > 0 ? (nettoFortjeneste / egenkapital) * 100 : null,
     margiPst: salgspris > 0 ? (nettoFortjeneste / salgspris) * 100 : null,
   }
