@@ -565,6 +565,9 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
         </div>
       </div>
 
+      {/* Off-market bruker Budkalkylen i OffmarketDetalj for hele lønnsomheten —
+          skjul AI-estimat og Beregning her så det ikke finnes to konkurrerende oppstillinger. */}
+      {!prosjekt.off_market && <>
       <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.gull}33`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 16, boxShadow: SHADOW.sm }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, color: FARGER.mork, letterSpacing: '-0.015em' }}>🤖 Estimert salgspris fra AI</div>
 
@@ -642,6 +645,7 @@ export function Oppussingsbudsjett({ prosjekt, onProsjektOppdatert }: { prosjekt
           <span style={{ color: roi >= 0 ? '#2D7D46' : '#C8102E' }}>{budsjett.estimert_salgspris ? roi.toFixed(1) + '%' : '–'}</span>
         </div>
       </div>
+      </>}
 
       <SendForesporselModal
         prosjektId={boligId}

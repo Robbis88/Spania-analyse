@@ -107,6 +107,8 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [pdfLaster, setPdfLaster] = useState(false)
   const [bankPdfLaster, setBankPdfLaster] = useState(false)
   const [budkalkyle, setBudkalkyle] = useState<Budkalkyle>({})
+  const [aiSalgsprisLaster, setAiSalgsprisLaster] = useState(false)
+  const [aiSalgsprisForslag, setAiSalgsprisForslag] = useState<{ pris: number; begrunnelse?: string; usikkerhet?: string } | null>(null)
   const [epostApen, setEpostApen] = useState(false)
 
   const hent = useCallback(async () => {
@@ -173,6 +175,33 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
     setData(oppdatert)
     visToast('Fakta lagret', 'suksess', 1800)
+  }
+
+  // Henter AI-estimat for salgspris og skriver det rett inn i budkalkylen.
+  // Erstatter den separate «🤖 Estimer salgspris fra AI»-seksjonen som tidligere
+  // lå i Oppussingsbudsjett — så vi har én kilde for salgspris i off-market.
+  async function hentAiSalgsforslag() {
+    if (aiSalgsprisLaster) return
+    setAiSalgsprisLaster(true)
+    try {
+      const res = await fetch('/api/agent/salgsestimat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boligId: prosjektId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        visToast(data.error || 'AI-estimat feilet', 'feil', 4000)
+      } else {
+        const pris = Number(data.estimert_salgspris) || 0
+        setBudkalkyle({ ...budkalkyle, forventet_salgspris_nok: pris })
+        setAiSalgsprisForslag({ pris, begrunnelse: data.begrunnelse, usikkerhet: data.usikkerhet })
+        visToast('AI-estimat lagt inn — husk å lagre kalkylen', 'suksess', 3000)
+      }
+    } catch (e) {
+      visToast('AI-estimat feilet: ' + (e instanceof Error ? e.message : String(e)), 'feil', 4000)
+    }
+    setAiSalgsprisLaster(false)
   }
 
   async function lagreBudkalkyle() {
@@ -558,7 +587,21 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
             style={{ background: 'transparent', border: `1px solid ${FARGER.kantLys}`, color: FARGER.tekstMid, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
             ↻ Beregn kjøpskostnader ({erSelveier(fakta.eierform) ? '2,5 % dok.avgift' : 'andel/aksje'})
           </button>
+          <button
+            onClick={hentAiSalgsforslag}
+            disabled={aiSalgsprisLaster}
+            title="La AI estimere salgspris etter oppussing — basert på bilder, oppussingsposter, område og standard. Verdien legges rett inn i «Forventet salgspris»."
+            style={{ background: 'transparent', border: `1px solid ${FARGER.gull}`, color: FARGER.mork, borderRadius: RADIUS.sm, padding: '4px 10px', fontSize: 11, cursor: aiSalgsprisLaster ? 'not-allowed' : 'pointer', opacity: aiSalgsprisLaster ? 0.6 : 1 }}>
+            {aiSalgsprisLaster ? '⏳ Henter…' : '✨ AI-forslag (salgspris)'}
+          </button>
         </div>
+        {aiSalgsprisForslag && (
+          <div style={{ marginTop: 8, padding: 10, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.sm, fontSize: 12, color: FARGER.tekstMid }}>
+            <strong style={{ color: FARGER.mork }}>✨ AI-estimat:</strong> {fmtNok(aiSalgsprisForslag.pris)}
+            {aiSalgsprisForslag.usikkerhet && <span> · Usikkerhet: {aiSalgsprisForslag.usikkerhet}</span>}
+            {aiSalgsprisForslag.begrunnelse && <div style={{ marginTop: 4, lineHeight: 1.5 }}>{aiSalgsprisForslag.begrunnelse}</div>}
+          </div>
+        )}
 
         {/* Resultat */}
         <div style={{ marginTop: 14, background: FARGER.creamLys, border: `1px solid ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 14 }}>
