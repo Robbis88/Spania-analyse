@@ -38,9 +38,9 @@ const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'ai',           lbl: 'AI-forslag',   ikon: '✨' },
 ]
 
-type Props = { prosjektId: string; onTilbake: () => void }
+type Props = { prosjektId: string; onTilbake: () => void; onSeOffmarket?: () => void }
 
-export function EiendomDetalj({ prosjektId, onTilbake }: Props) {
+export function EiendomDetalj({ prosjektId, onTilbake, onSeOffmarket }: Props) {
   const { data, laster, feil, refresh } = useEiendomData(prosjektId)
   const [aktivFane, setAktivFane] = useState<Fane>('oversikt')
   const [sletter, setSletter] = useState(false)
@@ -92,18 +92,32 @@ export function EiendomDetalj({ prosjektId, onTilbake }: Props) {
           <h2 style={{ fontSize: 26, fontWeight: 300, margin: 0, color: FARGER.mork, letterSpacing: '-0.01em' }}>{p.navn}</h2>
           {adresse && <p style={{ color: FARGER.tekstMid, margin: '4px 0 0', fontSize: 14, fontWeight: 300 }}>{adresse}</p>}
         </div>
-        <button onClick={slettEiendom} disabled={sletter}
-          title="Slett eiendom fra portefølje"
-          style={{
-            background: 'transparent', border: `1px solid ${FARGER.feil}55`,
-            color: FARGER.feil, borderRadius: RADIUS.sm,
-            padding: '8px 14px', fontSize: 12, fontWeight: 600,
-            cursor: sletter ? 'not-allowed' : 'pointer',
-            letterSpacing: '0.06em', textTransform: 'uppercase',
-            opacity: sletter ? 0.6 : 1,
-          }}>
-          {sletter ? '⏳ Sletter…' : '🗑 Slett eiendom'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {p.off_market && onSeOffmarket && (
+            <button onClick={onSeOffmarket}
+              title="Åpne off-market-vurderingen med budkalkyle, sammenlignbare salg og bank-PDF"
+              style={{
+                background: FARGER.creamLys, border: `1px solid ${FARGER.gull}`,
+                color: FARGER.mork, borderRadius: RADIUS.sm,
+                padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+              🔍 Se off-market-vurdering
+            </button>
+          )}
+          <button onClick={slettEiendom} disabled={sletter}
+            title="Slett eiendom fra portefølje"
+            style={{
+              background: 'transparent', border: `1px solid ${FARGER.feil}55`,
+              color: FARGER.feil, borderRadius: RADIUS.sm,
+              padding: '8px 14px', fontSize: 12, fontWeight: 600,
+              cursor: sletter ? 'not-allowed' : 'pointer',
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+              opacity: sletter ? 0.6 : 1,
+            }}>
+            {sletter ? '⏳ Sletter…' : '🗑 Slett eiendom'}
+          </button>
+        </div>
       </div>
 
       {/* Fane-bar */}

@@ -177,9 +177,21 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
 
   async function lagreBudkalkyle() {
     const oppdatert = { ...data, budkalkyle }
-    const { error } = await supabase.from('prosjekter').update({ off_market_data: oppdatert }).eq('id', prosjektId)
+    // Synker kjøpesum / forventet_salgsverdi / oppussingsbudsjett til prosjekt-rota
+    // så Dashboard, Min portefølje og alle andre visninger bruker SAMME tall.
+    // Uten denne synken havnet rot-feltene på det selger først indikerte, og
+    // budkalkylen ble en isolert kopi som ikke snakket med resten av systemet.
+    const rotFelter = {
+      kjøpesum: budkalkyle.bud_nok || 0,
+      forventet_salgsverdi: budkalkyle.forventet_salgspris_nok || 0,
+      oppussingsbudsjett: budkalkyle.oppussing_nok || 0,
+      kjøpskostnader: budkalkyle.kjopskostnader_nok || 0,
+    }
+    const { error } = await supabase.from('prosjekter')
+      .update({ off_market_data: oppdatert, ...rotFelter }).eq('id', prosjektId)
     if (error) { visToast('Lagring feilet: ' + error.message, 'feil', 4000); return }
     setData(oppdatert)
+    if (prosjekt) setProsjekt({ ...prosjekt, ...rotFelter })
     visToast('Budkalkyle lagret', 'suksess', 1800)
   }
 
@@ -329,9 +341,17 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
     setBankPdfLaster(true)
     try {
       // Lagre nyeste kalkyle først så PDF-en (som leser fra DB) ikke blir utdatert.
+      // Synker også rot-feltene så hele systemet holder seg på samme tall.
       const oppdatert = { ...data, budkalkyle }
-      await supabase.from('prosjekter').update({ off_market_data: oppdatert }).eq('id', prosjektId)
+      const rotFelter = {
+        kjøpesum: budkalkyle.bud_nok || 0,
+        forventet_salgsverdi: budkalkyle.forventet_salgspris_nok || 0,
+        oppussingsbudsjett: budkalkyle.oppussing_nok || 0,
+        kjøpskostnader: budkalkyle.kjopskostnader_nok || 0,
+      }
+      await supabase.from('prosjekter').update({ off_market_data: oppdatert, ...rotFelter }).eq('id', prosjektId)
       setData(oppdatert)
+      if (prosjekt) setProsjekt({ ...prosjekt, ...rotFelter })
       const res = await fetch('/api/offmarket/bank-pdf', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prosjektId }),
@@ -389,6 +409,34 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
           {sletter ? '⏳ Sletter…' : '🗑 Slett'}
         </button>
       </div>
+
+      {/* Lønnsomhetsprognose — det første blikket trenger */}
+      {(budkalkyle.forventet_salgspris_nok || budkalkyle.bud_nok) ? (
+        <div style={{
+          background: 'linear-gradient(135deg, #0e1726 0%, #1a2942 100%)',
+          color: '#fff', borderRadius: RADIUS.lg, padding: 22, marginBottom: 22, boxShadow: SHADOW.md,
+        }}>
+          <div style={{ fontSize: 10, color: '#b89a6f', letterSpacing: '0.18em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>
+            Lønnsomhetsprognose
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+            <HeroMetrikk lbl="Bud / kjøpesum" val={fmtNok(kalk.bud)} />
+            <HeroMetrikk lbl="Forventet salgspris" val={fmtNok(kalk.salgspris)} />
+            <HeroMetrikk lbl="Forventet netto fortjeneste" val={fmtNok(kalk.nettoFortjeneste)} farge={kalk.nettoFortjeneste >= 0 ? '#7ee0a3' : '#ff8a99'} />
+            <HeroMetrikk lbl="Avkastning på EK" val={kalk.avkastningEkPst != null ? kalk.avkastningEkPst.toFixed(0) + ' %' : '–'} farge={kalk.nettoFortjeneste >= 0 ? '#7ee0a3' : '#ff8a99'} />
+          </div>
+          <p style={{ fontSize: 11, color: '#a0a8b8', margin: '12px 0 0' }}>
+            Tallene kommer fra «💰 Budkalkyle / lønnsomhet» nedenfor — rediger der og lagre for å oppdatere.
+          </p>
+        </div>
+      ) : (
+        <div style={{
+          background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`,
+          borderRadius: RADIUS.md, padding: 16, marginBottom: 22, fontSize: 13, color: FARGER.tekstMid,
+        }}>
+          💡 Tips: Fyll inn «💰 Budkalkyle / lønnsomhet» nedenfor (bud, forventet salgspris, lån osv.) — så viser vi forventet fortjeneste her øverst.
+        </div>
+      )}
 
       {/* Offentlige data */}
       {valgt && (
@@ -997,6 +1045,15 @@ function Fakta({ lbl, val }: { lbl: string; val: string }) {
     <div>
       <div style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</div>
       <div style={{ fontSize: 13, color: FARGER.mork, fontWeight: 500, marginTop: 2 }}>{val}</div>
+    </div>
+  )
+}
+
+function HeroMetrikk({ lbl, val, farge }: { lbl: string; val: string; farge?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#a0a8b8', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>{lbl}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: farge || '#fff' }}>{val}</div>
     </div>
   )
 }

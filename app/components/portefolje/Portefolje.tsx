@@ -13,6 +13,7 @@ import type {
 } from '../../types'
 import { EiendomKort, type EiendomKortData } from './EiendomKort'
 import { EiendomDetalj } from './EiendomDetalj'
+import { OffmarketDetalj } from '../OffmarketDetalj'
 import { PortefoljeDashboard } from './PortefoljeDashboard'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
@@ -24,6 +25,7 @@ export function Portefolje({ onTilbake }: Props) {
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [valgt, setValgt] = useState<string | null>(null)
+  const [offmarketVisning, setOffmarketVisning] = useState<string | null>(null)
   const [visNyDialog, setVisNyDialog] = useState(false)
   const [nyttNavn, setNyttNavn] = useState('')
   const [nyAdresse, setNyAdresse] = useState('')
@@ -152,11 +154,24 @@ export function Portefolje({ onTilbake }: Props) {
     await hent()
   }
 
+  // Off-market-vurderingen (budkalkyle, sammenlignbare, bank-PDF) for en kjøpt
+  // eiendom. Åpnes fra knapp i EiendomDetalj — tilbake bringer brukeren tilbake
+  // til eiendomsfanene, ikke til portefølje-listen.
+  if (offmarketVisning) {
+    return (
+      <OffmarketDetalj
+        prosjektId={offmarketVisning}
+        onTilbake={() => { setOffmarketVisning(null); void hent() }}
+      />
+    )
+  }
+
   if (valgt) {
     return (
       <EiendomDetalj
         prosjektId={valgt}
         onTilbake={() => { setValgt(null); void hent() }}
+        onSeOffmarket={() => setOffmarketVisning(valgt)}
       />
     )
   }
