@@ -84,9 +84,9 @@ const FLAGG_FARGE: Record<RodtFlagg['alvorlighet'], { bg: string; tekst: string;
   info: { bg: '#faf7ee', tekst: '#5a6171', ramme: '#b89a6f33' },
 }
 
-type Props = { prosjektId: string; onTilbake: () => void }
+type Props = { prosjektId: string; onTilbake: () => void; onAapneIPortefolje?: () => void }
 
-export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
+export function OffmarketDetalj({ prosjektId, onTilbake, onAapneIPortefolje }: Props) {
   const [navn, setNavn] = useState('')
   const [prosjekt, setProsjekt] = useState<Prosjekt | null>(null)
   const [data, setData] = useState<OffmarketData>({})
@@ -109,6 +109,9 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   const [budkalkyle, setBudkalkyle] = useState<Budkalkyle>({})
   const [aiSalgsprisLaster, setAiSalgsprisLaster] = useState(false)
   const [aiSalgsprisForslag, setAiSalgsprisForslag] = useState<{ pris: number; begrunnelse?: string; usikkerhet?: string } | null>(null)
+  // Budsjett vs faktisk-snapshot fra oppussingsposter + kvitteringer.
+  // Vises i Hero-prognosen så brukeren ser om de faktiske kostnadene støtter planen.
+  const [oppSnapshot, setOppSnapshot] = useState<{ budsjett: number; faktisk: number; antall: number; ferdig: number } | null>(null)
   const [epostApen, setEpostApen] = useState(false)
 
   const hent = useCallback(async () => {
@@ -147,14 +150,45 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
+  // Henter snapshot av budsjett vs faktisk fra oppussingsposter + kvitteringer.
+  // Faktisk per post = manuell faktisk_kostnad om satt, ellers sum av koblede
+  // kvitteringer (oppussing_post_id). Brukes i Hero så «hvor er vi på vei vs plan?»
+  // er synlig uten å bytte fane.
+  const hentOppSnapshot = useCallback(async () => {
+    const { data: bud } = await supabase.from('oppussing_budsjett').select('id').eq('bolig_id', prosjektId).maybeSingle()
+    if (!bud) { setOppSnapshot(null); return }
+    const budId = (bud as { id: string }).id
+    const [postRes, kvRes] = await Promise.all([
+      supabase.from('oppussing_poster').select('id, kostnad, faktisk_kostnad, status').eq('budsjett_id', budId),
+      supabase.from('kvitteringer').select('belop_inkl_mva, oppussing_post_id').eq('prosjekt_id', prosjektId).not('oppussing_post_id', 'is', null),
+    ])
+    const kvSum: Record<string, number> = {}
+    for (const k of (kvRes.data || []) as Array<{ belop_inkl_mva: number | null; oppussing_post_id: string }>) {
+      if (k.belop_inkl_mva && k.oppussing_post_id) kvSum[k.oppussing_post_id] = (kvSum[k.oppussing_post_id] || 0) + k.belop_inkl_mva
+    }
+    const liste = (postRes.data || []) as Array<{ id: string; kostnad: number | null; faktisk_kostnad: number | null; status: string | null }>
+    let budsjett = 0, faktisk = 0, ferdig = 0
+    for (const p of liste) {
+      budsjett += p.kostnad || 0
+      faktisk += (typeof p.faktisk_kostnad === 'number' && Number.isFinite(p.faktisk_kostnad)) ? p.faktisk_kostnad : (kvSum[p.id] || 0)
+      if (p.status === 'ferdig') ferdig++
+    }
+    setOppSnapshot({ budsjett, faktisk, antall: liste.length, ferdig })
+  }, [prosjektId])
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void hentOppSnapshot() }, [hentOppSnapshot])
+
   // Stille oppdatering av prosjekt-raden (f.eks. når Oppussingsbudsjett synker
   // oppussing_faktisk). Setter IKKE laster=true, så vi unngår at hele
   // off-market-siden blankes og hopper til toppen ved hver post-endring.
+  // Oppdaterer også snapshot så Hero-tallene følger med på poster/kvitteringer.
   const oppdaterProsjekt = useCallback(async () => {
     const { data: p } = await supabase
       .from('prosjekter').select('*').eq('id', prosjektId).maybeSingle()
     if (p) setProsjekt(p as Prosjekt)
-  }, [prosjektId])
+    await hentOppSnapshot()
+  }, [prosjektId, hentOppSnapshot])
 
   async function lagreSelger() {
     const oppdatert = { ...data, selger }
@@ -439,6 +473,29 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
         </button>
       </div>
 
+      {/* CTA for kjøpte off-market-prosjekter: ta brukeren til Min portefølje
+          der kvitteringer, lån, leie og regnskap leverer den daglige kontrollen. */}
+      {prosjekt?.er_portefolje && onAapneIPortefolje && (
+        <div style={{
+          background: '#fff', border: `1.5px solid ${FARGER.gull}`, borderRadius: RADIUS.md,
+          padding: 14, marginBottom: 16, display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 13, color: FARGER.tekstMid, lineHeight: 1.5 }}>
+            <strong style={{ color: FARGER.mork }}>📊 Denne boligen er kjøpt.</strong>{' '}
+            Last opp kvitteringer, registrer lån/leie og se cashflow i Min portefølje — endringer der oppdaterer automatisk «faktisk så langt» her.
+          </div>
+          <button onClick={onAapneIPortefolje}
+            style={{
+              background: FARGER.mork, color: FARGER.creamLys, border: 'none', borderRadius: RADIUS.sm,
+              padding: '10px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+            }}>
+            📊 Åpne i Min portefølje
+          </button>
+        </div>
+      )}
+
       {/* Lønnsomhetsprognose — det første blikket trenger */}
       {(budkalkyle.forventet_salgspris_nok || budkalkyle.bud_nok) ? (
         <div style={{
@@ -454,6 +511,20 @@ export function OffmarketDetalj({ prosjektId, onTilbake }: Props) {
             <HeroMetrikk lbl="Forventet netto fortjeneste" val={fmtNok(kalk.nettoFortjeneste)} farge={kalk.nettoFortjeneste >= 0 ? '#7ee0a3' : '#ff8a99'} />
             <HeroMetrikk lbl="Avkastning på EK" val={kalk.avkastningEkPst != null ? kalk.avkastningEkPst.toFixed(0) + ' %' : '–'} farge={kalk.nettoFortjeneste >= 0 ? '#7ee0a3' : '#ff8a99'} />
           </div>
+          {/* Faktisk så langt — vises kun når det er registrert kostnader (kvitteringer
+              eller manuelle faktisk-tall). Slik ser brukeren om planen holder. */}
+          {oppSnapshot && oppSnapshot.faktisk > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.12)', fontSize: 12, color: '#a0a8b8', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+              <span>
+                <strong style={{ color: '#fff' }}>Faktisk så langt:</strong>{' '}
+                {fmtNok(oppSnapshot.faktisk)} av {fmtNok(oppSnapshot.budsjett)} budsjett
+                {oppSnapshot.budsjett > 0 && ` (${Math.round(oppSnapshot.faktisk / oppSnapshot.budsjett * 100)} %)`}
+              </span>
+              {oppSnapshot.antall > 0 && (
+                <span>{oppSnapshot.ferdig}/{oppSnapshot.antall} poster ferdig</span>
+              )}
+            </div>
+          )}
           <p style={{ fontSize: 11, color: '#a0a8b8', margin: '12px 0 0' }}>
             Tallene kommer fra «💰 Budkalkyle / lønnsomhet» nedenfor — rediger der og lagre for å oppdatere.
           </p>

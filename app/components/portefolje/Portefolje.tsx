@@ -162,6 +162,7 @@ export function Portefolje({ onTilbake }: Props) {
       <OffmarketDetalj
         prosjektId={offmarketVisning}
         onTilbake={() => { setOffmarketVisning(null); void hent() }}
+        onAapneIPortefolje={() => setOffmarketVisning(null)}
       />
     )
   }
