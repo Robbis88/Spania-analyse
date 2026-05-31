@@ -482,8 +482,17 @@ export default function InspeksjonSide() {
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8, letterSpacing: '0.06em' }}>
           {t('footer_tagline')}
         </div>
-        <div style={{ fontSize: 12, opacity: 0.5 }}>
+        <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 14 }}>
           Costa del Sol · post@loeiendom.com
+        </div>
+        <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, letterSpacing: '0.04em' }}>
+          <Link href="/personvern" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Personvern</Link>
+          <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+          <Link href="/vilkar" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Vilkår</Link>
+          <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+          <span style={{ color: 'rgba(250,250,246,0.45)' }} title="Vi bruker kun nødvendige cookies (innlogging og betaling) — ingen sporing">
+            🍪 Kun nødvendige cookies
+          </span>
         </div>
       </footer>
     </main>

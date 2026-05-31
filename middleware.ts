@@ -18,6 +18,8 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/admin') ||
     pathname.startsWith('/laast') ||
+    pathname.startsWith('/personvern') ||
+    pathname.startsWith('/vilkar') ||
     pathname.startsWith('/api/portal-tilgang') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/agent') ||

@@ -423,8 +423,19 @@ function Footer({ onRegistrerInteresse }: { onRegistrerInteresse: () => void }) 
             </button>
           </div>
         </div>
-        <div style={{ marginTop: 56, paddingTop: 28, borderTop: '1px solid rgba(250,250,246,0.1)', fontSize: 12, color: 'rgba(250,250,246,0.45)', textAlign: 'center', letterSpacing: '0.06em' }}>
-          {t.copyright} {new Date().getFullYear()}
+        <div style={{ marginTop: 56, paddingTop: 28, borderTop: '1px solid rgba(250,250,246,0.1)' }}>
+          <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16, fontSize: 12, letterSpacing: '0.04em' }}>
+            <Link href="/personvern" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Personvern</Link>
+            <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+            <Link href="/vilkar" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Vilkår</Link>
+            <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+            <span style={{ color: 'rgba(250,250,246,0.45)' }} title="Vi bruker kun nødvendige cookies (innlogging og betaling) — ingen sporing, ingen analytics">
+              🍪 Kun nødvendige cookies
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(250,250,246,0.45)', textAlign: 'center', letterSpacing: '0.06em' }}>
+            {t.copyright} {new Date().getFullYear()}
+          </div>
         </div>
       </div>
     </footer>

@@ -444,8 +444,19 @@ function Footer() {
   const { t } = useSprak()
   return (
     <footer style={{ background: MØRK, color: CREAM_LYS, padding: '56px 28px 40px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', textAlign: 'center', fontSize: 12, color: 'rgba(250,250,246,0.45)', letterSpacing: '0.04em' }}>
-        {t.copyright} {new Date().getFullYear()}
+      <div style={{ maxWidth: 1280, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 14, fontSize: 12, letterSpacing: '0.04em' }}>
+          <Link href="/personvern" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Personvern</Link>
+          <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+          <Link href="/vilkar" style={{ color: 'rgba(250,250,246,0.75)', textDecoration: 'none' }}>Vilkår</Link>
+          <span style={{ color: 'rgba(250,250,246,0.25)' }}>·</span>
+          <span style={{ color: 'rgba(250,250,246,0.45)' }} title="Vi bruker kun nødvendige cookies (innlogging og betaling) — ingen sporing">
+            🍪 Kun nødvendige cookies
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(250,250,246,0.45)', letterSpacing: '0.04em' }}>
+          {t.copyright} {new Date().getFullYear()}
+        </div>
       </div>
     </footer>
   )
