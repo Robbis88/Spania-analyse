@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FARGER, RADIUS } from '../lib/styles'
+import { GdprSkjema } from './GdprSkjema'
 
 export const metadata: Metadata = {
   title: 'Personvernerklæring — Leganger & Osvaag Eiendom',
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 // Sist oppdatert — bump denne datoen ved enhver materiell endring.
-const SIST_OPPDATERT = '31. mai 2026'
+const SIST_OPPDATERT = '3. juni 2026'
 
 export default function Personvern() {
   return (
@@ -96,9 +97,10 @@ export default function Personvern() {
             <li>Klage til Datatilsynet (<a href="https://www.datatilsynet.no" target="_blank" rel="noopener" style={lenkeStil}>datatilsynet.no</a>)</li>
           </ul>
           <p>
-            For å bruke rettighetene dine, send e-post til <a href="mailto:post@loeiendom.com" style={lenkeStil}>post@loeiendom.com</a>.
-            Vi svarer innen 30 dager.
+            For å bruke rettighetene dine, send e-post til <a href="mailto:post@loeiendom.com" style={lenkeStil}>post@loeiendom.com</a>
+            {' '}eller bruk skjemaet under. Vi svarer innen 30 dager.
           </p>
+          <GdprSkjema />
         </Seksjon>
 
         <Seksjon tittel="7. Cookies">
