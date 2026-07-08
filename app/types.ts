@@ -82,6 +82,16 @@ export type Selskap = {
   opprettet?: string
 }
 
+export type Maal = {
+  id: string
+  selskap_id: string | null
+  beskrivelse: string
+  maaltall: number
+  enhet: 'antall_boliger' | 'egenkapital' | 'cashflow_mnd'
+  frist: string | null
+  opprettet?: string
+}
+
 export type EstimatJustering = {
   id: string
   prosjekt_id: string
