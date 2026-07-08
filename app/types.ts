@@ -186,6 +186,7 @@ export type Prosjekt = {
   // Norske boliger
   marked?: 'spania' | 'norge'
   selskap_id?: string | null
+  markedsleie_mnd?: number | null
   eierform?: string | null
   fellesgjeld_nok?: number | null
   fellesutgifter_mnd_nok?: number | null

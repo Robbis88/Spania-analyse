@@ -1,11 +1,20 @@
 'use client'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS } from '../../lib/styles'
 import { belaningsgrad } from '../../lib/portefolje'
 import { fmtNok } from '../../lib/format'
 import type { EiendomKortData } from './EiendomKort'
 
 const fmtPct = (n: number | null) => n === null || !Number.isFinite(n) ? '–' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%'
+const fmtVal = (n: number, valuta: string) => (valuta === 'EUR' ? '€' : '') + Math.round(n || 0).toLocaleString('nb-NO') + (valuta === 'EUR' ? '' : ' kr')
+
+type RangRad = {
+  id: string; navn: string; marked: string; valuta: string
+  bundet_ek: number; langtid_yield_pst: number | null; cashflow_mnd: number | null
+  stress_cashflow_mnd: number | null; markedsleie_mnd: number | null
+  flagg: Array<{ farge: 'rod' | 'gul'; tekst: string }>
+}
+type KjopekraftRad = { valuta: string; kjopekraft: number; bundet_ek: number }
 
 type Props = {
   eiendommer: EiendomKortData[]
@@ -37,6 +46,13 @@ export function PortefoljeDashboard({ eiendommer, onApne }: Props) {
     return { totalVerdi, totalGjeld, totalEK, totalLeie, totalDrift, totalLaan, totalCf, ltv, besteCf, versteCf, besteVerdi, versteVerdi }
   }, [eiendommer])
 
+  const [rang, setRang] = useState<RangRad[]>([])
+  const [kjopekraft, setKjopekraft] = useState<KjopekraftRad[]>([])
+  useEffect(() => {
+    fetch('/api/portefolje-rangering').then(r => r.json()).then(d => setRang(d.rader || [])).catch(() => {})
+    fetch('/api/kapital').then(r => r.json()).then(d => setKjopekraft(d.konsolidert || [])).catch(() => {})
+  }, [])
+
   if (eiendommer.length === 0) return null
 
   return (
@@ -44,6 +60,18 @@ export function PortefoljeDashboard({ eiendommer, onApne }: Props) {
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 12 }}>
         OVERSIKT
       </div>
+
+      {/* Kjøpekraft (B3) */}
+      {kjopekraft.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
+          {kjopekraft.map(k => (
+            <div key={k.valuta} style={{ background: FARGER.mork, color: FARGER.creamLys, borderRadius: RADIUS.md, padding: 14 }}>
+              <div style={{ fontSize: 10, color: FARGER.gull, letterSpacing: '0.16em', fontWeight: 700, marginBottom: 4 }}>KJØPEKRAFT · {k.valuta}</div>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>{fmtVal(k.kjopekraft, k.valuta)}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Topplinje */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
@@ -82,6 +110,40 @@ export function PortefoljeDashboard({ eiendommer, onApne }: Props) {
               onApne={onApne}
             />
           )}
+        </div>
+      )}
+
+      {/* Rangering (B6) */}
+      {rang.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 10, textTransform: 'uppercase' }}>
+            Rangering — avkastning på bundet EK
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {rang.map(r => (
+              <button key={r.id} onClick={() => onApne(r.id)}
+                style={{ background: '#fff', border: `1.5px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 20, fontWeight: 700, color: r.langtid_yield_pst === null ? FARGER.tekstLys : r.langtid_yield_pst < 6 ? FARGER.feil : FARGER.suksess, minWidth: 62 }}>
+                  {r.langtid_yield_pst === null ? '–' : r.langtid_yield_pst.toFixed(1) + '%'}
+                </span>
+                <span style={{ flex: 1, minWidth: 140 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork }}>{r.navn}</span>
+                  <span style={{ fontSize: 11, color: FARGER.tekstLys, display: 'block' }}>
+                    Bundet EK {fmtVal(r.bundet_ek, r.valuta)}{r.cashflow_mnd !== null ? ` · cashflow ${fmtVal(r.cashflow_mnd, r.valuta)}/mnd` : ''}
+                  </span>
+                </span>
+                <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {r.flagg.map((f, i) => (
+                    <span key={i} style={{
+                      fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: RADIUS.pill,
+                      background: f.farge === 'rod' ? FARGER.feilBg : FARGER.advarselBg,
+                      color: f.farge === 'rod' ? FARGER.feil : FARGER.advarsel,
+                    }}>{f.tekst}</span>
+                  ))}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
