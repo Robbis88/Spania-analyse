@@ -20,7 +20,7 @@ import {
   totalLaanKostnadMnd, annuitetMnd,
 } from './portefolje'
 import { beregnAar } from './utleie'
-import { erNorge } from './skatteprofil'
+import { gevinstSatsPst, utleieSatsPst } from './skatteprofil'
 
 // Terskler og forutsetninger — fornuftige defaults, kan gjøres redigerbare senere.
 export const TERSKEL_YIELD_BUNDET_EK_PST = 6   // under dette flagges leie som svak
@@ -65,16 +65,20 @@ export type Beslutning = {
   beste: ScenarioType | null
 }
 
-// Henter gevinst-/utleiesats fra en skatteprofil uavhengig av land.
-function satser(profil: Skatteprofil): { gevinst_pst: number; utleie_pst: number } {
-  if (erNorge(profil)) return { gevinst_pst: profil.gevinstskatt_pst, utleie_pst: profil.utleie_skatt_pst }
-  // Spania: bruk ikke-EU-sats som konservativ default; egen utleiesats finnes ikke i profilen ennå
-  return { gevinst_pst: profil.gevinst_ikke_eu_pst, utleie_pst: profil.gevinst_ikke_eu_pst }
+// Bundet EK = kapitalen du ville frigjort ved å selge nå.
+// Delt med kapitaloversikten (B3) så tallet er identisk begge steder.
+export function beregnBundetEk(verdi: number, restgjeld: number, anskaffelse: number, gevinstPst: number) {
+  const salgskostnad = verdi * (SALGSKOST_PST / 100)
+  const gevinst = Math.max(0, verdi - anskaffelse - salgskostnad)
+  const gevinstskatt = gevinst * (gevinstPst / 100)
+  const nettoVedSalg = verdi - restgjeld - salgskostnad - gevinstskatt
+  return { salgskostnad, gevinst, gevinstskatt, nettoVedSalg, bundet_ek: Math.max(0, nettoVedSalg) }
 }
 
 export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const { prosjekt, laan, inntekter, kostnader, verdivurderinger, skatteprofil, airbnbData } = input
-  const { gevinst_pst, utleie_pst } = satser(skatteprofil)
+  const gevinst_pst = gevinstSatsPst(skatteprofil)
+  const utleie_pst = utleieSatsPst(skatteprofil)
 
   const verdi = sisteVerdi(verdivurderinger)
   const restgjeld = totalRestgjeld(laan)
@@ -82,15 +86,9 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const kostnaderMnd = sumKostnaderPerMnd(kostnader)
   const laanMnd = totalLaanKostnadMnd(laan)
 
-  // Salg
-  const salgskostnad = verdi * (SALGSKOST_PST / 100)
+  // Salg / bundet EK (delt formel med B3)
   const anskaffelse = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0) + (prosjekt.oppussing_faktisk || 0)
-  const gevinst = Math.max(0, verdi - anskaffelse - salgskostnad)
-  const gevinstskatt = gevinst * (gevinst_pst / 100)
-  const nettoVedSalg = verdi - restgjeld - salgskostnad - gevinstskatt
-
-  // Bundet EK = kapitalen du ville frigjort ved å selge nå
-  const bundet_ek = Math.max(0, nettoVedSalg)
+  const { salgskostnad, gevinst, gevinstskatt, nettoVedSalg, bundet_ek } = beregnBundetEk(verdi, restgjeld, anskaffelse, gevinst_pst)
 
   const yieldPaaEk = (aarligNetto: number) => bundet_ek > 0 ? (aarligNetto / bundet_ek) * 100 : 0
 

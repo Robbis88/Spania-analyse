@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const admin = hentSupabaseAdmin()
     const { data, error } = await admin
       .from('selskaper')
-      .select('id, navn, land, valuta, skatteprofil, opprettet')
+      .select('id, navn, land, valuta, skatteprofil, fri_likviditet, laanekapasitet, opprettet')
       .order('opprettet', { ascending: true })
     if (error) return NextResponse.json({ feil: 'Kunne ikke hente selskaper: ' + error.message }, { status: 500 })
     return NextResponse.json({ selskaper: data || [] })
@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
     const endringer: Record<string, unknown> = {}
     if (typeof body.navn === 'string' && body.navn.trim()) endringer.navn = body.navn.trim()
     if (body.skatteprofil && typeof body.skatteprofil === 'object') endringer.skatteprofil = body.skatteprofil
+    if (typeof body.fri_likviditet === 'number') endringer.fri_likviditet = body.fri_likviditet
+    if (typeof body.laanekapasitet === 'number') endringer.laanekapasitet = body.laanekapasitet
     if (Object.keys(endringer).length === 0) {
       return NextResponse.json({ feil: 'ingen endringer' }, { status: 400 })
     }

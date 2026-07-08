@@ -77,6 +77,21 @@ export type Selskap = {
   land: 'norge' | 'spania'
   valuta: 'NOK' | 'EUR'
   skatteprofil: Skatteprofil
+  fri_likviditet?: number
+  laanekapasitet?: number
+  opprettet?: string
+}
+
+export type Konsernlaan = {
+  id: string
+  fra_selskap: string | null
+  til_selskap: string | null
+  hovedstol: number
+  valuta: 'NOK' | 'EUR'
+  rente_pct: number
+  startdato: string
+  nedbetalinger: Array<{ dato: string; belop: number }>
+  notat?: string | null
   opprettet?: string
 }
 

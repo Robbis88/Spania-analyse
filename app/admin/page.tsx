@@ -24,8 +24,9 @@ const Portefolje = dynamic(() => import('../components/portefolje/Portefolje').t
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 const Selskaper = dynamic(() => import('../components/Selskaper').then(m => m.Selskaper), { ssr: false, loading: laster })
+const Kapital = dynamic(() => import('../components/Kapital').then(m => m.Kapital), { ssr: false, loading: laster })
 
-type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
+type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -43,6 +44,7 @@ const SEKSJONER: Snarvei[] = [
   { id: 'analyse', ikon: '01', tittel: 'Boliganalyse', beskrivelse: 'Vurder ny eiendom — score, yield og strategi (Spania)' },
   { id: 'norge', ikon: '02', tittel: 'Norske boliger', beskrivelse: 'Flippe-kalkulator for norske Finn-annonser' },
   { id: 'portefolje', ikon: '03', tittel: 'Min portefølje', beskrivelse: 'Eide eiendommer i Norge — verdi, lån, leie, cashflow' },
+  { id: 'kapital', ikon: '11', tittel: 'Kapital', beskrivelse: 'Kjøpekraft, bundet EK og konsernlån per selskap' },
   { id: 'flipp', ikon: '04', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste' },
   { id: 'utleie', ikon: '05', tittel: 'Boligutleie', beskrivelse: 'Aktive utleieboliger og prognoser' },
   { id: 'selge', ikon: '06', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle' },
@@ -56,6 +58,7 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   analyse: 'Boliganalyse',
   norge: 'Norske boliger',
   portefolje: 'Min portefølje',
+  kapital: 'Kapital',
   flipp: 'Flipp',
   utleie: 'Utleie',
   selge: 'Selge',
@@ -102,6 +105,7 @@ const NAV_LINKS: NavLink[] = [
   { id: 'analyse', lbl: 'Analyse' },
   { id: 'norge', lbl: 'Norge' },
   { id: 'portefolje', lbl: 'Portefølje' },
+  { id: 'kapital', lbl: 'Kapital' },
   { id: 'flipp', lbl: 'Flipp' },
   { id: 'utleie', lbl: 'Utleie' },
   { id: 'selge', lbl: 'Selge' },
@@ -383,6 +387,7 @@ export default function Home() {
           {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
           {aktivSeksjon === 'selskaper' && <Selskaper />}
           {aktivSeksjon === 'portefolje' && <Portefolje onTilbake={hjem} />}
+          {aktivSeksjon === 'kapital' && <Kapital />}
           {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
