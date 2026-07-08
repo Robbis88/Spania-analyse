@@ -272,32 +272,9 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
       vft_score: result.vft_score,
     }
 
-    // Hent gjennomsnittlig nattpris fra airbnb-analysen om mulig
-    const realistisk = airbnbData?.scenarier?.realistisk
-    const nattpris = realistisk
-      ? Math.round(realistisk.brutto_etablert / 365 / (realistisk.belegg_etablert || 0.6))
-      : null
-    const ukepris = nattpris ? nattpris * 7 : null
-
-    const soverom = Number(bolig.soverom || result.soverom) || 0
-    const maksGjester = soverom > 0 ? soverom * 2 : null
-
-    const kortBeskrivelse = result.kort_oppsummering
-      || (result.ai_vurdering ? result.ai_vurdering.slice(0, 140) : '')
-    const fullBeskrivelse = result.annonse_beskrivelse || result.ai_vurdering || ''
-
-    const portalFelter = {
-      // Pre-fyll, men ikke publiser — admin må huke av selv
-      utleie_pris_natt: nattpris,
-      utleie_pris_uke: ukepris,
-      utleie_maks_gjester: maksGjester,
-      utleie_min_netter: 3,
-      utleie_kort_beskrivelse: kortBeskrivelse,
-      utleie_beskrivelse: fullBeskrivelse,
-      utleie_fasiliteter: result.fasiliteter && result.fasiliteter.length > 0 ? result.fasiliteter : null,
-      salgspris_eur: bolig.pris ? Number(bolig.pris) : (result.pris || null),
-      salg_kort_beskrivelse: kortBeskrivelse,
-      salg_beskrivelse: fullBeskrivelse,
+    // Portalen er fjernet (Fase A) — pre-fyller ikke lenger publiseringsfelt.
+    // Beholder ekte bolig-fakta som brukes i analyse/PDF.
+    const boligFakta = {
       byggear: result.byggear || null,
       tomt_m2: result.tomt_m2 || null,
     }
@@ -312,7 +289,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
       oppussingsbudsjett: Number(bolig.oppbudsjett) || 0,
       lån_mnd: result.mnd_betaling || 0,
       notater:
-        `Lagret til portal-vurdering ${new Date().toLocaleDateString('nb-NO')}\n\n` +
+        `Lagret til vurdering ${new Date().toLocaleDateString('nb-NO')}\n\n` +
         `Type: ${bolig_data.type || '-'}\n` +
         `Beliggenhet: ${bolig_data.beliggenhet || '-'}\n` +
         `Pris: €${(Number(bolig.pris) || result.pris || 0).toLocaleString('nb-NO')}\n` +
@@ -328,15 +305,15 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
     const bruker = hentAktivBruker() || 'ukjent'
     const { error } = await supabase
       .from('prosjekter')
-      .insert([{ ...nytt, ...portalFelter, bruker }])
+      .insert([{ ...nytt, ...boligFakta, bruker }])
     if (error) {
       setLagreMelding('❌ Feil ved lagring: ' + error.message)
       setTimeout(() => setLagreMelding(''), 5000)
       return
     }
-    await loggAktivitet({ handling: 'lagret ny bolig til portal-vurdering', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn } })
+    await loggAktivitet({ handling: 'lagret ny bolig til vurdering', tabell: 'prosjekter', rad_id: nytt.id, detaljer: { navn } })
     setLagretId(nytt.id)
-    setLagreMelding('✅ Lagret med auto-utfylte portalfelter. Åpne «🌐 Portal»-fanen i Regnskap for å gjennomgå og publisere. Henter PDF...')
+    setLagreMelding('✅ Lagret. Åpne prosjektet i Regnskap for å følge opp. Henter PDF...')
     void lastNedPdf(nytt.id)
   }
 
