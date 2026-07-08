@@ -38,3 +38,11 @@ export function erSpania(p: Skatteprofil | null | undefined): p is SkatteprofilS
 export function medDefaults(land: 'norge' | 'spania', lagret?: Partial<Skatteprofil> | null): Skatteprofil {
   return { ...defaultSkatteprofil(land), ...(lagret || {}) } as Skatteprofil
 }
+
+// Gevinst-/utleiesats uavhengig av land (Spania: bruker ikke-EU-sats som default).
+export function gevinstSatsPst(p: Skatteprofil): number {
+  return erNorge(p) ? p.gevinstskatt_pst : p.gevinst_ikke_eu_pst
+}
+export function utleieSatsPst(p: Skatteprofil): number {
+  return erNorge(p) ? p.utleie_skatt_pst : p.gevinst_ikke_eu_pst
+}
