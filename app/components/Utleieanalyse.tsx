@@ -8,7 +8,6 @@ import {
   KOSTNAD_LABEL, MANED_NAVN, aarligYield, beregnAar, estimertManedligInntekt,
   faktiskNokkel, manedligLaanebetaling, sumKostnaderAr,
 } from '../lib/utleie'
-import { harUtleieEndringer, prosjektFraUtleieanalyse } from '../lib/prosjektSync'
 
 const nyId = () => Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8)
 
@@ -27,7 +26,6 @@ function tomAnalyse(boligId: string, defaultKjopspris: number): Analyse {
     horisont_ar: 5,
     oppussing_per_ar: [],
     lan: null,
-    langtidsleie_maned: null,
     faktiske_inntekter: {},
     analyse_kilde_id: boligId,
     analyse_hentet: iDag.toISOString(),
@@ -41,6 +39,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
   const [laster, setLaster] = useState(true)
   const [brukLan, setBrukLan] = useState(false)
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
+  // Langtidsleie bor på prosjektet (prosjekter.leieinntekt_mnd) — B7 én kilde.
+  const [langtidLeie, setLangtidLeie] = useState<number>(prosjekt.leieinntekt_mnd || 0)
   // Aggregerte oppussingsposter per år (fra oppussingsbudsjett)
   const [oppussingPerAr, setOppussingPerAr] = useState<Record<number, number>>({})
 
@@ -70,15 +70,13 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     const neste = { ...analyse, ...endring }
     setAnalyse(neste)
     await supabase.from('utleieanalyse').update(endring).eq('id', analyse.id)
+  }
 
-    // Bidirectional sync: oppdater også prosjekter-tabellen hvis økonomi-felt
-    // har endret seg. Holder Oversikt/Årsrapport oppdatert.
-    if (harUtleieEndringer(analyse, neste)) {
-      const oppd = prosjektFraUtleieanalyse(neste)
-      if (Object.keys(oppd).length > 0) {
-        await supabase.from('prosjekter').update(oppd).eq('id', prosjekt.id)
-      }
-    }
+  // Langtidsleie lagres direkte på prosjektet — samme tall som Oversikt/Årsrapport.
+  async function persistLangtidLeie(v: number) {
+    setLangtidLeie(v)
+    await supabase.from('prosjekter').update({ leieinntekt_mnd: v }).eq('id', prosjekt.id)
+    await loggAktivitet({ handling: 'oppdaterte langtidsleie', tabell: 'prosjekter', rad_id: prosjekt.id, detaljer: { bolig: prosjekt.navn, leie: v } })
   }
 
   async function oppdaterLan(endring: Partial<LanInfo>) {
@@ -177,8 +175,8 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
     return Array.from({ length: analyse.horisont_ar || 1 }, (_, i) => start + i)
   }, [analyse, iAar])
 
-  const iAarOversikt = useMemo(() => analyse ? beregnAar(iAar, data || null, analyse) : null, [analyse, data, iAar])
-  const nesteAarOversikt = useMemo(() => analyse ? beregnAar(iAar + 1, data || null, analyse) : null, [analyse, data, iAar])
+  const iAarOversikt = useMemo(() => analyse ? beregnAar(iAar, data || null, analyse, langtidLeie) : null, [analyse, data, iAar, langtidLeie])
+  const nesteAarOversikt = useMemo(() => analyse ? beregnAar(iAar + 1, data || null, analyse, langtidLeie) : null, [analyse, data, iAar, langtidLeie])
 
   if (laster || !analyse) {
     return (
@@ -257,9 +255,10 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
                 ? ` · Analysen foreslår €${data.langtidsleie.maaned_lav}–${data.langtidsleie.maaned_hoy}`
                 : ''}
             </label>
-            <input style={{ ...inputStyle, width: 200 }} type="number" value={analyse.langtidsleie_maned || ''}
-              onBlur={e => oppdater({ langtidsleie_maned: Number(e.target.value) || null })}
-              onChange={e => setAnalyse({ ...analyse, langtidsleie_maned: Number(e.target.value) || null })} />
+            <input style={{ ...inputStyle, width: 200 }} type="number" value={langtidLeie || ''}
+              onBlur={e => persistLangtidLeie(Number(e.target.value) || 0)}
+              onChange={e => setLangtidLeie(Number(e.target.value) || 0)} />
+            <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>Lagres på prosjektet — samme tall som Oversikt og Årsrapport.</div>
           </div>
         )}
       </div>
@@ -495,7 +494,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
               {MANED_NAVN.map((navn, i) => {
                 const maned = i + 1
-                const estimat = estimertManedligInntekt(data, analyse, valgtAr, maned)
+                const estimat = estimertManedligInntekt(data, analyse, valgtAr, maned, langtidLeie)
                 const nokkel = faktiskNokkel(valgtAr, maned)
                 const faktisk = analyse.faktiske_inntekter?.[nokkel]
                 const harFaktisk = typeof faktisk === 'number' && !Number.isNaN(faktisk)
@@ -537,7 +536,7 @@ export function Utleieanalyse({ prosjekt }: { prosjekt: Prosjekt }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 10, borderTop: '1px solid #eee', fontSize: 14, fontWeight: 700 }}>
               <span>Sum {valgtAr}</span>
-              <span>{fmt(beregnAar(valgtAr, data, analyse).brutto_inntekt)}</span>
+              <span>{fmt(beregnAar(valgtAr, data, analyse, langtidLeie).brutto_inntekt)}</span>
             </div>
           </div>
         </>

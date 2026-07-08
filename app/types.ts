@@ -55,6 +55,31 @@ export type AirbnbScore = {
   tips?: string[]
 }
 
+// Skatteprofil per selskap (redigerbar i admin). Land-avhengig form.
+// Defaults ligger i app/lib/skatteprofil.ts og speiler dagens hardkodede satser.
+export type SkatteprofilNorge = {
+  gevinstskatt_pst: number
+  dokumentavgift_pst: number
+  botid_fritak_mnd: number
+  utleie_skatt_pst: number
+}
+export type SkatteprofilSpania = {
+  gevinst_eu_pst: number
+  gevinst_ikke_eu_pst: number
+  retention_pst: number
+  vft_krav: boolean
+}
+export type Skatteprofil = SkatteprofilNorge | SkatteprofilSpania
+
+export type Selskap = {
+  id: string
+  navn: string
+  land: 'norge' | 'spania'
+  valuta: 'NOK' | 'EUR'
+  skatteprofil: Skatteprofil
+  opprettet?: string
+}
+
 export type Prosjekt = {
   id: string
   bruker: string
@@ -109,6 +134,7 @@ export type Prosjekt = {
   oversettelser_oppdatert?: string | null
   // Norske boliger
   marked?: 'spania' | 'norge'
+  selskap_id?: string | null
   eierform?: string | null
   fellesgjeld_nok?: number | null
   fellesutgifter_mnd_nok?: number | null
@@ -631,7 +657,6 @@ export type Utleieanalyse = {
   horisont_ar: number
   oppussing_per_ar: OppussingPerAr[]
   lan: LanInfo | null
-  langtidsleie_maned: number | null
   faktiske_inntekter: FaktiskeInntekter
   analyse_kilde_id: string | null
   analyse_hentet: string | null

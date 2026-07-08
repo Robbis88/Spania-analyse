@@ -107,19 +107,19 @@ export function regnEffektivKalk(kalk: Kalk, modus: Modus, boPlan: BoPlan): Kalk
   }
 }
 
-export function regnEksisterende(modus: Modus, eks: EksisterendeBolig): EksisterendeBeregning {
+export function regnEksisterende(modus: Modus, eks: EksisterendeBolig, skattPst = 22): EksisterendeBeregning {
   if (modus !== 'bo' || eks.salgssum === 0) {
     return { meglerhonorar: 0, salgskostnader: 0, skatt: 0, nettoTilDisposisjon: 0 }
   }
   const meglerhonorar = (eks.salgssum * eks.meglerhonorar_pst) / 100
   const salgskostnader = meglerhonorar + eks.marknadsforing
   const skattegrunnlag = eks.salgssum - salgskostnader - eks.restgjeld
-  const skatt = eks.skattefri || skattegrunnlag <= 0 ? 0 : skattegrunnlag * 0.22
+  const skatt = eks.skattefri || skattegrunnlag <= 0 ? 0 : skattegrunnlag * (skattPst / 100)
   const nettoTilDisposisjon = eks.salgssum - salgskostnader - eks.restgjeld - skatt
   return { meglerhonorar, salgskostnader, skatt, nettoTilDisposisjon }
 }
 
-export function regnUtleie(modus: Modus, utleieDel: UtleieDel, boTidMnd: number): UtleieBeregning {
+export function regnUtleie(modus: Modus, utleieDel: UtleieDel, boTidMnd: number, skattPst = 22): UtleieBeregning {
   if (modus !== 'bo' || !utleieDel.aktiv || utleieDel.leie_mnd === 0) {
     return { brutto_mnd: 0, netto_mnd: 0, brutto_total: 0, netto_total: 0, etableringskost: 0, skatt: 0 }
   }
@@ -128,8 +128,8 @@ export function regnUtleie(modus: Modus, utleieDel: UtleieDel, boTidMnd: number)
   const netto_mnd_for_skatt = brutto_mnd - drift_mnd
   const brutto_total = brutto_mnd * boTidMnd
   const drift_total = drift_mnd * boTidMnd
-  const skatt = utleieDel.skattefri ? 0 : (brutto_total - drift_total) * 0.22
-  const netto_mnd = utleieDel.skattefri ? netto_mnd_for_skatt : netto_mnd_for_skatt * 0.78
+  const skatt = utleieDel.skattefri ? 0 : (brutto_total - drift_total) * (skattPst / 100)
+  const netto_mnd = utleieDel.skattefri ? netto_mnd_for_skatt : netto_mnd_for_skatt * (1 - skattPst / 100)
   const netto_total = brutto_total - drift_total - skatt
   return { brutto_mnd, netto_mnd, brutto_total, netto_total, etableringskost: utleieDel.etableringskost, skatt }
 }

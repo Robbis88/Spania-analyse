@@ -15,7 +15,16 @@ export const yield_pst = (p: Prosjekt) =>
 export const roi = (p: Prosjekt) =>
   totalInvestering(p) > 0 ? ((p.forventet_salgsverdi - totalInvestering(p)) / totalInvestering(p) * 100) : 0
 
-export function beregnSalg(p: Prosjekt, input: SalgInput) {
+export function beregnSalg(
+  p: Prosjekt,
+  input: SalgInput,
+  // Satser hentes fra selskapets skatteprofil. Defaults = dagens verdier (uendret atferd).
+  satser: { gevinst_eu_pst?: number; gevinst_ikke_eu_pst?: number; retention_pst?: number } = {},
+) {
+  const euPst = satser.gevinst_eu_pst ?? 19
+  const ikkeEuPst = satser.gevinst_ikke_eu_pst ?? 24
+  const retentionPst = satser.retention_pst ?? 3
+
   const salgspris = input.salgspris || p.forventet_salgsverdi || 0
   const meglerBelop = salgspris * (input.megler_pst / 100)
   const advokatBelop = salgspris * (input.advokat_pst / 100)
@@ -25,9 +34,9 @@ export function beregnSalg(p: Prosjekt, input: SalgInput) {
   const nettoSalgssum = salgspris - salgskostnader
   const kapitalgevinst = Math.max(0, nettoSalgssum - totalKjop)
 
-  const cgtSats = input.skatteresidens === 'eu' ? 0.19 : 0.24
+  const cgtSats = input.skatteresidens === 'eu' ? euPst / 100 : ikkeEuPst / 100
   const cgt = kapitalgevinst * cgtSats
-  const retention3pst = salgspris * 0.03
+  const retention3pst = salgspris * (retentionPst / 100)
   const differanseRetention = cgt - retention3pst
 
   const totalSkatt = cgt + input.plusvalia

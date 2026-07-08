@@ -63,12 +63,14 @@ export function estimertManedligInntekt(
   analyse: Utleieanalyse,
   ar: number,
   maned1based: number,
+  // Langtidsleie bor på prosjektet (prosjekter.leieinntekt_mnd) — sendes inn her.
+  langtidLeieMnd = 0,
 ): number {
   const start = parseManed(analyse.utleiestart)
   if (!start) return 0
   const erUtleie = (ar > start.ar) || (ar === start.ar && maned1based >= start.maned)
   if (!erUtleie) return 0
-  if (analyse.leietype === 'langtid') return analyse.langtidsleie_maned || 0
+  if (analyse.leietype === 'langtid') return langtidLeieMnd
   const opYear = ar - start.ar + 1
   return manedligInntektKorttid(data, maned1based, opYear, analyse.progresjon_til_etablert_ar || 3, analyse.scenario)
 }
@@ -108,7 +110,7 @@ export type AarligOversikt = {
   per_maned_inntekt: { belop: number; kilde: 'faktisk' | 'estimat' }[]
 }
 
-export function beregnAar(aar: number, data: AirbnbData | null, analyse: Utleieanalyse): AarligOversikt {
+export function beregnAar(aar: number, data: AirbnbData | null, analyse: Utleieanalyse, langtidLeieMnd = 0): AarligOversikt {
   const kjop = parseManed(analyse.kjopsmaaned)
   const start = parseManed(analyse.utleiestart)
   const perMnd: { belop: number; kilde: 'faktisk' | 'estimat' }[] =
@@ -126,7 +128,7 @@ export function beregnAar(aar: number, data: AirbnbData | null, analyse: Utleiea
       let estimat = 0
       if (utleie && data) {
         manederUtleie++
-        estimat = estimertManedligInntekt(data, analyse, aar, m)
+        estimat = estimertManedligInntekt(data, analyse, aar, m, langtidLeieMnd)
       }
       // Faktisk kan også være satt for "tom" måneder (bruker har registrert faktisk leie før planlagt start)
       const res = faktiskEllerEstimat(analyse.faktiske_inntekter, aar, m, estimat)
