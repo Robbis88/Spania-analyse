@@ -25,6 +25,7 @@ const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { 
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 const Selskaper = dynamic(() => import('../components/Selskaper').then(m => m.Selskaper), { ssr: false, loading: laster })
 const Kapital = dynamic(() => import('../components/Kapital').then(m => m.Kapital), { ssr: false, loading: laster })
+const DagligBrief = dynamic(() => import('../components/DagligBrief').then(m => m.DagligBrief), { ssr: false, loading: laster })
 
 type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
@@ -330,7 +331,11 @@ export default function Home() {
             </div>
           </section>
 
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 28px 16px' }}>
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 0' }}>
+            <DagligBrief onÅpnePortefolje={() => gåTil('portefolje')} />
+          </section>
+
+          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 16px' }}>
             <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Oversikt — Spania</div>
             <Dashboard marked="spania" onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
             <p style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 14, fontStyle: 'italic' }}>

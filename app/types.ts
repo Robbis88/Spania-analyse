@@ -82,6 +82,27 @@ export type Selskap = {
   opprettet?: string
 }
 
+export type Maal = {
+  id: string
+  selskap_id: string | null
+  beskrivelse: string
+  maaltall: number
+  enhet: 'antall_boliger' | 'egenkapital' | 'cashflow_mnd'
+  frist: string | null
+  opprettet?: string
+}
+
+export type EstimatJustering = {
+  id: string
+  prosjekt_id: string
+  felt: string
+  ai_verdi: number | null
+  min_verdi: number | null
+  faktisk_verdi?: number | null
+  kontekst?: { marked?: string; kommune?: string; type?: string } | null
+  tidspunkt?: string
+}
+
 export type Tilbud = {
   id: string
   prosjekt_id: string
@@ -175,6 +196,7 @@ export type Prosjekt = {
   // Norske boliger
   marked?: 'spania' | 'norge'
   selskap_id?: string | null
+  markedsleie_mnd?: number | null
   eierform?: string | null
   fellesgjeld_nok?: number | null
   fellesutgifter_mnd_nok?: number | null

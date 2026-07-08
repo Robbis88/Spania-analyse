@@ -34,6 +34,7 @@ export function EiendomTilbud({ data }: { data: EiendomData }) {
     } catch { setFeil('Kunne ikke hente tilbud') } finally { setLaster(false) }
   }, [prosjektId])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
   async function lastOpp(fil: File) {

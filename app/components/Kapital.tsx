@@ -36,6 +36,7 @@ export function Kapital() {
     } catch { setFeil('Kunne ikke hente kapitaloversikt') } finally { setLaster(false) }
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
   async function lagreManuelt(id: string, fri_likviditet: number, laanekapasitet: number) {

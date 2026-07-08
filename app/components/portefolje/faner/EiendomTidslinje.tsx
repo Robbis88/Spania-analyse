@@ -42,6 +42,7 @@ export function EiendomTidslinje({ data }: { data: EiendomData }) {
     setLaster(false)
   }, [prosjektId])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
   async function leggTil() {

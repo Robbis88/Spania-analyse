@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { FARGER, RADIUS, SHADOW } from '../../../lib/styles'
+import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle } from '../../../lib/styles'
 import { fmtNok, SumKort } from './faneUi'
 import { beregnBeslutning, type ScenarioResultat } from '../../../lib/beslutning'
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
@@ -16,6 +16,7 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [ber, setBer] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
   const [akseptertTilbud, setAkseptertTilbud] = useState<number | null>(null)
+  const [minReno, setMinReno] = useState<string>('')  // "min vurdering" — vinner hvis satt
 
   // Hent selskapets skatteprofil (faller tilbake til default for markedet)
   useEffect(() => {
@@ -39,6 +40,10 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
       .catch(() => { /* ignorer */ })
   }, [p.id])
 
+  // Dine tall vinner: min vurdering > akseptert tilbud > prosjekt.oppussing_faktisk
+  const refReno = akseptertTilbud
+  const effektivReno = minReno.trim() !== '' ? Number(minReno) : akseptertTilbud
+
   const beslutning = useMemo(() => beregnBeslutning({
     prosjekt: p,
     laan: data.laan,
@@ -47,8 +52,20 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
     verdivurderinger: data.verdivurderinger,
     skatteprofil,
     airbnbData: (p.airbnb_data as AirbnbData | null) || null,
-    renoveringskost: akseptertTilbud,
-  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, akseptertTilbud])
+    renoveringskost: effektivReno,
+  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno])
+
+  async function lagreMinReno() {
+    if (minReno.trim() === '') return
+    await fetch('/api/estimat-justering', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prosjekt_id: p.id, felt: 'renoveringskost',
+        ai_verdi: refReno, min_verdi: Number(minReno),
+        kontekst: { marked: p.marked || 'spania' },
+      }),
+    }).catch(() => { /* logging skal ikke blokkere */ })
+  }
 
   async function beOmAnbefaling() {
     setBer(true); setFeil(null)
@@ -75,6 +92,24 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         <SumKort lbl="Markedsverdi" verdi={fmtNok(beslutning.verdi)} />
         <SumKort lbl="Restgjeld" verdi={fmtNok(beslutning.restgjeld)} />
         <SumKort lbl="Bundet egenkapital" verdi={fmtNok(beslutning.bundet_ek)} farge={FARGER.gull} />
+      </div>
+
+      {/* Renoveringskost — dine tall vinner (B5) */}
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div>
+          <div style={{ fontSize: 11, color: FARGER.tekstLys, marginBottom: 4 }}>Renoveringskost — akseptert tilbud</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: FARGER.mork }}>{refReno !== null ? fmtNok(refReno) : '– (ingen akseptert)'}</div>
+        </div>
+        <div>
+          <label style={labelStyle}>Min vurdering (vinner)</label>
+          <input type="number" value={minReno} onChange={e => setMinReno(e.target.value)} onBlur={lagreMinReno}
+            placeholder={refReno !== null ? String(Math.round(refReno)) : '—'} style={{ ...inputStyle, maxWidth: 170 }} />
+        </div>
+        {minReno.trim() !== '' && (
+          <div style={{ fontSize: 12, color: FARGER.gull }}>
+            Dine tall brukes i beregningene{refReno !== null ? ` · avvik ${fmtNok(Number(minReno) - refReno)}` : ''}.
+          </div>
+        )}
       </div>
 
       {/* AI-anbefaling */}
