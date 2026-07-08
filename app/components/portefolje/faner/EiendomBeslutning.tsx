@@ -4,7 +4,7 @@ import { FARGER, RADIUS, SHADOW } from '../../../lib/styles'
 import { fmtNok, SumKort } from './faneUi'
 import { beregnBeslutning, type ScenarioResultat } from '../../../lib/beslutning'
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
-import type { AirbnbData, Selskap, Skatteprofil } from '../../../types'
+import type { AirbnbData, Selskap, Skatteprofil, Tilbud } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
 
 const pst = (n: number | undefined) => (n === undefined || !Number.isFinite(n)) ? '–' : n.toFixed(1) + ' %'
@@ -15,6 +15,7 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [anbefaling, setAnbefaling] = useState<string | null>(null)
   const [ber, setBer] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
+  const [akseptertTilbud, setAkseptertTilbud] = useState<number | null>(null)
 
   // Hent selskapets skatteprofil (faller tilbake til default for markedet)
   useEffect(() => {
@@ -27,6 +28,17 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
       .catch(() => { /* beholder default */ })
   }, [p.selskap_id])
 
+  // Akseptert tilbud (B8) → renoveringskost i motoren
+  useEffect(() => {
+    fetch(`/api/tilbud?prosjekt_id=${encodeURIComponent(p.id)}`)
+      .then(r => r.json())
+      .then((d: { tilbud?: Tilbud[] }) => {
+        const a = (d.tilbud || []).find(t => t.akseptert)
+        setAkseptertTilbud(a && typeof a.totalsum === 'number' ? a.totalsum : null)
+      })
+      .catch(() => { /* ignorer */ })
+  }, [p.id])
+
   const beslutning = useMemo(() => beregnBeslutning({
     prosjekt: p,
     laan: data.laan,
@@ -35,7 +47,8 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
     verdivurderinger: data.verdivurderinger,
     skatteprofil,
     airbnbData: (p.airbnb_data as AirbnbData | null) || null,
-  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil])
+    renoveringskost: akseptertTilbud,
+  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, akseptertTilbud])
 
   async function beOmAnbefaling() {
     setBer(true); setFeil(null)
@@ -43,7 +56,7 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
       const r = await fetch('/api/beslutning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ beslutning, prosjektNavn: p.navn, marked: p.marked || 'spania' }),
+        body: JSON.stringify({ beslutning, prosjektNavn: p.navn, marked: p.marked || 'spania', prosjekt_id: p.id }),
       })
       const d = await r.json()
       if (!r.ok || d.feil) { setFeil(d.feil || 'Kunne ikke hente anbefaling'); return }

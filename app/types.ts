@@ -82,6 +82,31 @@ export type Selskap = {
   opprettet?: string
 }
 
+export type Tilbud = {
+  id: string
+  prosjekt_id: string
+  bruker?: string
+  storage_sti?: string | null
+  filnavn?: string | null
+  mime_type?: string | null
+  ocr_status: 'venter' | 'analysert' | 'feilet' | 'manuelt'
+  aktor: string | null
+  totalsum: number | null
+  valuta: 'NOK' | 'EUR' | null
+  poster: Array<{ navn: string; sum: number }> | null
+  inkluderer: string | null
+  ekskluderer: string | null
+  gyldig_til: string | null
+  arbeidstype: string | null
+  akseptert: boolean
+  er_internt: boolean
+  notat: string | null
+  ocr_radata?: unknown
+  ocr_kjort?: string | null
+  ocr_feilmelding?: string | null
+  opprettet?: string
+}
+
 export type Konsernlaan = {
   id: string
   fra_selskap: string | null
