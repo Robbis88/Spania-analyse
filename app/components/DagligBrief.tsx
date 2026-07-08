@@ -30,6 +30,7 @@ export function DagligBrief({ onÅpnePortefolje }: { onÅpnePortefolje?: () => v
     setRang(r.rader || [])
     setMaal(m.maal || [])
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
   const flaggede = rang.filter(r => r.flagg.length > 0)
@@ -146,7 +147,7 @@ export function DagligBrief({ onÅpnePortefolje }: { onÅpnePortefolje?: () => v
   )
 }
 
-function MaalEditor({ selsk, maal, onEndret }: { selsk: SelskRad[]; maal: Maal[]; onEndret: () => void }) {
+function MaalEditor({ selsk, maal, onEndret }: { selsk: SelskRad[]; maal: Maal[]; onEndret: () => Promise<void> | void }) {
   const [beskrivelse, setBeskrivelse] = useState('')
   const [maaltall, setMaaltall] = useState('')
   const [enhet, setEnhet] = useState<Maal['enhet']>('antall_boliger')
@@ -160,11 +161,11 @@ function MaalEditor({ selsk, maal, onEndret }: { selsk: SelskRad[]; maal: Maal[]
       body: JSON.stringify({ beskrivelse, maaltall: Number(maaltall), enhet, selskap_id: selskapId || null, frist: frist || null }),
     })
     setBeskrivelse(''); setMaaltall(''); setFrist('')
-    await onEndret()
+    onEndret()
   }
   async function slett(id: string) {
     await fetch(`/api/maal?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-    await onEndret()
+    onEndret()
   }
 
   return (

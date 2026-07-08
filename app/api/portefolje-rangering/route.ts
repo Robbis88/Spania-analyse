@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import type {
-  Prosjekt, Selskap, EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, Tilbud, AirbnbData,
+  Prosjekt, Selskap, EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, AirbnbData,
 } from '../../types'
 import { beregnBeslutning, TERSKEL_YIELD_BUNDET_EK_PST } from '../../lib/beslutning'
 import { medDefaults } from '../../lib/skatteprofil'
