@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '../../lib/requireAuth'
+import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import type { Beslutning, ScenarioResultat } from '../../lib/beslutning'
 
 export const maxDuration = 60
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   const auth = requireAuth(req)
   if (!auth.ok) return auth.respons
   try {
-    const { beslutning, prosjektNavn, marked } = await req.json()
+    const { beslutning, prosjektNavn, marked, prosjekt_id } = await req.json()
     if (!beslutning || !Array.isArray(beslutning.scenarier)) {
       return NextResponse.json({ feil: 'beslutning mangler' }, { status: 400 })
     }
@@ -69,6 +70,20 @@ export async function POST(req: NextRequest) {
       .trim()
 
     if (!tekst) return NextResponse.json({ feil: 'AI ga tomt svar' }, { status: 502 })
+
+    // Logg til tidslinjen (B10)
+    if (typeof prosjekt_id === 'string' && prosjekt_id) {
+      try {
+        const admin = hentSupabaseAdmin()
+        await admin.from('aktivitetslogg').insert([{
+          id: Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8),
+          bruker: auth.bruker, handling: 'AI ga beslutningsanbefaling',
+          tabell: 'prosjekter', rad_id: prosjekt_id, prosjekt_id, hendelsestype: 'anbefaling_gitt',
+          detaljer: { sammendrag: tekst.slice(0, 120) },
+        }])
+      } catch { /* logging skal ikke blokkere svaret */ }
+    }
+
     return NextResponse.json({ anbefaling: tekst })
   } catch (e) {
     console.error('Beslutning AI feil:', e instanceof Error ? e.message : String(e))

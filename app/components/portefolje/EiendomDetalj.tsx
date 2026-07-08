@@ -18,10 +18,12 @@ import { EiendomDokumenter } from './faner/EiendomDokumenter'
 import { EiendomBilder } from './faner/EiendomBilder'
 import { EiendomKvitteringer } from './faner/EiendomKvitteringer'
 import { EiendomOppussing } from './faner/EiendomOppussing'
+import { EiendomTilbud } from './faner/EiendomTilbud'
+import { EiendomTidslinje } from './faner/EiendomTidslinje'
 import { EiendomAi } from './faner/EiendomAi'
 import { TilbudHistorikk } from '../TilbudHistorikk'
 
-type Fane = 'oversikt' | 'beslutning' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'forespørsler' | 'ai'
+type Fane = 'oversikt' | 'beslutning' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'tilbud' | 'forespørsler' | 'tidslinje' | 'ai'
 
 const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'oversikt',     lbl: 'Oversikt',     ikon: '📊' },
@@ -36,7 +38,9 @@ const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'bilder',       lbl: 'Bilder',       ikon: '📸' },
   { id: 'kvitteringer', lbl: 'Kvitteringer', ikon: '💳' },
   { id: 'oppussing',    lbl: 'Oppussing',    ikon: '🔨' },
+  { id: 'tilbud',       lbl: 'Tilbud',       ikon: '📝' },
   { id: 'forespørsler', lbl: 'Forespørsler', ikon: '📤' },
+  { id: 'tidslinje',    lbl: 'Tidslinje',    ikon: '🕓' },
   { id: 'ai',           lbl: 'AI-forslag',   ikon: '✨' },
 ]
 
@@ -154,7 +158,9 @@ export function EiendomDetalj({ prosjektId, onTilbake, onSeOffmarket }: Props) {
       {aktivFane === 'bilder'       && <EiendomBilder data={data} />}
       {aktivFane === 'kvitteringer' && <EiendomKvitteringer data={data} />}
       {aktivFane === 'oppussing'    && <EiendomOppussing data={data} onEndret={refresh} />}
+      {aktivFane === 'tilbud'       && <EiendomTilbud data={data} />}
       {aktivFane === 'forespørsler' && <TilbudHistorikk prosjektId={prosjektId} />}
+      {aktivFane === 'tidslinje'    && <EiendomTidslinje data={data} />}
       {aktivFane === 'ai'           && <EiendomAi data={data} onEndret={refresh} />}
     </div>
   )

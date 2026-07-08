@@ -52,6 +52,8 @@ export type BeslutningInput = {
   verdivurderinger: EiendomVerdivurdering[]
   skatteprofil: Skatteprofil
   airbnbData?: AirbnbData | null
+  // Renoveringskost fra akseptert tilbud (B8) — overstyrer prosjekt.oppussing_faktisk hvis satt.
+  renoveringskost?: number | null
 }
 
 export type Beslutning = {
@@ -76,7 +78,7 @@ export function beregnBundetEk(verdi: number, restgjeld: number, anskaffelse: nu
 }
 
 export function beregnBeslutning(input: BeslutningInput): Beslutning {
-  const { prosjekt, laan, inntekter, kostnader, verdivurderinger, skatteprofil, airbnbData } = input
+  const { prosjekt, laan, inntekter, kostnader, verdivurderinger, skatteprofil, airbnbData, renoveringskost } = input
   const gevinst_pst = gevinstSatsPst(skatteprofil)
   const utleie_pst = utleieSatsPst(skatteprofil)
 
@@ -87,7 +89,8 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const laanMnd = totalLaanKostnadMnd(laan)
 
   // Salg / bundet EK (delt formel med B3)
-  const anskaffelse = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0) + (prosjekt.oppussing_faktisk || 0)
+  const oppussing = (renoveringskost !== null && renoveringskost !== undefined) ? renoveringskost : (prosjekt.oppussing_faktisk || 0)
+  const anskaffelse = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0) + oppussing
   const { salgskostnad, gevinst, gevinstskatt, nettoVedSalg, bundet_ek } = beregnBundetEk(verdi, restgjeld, anskaffelse, gevinst_pst)
 
   const yieldPaaEk = (aarligNetto: number) => bundet_ek > 0 ? (aarligNetto / bundet_ek) * 100 : 0
