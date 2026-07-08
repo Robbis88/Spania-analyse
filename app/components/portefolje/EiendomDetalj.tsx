@@ -7,6 +7,7 @@ import { loggAktivitet } from '../../lib/logg'
 import { visToast } from '../../lib/toast'
 import { useEiendomData } from './useEiendomData'
 import { EiendomOversikt } from './faner/EiendomOversikt'
+import { EiendomBeslutning } from './faner/EiendomBeslutning'
 import { EiendomLaan } from './faner/EiendomLaan'
 import { EiendomInntekter } from './faner/EiendomInntekter'
 import { EiendomLeietakere } from './faner/EiendomLeietakere'
@@ -20,10 +21,11 @@ import { EiendomOppussing } from './faner/EiendomOppussing'
 import { EiendomAi } from './faner/EiendomAi'
 import { TilbudHistorikk } from '../TilbudHistorikk'
 
-type Fane = 'oversikt' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'forespørsler' | 'ai'
+type Fane = 'oversikt' | 'beslutning' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'forespørsler' | 'ai'
 
 const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'oversikt',     lbl: 'Oversikt',     ikon: '📊' },
+  { id: 'beslutning',   lbl: 'Beslutning',   ikon: '💡' },
   { id: 'laan',         lbl: 'Lån',          ikon: '🏦' },
   { id: 'inntekter',    lbl: 'Inntekter',    ikon: '💰' },
   { id: 'leietakere',   lbl: 'Leietakere',   ikon: '👥' },
@@ -141,6 +143,7 @@ export function EiendomDetalj({ prosjektId, onTilbake, onSeOffmarket }: Props) {
 
       {/* Fane-innhold */}
       {aktivFane === 'oversikt'   && <EiendomOversikt data={data} />}
+      {aktivFane === 'beslutning' && <EiendomBeslutning data={data} />}
       {aktivFane === 'laan'       && <EiendomLaan data={data} onEndret={refresh} />}
       {aktivFane === 'inntekter'  && <EiendomInntekter data={data} onEndret={refresh} />}
       {aktivFane === 'leietakere' && <EiendomLeietakere data={data} onEndret={refresh} />}
