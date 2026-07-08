@@ -82,6 +82,17 @@ export type Selskap = {
   opprettet?: string
 }
 
+export type EstimatJustering = {
+  id: string
+  prosjekt_id: string
+  felt: string
+  ai_verdi: number | null
+  min_verdi: number | null
+  faktisk_verdi?: number | null
+  kontekst?: { marked?: string; kommune?: string; type?: string } | null
+  tidspunkt?: string
+}
+
 export type Tilbud = {
   id: string
   prosjekt_id: string

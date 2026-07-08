@@ -55,12 +55,26 @@ export async function POST(req: NextRequest) {
     }
     const kontekst = byggKontekst(beslutning as Beslutning, String(prosjektNavn || 'Eiendom'), String(marked || 'spania'))
 
+    // B5: mat inn Roberts historiske justeringer så AI lærer hans mønster
+    const admin = hentSupabaseAdmin()
+    let historikk = ''
+    try {
+      const { data: just } = await admin.from('estimat_justeringer')
+        .select('felt, ai_verdi, min_verdi, faktisk_verdi, kontekst')
+        .order('tidspunkt', { ascending: false }).limit(12)
+      const rel = (just || []).filter(j => !j.kontekst?.marked || j.kontekst.marked === (marked || 'spania'))
+      if (rel.length > 0) {
+        historikk = '\n\nHISTORIKK — Roberts tidligere justeringer (vekt disse når du vurderer om tallene virker realistiske):\n'
+          + rel.map(j => `- ${j.felt}: AI/estimat ${j.ai_verdi ?? '?'}, min vurdering ${j.min_verdi ?? '?'}${j.faktisk_verdi != null ? `, faktisk ${j.faktisk_verdi}` : ''}`).join('\n')
+      }
+    } catch { /* historikk er valgfri */ }
+
     const svar = await klient.messages.create({
       model: MODELL,
       max_tokens: 600,
       temperature: 0.2,
       system: SYSTEM,
-      messages: [{ role: 'user', content: 'Gi din anbefaling basert på disse tallene:\n\n' + kontekst }],
+      messages: [{ role: 'user', content: 'Gi din anbefaling basert på disse tallene:\n\n' + kontekst + historikk }],
     })
 
     const tekst = svar.content
@@ -74,7 +88,6 @@ export async function POST(req: NextRequest) {
     // Logg til tidslinjen (B10)
     if (typeof prosjekt_id === 'string' && prosjekt_id) {
       try {
-        const admin = hentSupabaseAdmin()
         await admin.from('aktivitetslogg').insert([{
           id: Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8),
           bruker: auth.bruker, handling: 'AI ga beslutningsanbefaling',
