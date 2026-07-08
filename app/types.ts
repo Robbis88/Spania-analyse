@@ -657,7 +657,6 @@ export type Utleieanalyse = {
   horisont_ar: number
   oppussing_per_ar: OppussingPerAr[]
   lan: LanInfo | null
-  langtidsleie_maned: number | null
   faktiske_inntekter: FaktiskeInntekter
   analyse_kilde_id: string | null
   analyse_hentet: string | null

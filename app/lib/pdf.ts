@@ -359,8 +359,8 @@ export async function prosjektrapportBase64(data: ProsjektrapportData): Promise<
     const ad = data.airbnbData
     const iAar = new Date().getFullYear()
     const nesteAar = iAar + 1
-    const o1 = beregnAar(iAar, ad, ua)
-    const o2 = beregnAar(nesteAar, ad, ua)
+    const o1 = beregnAar(iAar, ad, ua, p.leieinntekt_mnd || 0)
+    const o2 = beregnAar(nesteAar, ad, ua, p.leieinntekt_mnd || 0)
 
     if (y > 240) { doc.addPage(); y = 20 }
     seksjon('UTLEIEANALYSE')
