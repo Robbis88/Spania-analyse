@@ -9,7 +9,6 @@ import { Oppussingsbudsjett } from './Oppussingsbudsjett'
 import { Utleieanalyse } from './Utleieanalyse'
 import { SendteEposter } from './SendteEposter'
 import { ProsjektBilder } from './ProsjektBilder'
-import { UtleiePortalAdmin } from './UtleiePortalAdmin'
 import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
@@ -61,7 +60,7 @@ export function Regnskap({
   const [nyttProsjekt, setNyttProsjekt] = useState<Prosjekt>(tomtProsjekt())
   const [visNyttSkjema, setVisNyttSkjema] = useState(false)
   const [redigerProsjekt, setRedigerProsjekt] = useState<Prosjekt | null>(null)
-  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'portal' | 'kvitteringer' | 'dokumenter' | 'forespørsler' | 'dialog'>('oversikt')
+  const [aktivTab, setAktivTab] = useState<'oversikt' | 'arsrapport' | 'oppussing' | 'utleie' | 'kvitteringer' | 'dokumenter' | 'forespørsler' | 'dialog'>('oversikt')
   const [valgtAr, setValgtAr] = useState(new Date().getFullYear())
   const [pdfFremdrift, setPdfFremdrift] = useState('')
   const [salgspakkeApen, setSalgspakkeApen] = useState(false)
@@ -321,7 +320,6 @@ export function Regnskap({
                 { id: 'forespørsler' as const, lbl: '📤 Forespørsler' },
                 { id: 'oppussing' as const, lbl: '🔨 Oppussing' },
                 ...(p.kategori === 'utleie' ? [{ id: 'utleie' as const, lbl: '🏖️ Utleie' }] : []),
-                { id: 'portal' as const, lbl: '🌐 Portal' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAktivTab(t.id)}
                   style={{
@@ -362,9 +360,6 @@ export function Regnskap({
               <Utleieanalyse prosjekt={p} />
             )}
 
-            {aktivTab === 'portal' && (
-              <UtleiePortalAdmin prosjekt={p} onOppdatert={hent} />
-            )}
 
             {aktivTab === 'oversikt' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 14, marginBottom: 22 }}>
