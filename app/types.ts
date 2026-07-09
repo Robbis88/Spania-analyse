@@ -237,7 +237,10 @@ export type EiendomLaan = {
   rente_pst: number | null
   rentetype: 'flytende' | 'fast' | null
   bindingstid_aar: number | null
-  termin_belop: number | null
+  termin_belop: number | null           // total per termin (renter + avdrag)
+  rente_belop: number | null            // rentedel per termin (valgfri splitt)
+  avdrag_belop: number | null           // avdragsdel per termin (valgfri splitt)
+  avdragsfritt: boolean                 // rent rentelån — ingen avdrag
   termin_frekvens: 'mnd' | 'kvartal' | 'aar'
   nedbetalingstid_aar: number | null
   startdato: string | null

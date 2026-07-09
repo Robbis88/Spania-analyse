@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import type { EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, Konsernlaan, Prosjekt, Selskap } from '../../types'
-import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalLaanKostnadMnd } from '../../lib/portefolje'
+import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd } from '../../lib/portefolje'
 import { beregnBundetEk, MAKS_LTV_PST } from '../../lib/beslutning'
 import { gevinstSatsPst, medDefaults } from '../../lib/skatteprofil'
 
@@ -79,7 +79,8 @@ export async function GET(req: NextRequest) {
         frigjorbarRefi += Math.max(0, verdi * (MAKS_LTV_PST / 100) - gjeld)
         samletVerdi += verdi
         samletGjeld += gjeld
-        resultatMnd += gjeldendeLeieMnd(inntekter) - sumKostnaderPerMnd(kostnader) - totalLaanKostnadMnd(laan)
+        // Resultat = overskudd: kun renter trekkes (avdrag bygger egenkapital, er ikke en kostnad)
+        resultatMnd += gjeldendeLeieMnd(inntekter) - sumKostnaderPerMnd(kostnader) - totalRenterMnd(laan)
       }
 
       const fordringer = konsernlaan.filter(l => l.fra_selskap === s.id)

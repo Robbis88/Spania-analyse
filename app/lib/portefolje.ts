@@ -84,15 +84,46 @@ export function totalRestgjeld(laan: EiendomLaan[]): number {
   return laan.reduce((s, l) => s + (l.restgjeld || 0), 0)
 }
 
-// Total terminbeløp per måned (normalisert fra terminfrekvens)
+// Normaliser et terminbeløp til månedlig ut fra terminfrekvens.
+function perMnd(belop: number, frekvens: EiendomLaan['termin_frekvens']): number {
+  if (frekvens === 'kvartal') return belop / 3
+  if (frekvens === 'aar') return belop / 12
+  return belop
+}
+
+// Rentedel per måned for ETT lån (den ekte kostnaden). Prioritet:
+// eksplisitt rente_belop → beregnet fra restgjeld × rente → 0.
+export function renterMndEn(l: EiendomLaan): number {
+  if (l.rente_belop != null) return perMnd(l.rente_belop, l.termin_frekvens)
+  if (l.restgjeld && l.rente_pst) return (l.restgjeld * (l.rente_pst / 100)) / 12
+  return 0
+}
+
+// Avdragsdel per måned for ETT lån (bygger egenkapital — ikke en kostnad).
+// Avdragsfritt = 0. Ellers: eksplisitt avdrag_belop → terminbeløp minus renter
+// (bevarer gammel total nøyaktig) → 0.
+export function avdragMndEn(l: EiendomLaan): number {
+  if (l.avdragsfritt) return 0
+  if (l.avdrag_belop != null) return perMnd(l.avdrag_belop, l.termin_frekvens)
+  if (l.termin_belop != null) return Math.max(0, perMnd(l.termin_belop, l.termin_frekvens) - renterMndEn(l))
+  return 0
+}
+
+// Sum rentekostnad per måned — brukes i RESULTAT/overskudd (leie − kost − renter).
+export function totalRenterMnd(laan: EiendomLaan[]): number {
+  return laan.reduce((s, l) => s + renterMndEn(l), 0)
+}
+
+// Sum avdrag per måned — penger ut som bygger egenkapital (ikke kostnad).
+export function totalAvdragMnd(laan: EiendomLaan[]): number {
+  return laan.reduce((s, l) => s + avdragMndEn(l), 0)
+}
+
+// Total lånebetaling per måned = renter + avdrag (CASHFLOW — penger ut).
+// For rader med terminbeløp satt kanselleres rentedelen og resultatet blir
+// nøyaktig terminbeløpet, som før — endringen er non-breaking for cashflow.
 export function totalLaanKostnadMnd(laan: EiendomLaan[]): number {
-  return laan.reduce((s, l) => {
-    const t = l.termin_belop || 0
-    if (l.termin_frekvens === 'mnd') return s + t
-    if (l.termin_frekvens === 'kvartal') return s + t / 3
-    if (l.termin_frekvens === 'aar') return s + t / 12
-    return s
-  }, 0)
+  return laan.reduce((s, l) => s + renterMndEn(l) + avdragMndEn(l), 0)
 }
 
 // Siste verdivurdering (etter dato). Faller tilbake til 0.

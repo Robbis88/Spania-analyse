@@ -7,6 +7,7 @@ import { FARGER, RADIUS } from '../../../lib/styles'
 import {
   LAANETYPER, LAANETYPE_ETIKETT,
   totalLaanKostnadMnd, totalRestgjeld, rentesjokk,
+  totalRenterMnd, totalAvdragMnd, renterMndEn, avdragMndEn, annuitetMnd,
 } from '../../../lib/portefolje'
 import type { EiendomLaan } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
@@ -51,6 +52,9 @@ export function EiendomLaan({ data, onEndret }: Props) {
         bindingstid_aar: (f.bindingstid_aar as number) ?? null,
         nedbetalingstid_aar: (f.nedbetalingstid_aar as number) ?? null,
         termin_belop: (f.termin_belop as number) ?? null,
+        rente_belop: (f.rente_belop as number) ?? null,
+        avdrag_belop: (f.avdrag_belop as number) ?? null,
+        avdragsfritt: !!f.avdragsfritt,
         termin_frekvens: (f.termin_frekvens as EiendomLaan['termin_frekvens']) || 'mnd',
         startdato: (f.startdato as string) || null,
       })
@@ -64,12 +68,14 @@ export function EiendomLaan({ data, onEndret }: Props) {
 
   const totalRest = useMemo(() => totalRestgjeld(data.laan), [data.laan])
   const totalMnd = useMemo(() => totalLaanKostnadMnd(data.laan), [data.laan])
+  const totalRenter = useMemo(() => totalRenterMnd(data.laan), [data.laan])
+  const totalAvdrag = useMemo(() => totalAvdragMnd(data.laan), [data.laan])
   const stress1 = useMemo(() => rentesjokk(data.laan, 1), [data.laan])
   const stress2 = useMemo(() => rentesjokk(data.laan, 2), [data.laan])
   const stress3 = useMemo(() => rentesjokk(data.laan, 3), [data.laan])
 
   function startNytt() {
-    setRedigert({ termin_frekvens: 'mnd', laanetype: 'annuitet', rentetype: 'flytende' })
+    setRedigert({ termin_frekvens: 'mnd', laanetype: 'annuitet', rentetype: 'flytende', avdragsfritt: false })
     setAapenForm('nytt')
   }
   function startRediger(l: EiendomLaan) {
@@ -79,43 +85,36 @@ export function EiendomLaan({ data, onEndret }: Props) {
 
   async function lagre() {
     const r = redigert
+    // Renter + avdrag er kilden. Terminbeløp lagres som summen (total per termin)
+    // for visning og bakoverkompatibilitet. Avdragsfritt ⇒ avdrag = 0.
+    const rb = numOrNull(r.rente_belop)
+    const ab = r.avdragsfritt ? 0 : numOrNull(r.avdrag_belop)
+    const terminTotal = (rb != null || ab != null) ? (rb || 0) + (ab || 0) : numOrNull(r.termin_belop)
+    const felt = {
+      bank: r.bank || null,
+      laanetype: r.laanetype || 'annuitet',
+      hovedstol: numOrNull(r.hovedstol),
+      restgjeld: numOrNull(r.restgjeld),
+      rente_pst: numOrNull(r.rente_pst),
+      rentetype: r.rentetype || 'flytende',
+      bindingstid_aar: numOrNull(r.bindingstid_aar),
+      rente_belop: rb,
+      avdrag_belop: ab,
+      avdragsfritt: !!r.avdragsfritt,
+      termin_belop: terminTotal,
+      termin_frekvens: r.termin_frekvens || 'mnd',
+      nedbetalingstid_aar: numOrNull(r.nedbetalingstid_aar),
+      startdato: r.startdato || null,
+      notat: r.notat || null,
+    }
     if (aapenForm === 'nytt') {
-      const id = nyId()
-      const bruker = hentAktivBruker() || 'ukjent'
       const { error } = await supabase.from('eiendom_laan').insert([{
-        id,
-        prosjekt_id: data.prosjekt!.id,
-        bruker,
-        bank: r.bank || null,
-        laanetype: r.laanetype || 'annuitet',
-        hovedstol: numOrNull(r.hovedstol),
-        restgjeld: numOrNull(r.restgjeld),
-        rente_pst: numOrNull(r.rente_pst),
-        rentetype: r.rentetype || 'flytende',
-        bindingstid_aar: numOrNull(r.bindingstid_aar),
-        termin_belop: numOrNull(r.termin_belop),
-        termin_frekvens: r.termin_frekvens || 'mnd',
-        nedbetalingstid_aar: numOrNull(r.nedbetalingstid_aar),
-        startdato: r.startdato || null,
-        notat: r.notat || null,
+        id: nyId(), prosjekt_id: data.prosjekt!.id, bruker: hentAktivBruker() || 'ukjent', ...felt,
       }])
       if (error) { visToast('Kunne ikke lagre: ' + error.message, 'feil', 4000); return }
       visToast('Lån lagt til', 'suksess', 2500)
     } else if (aapenForm) {
-      const { error } = await supabase.from('eiendom_laan').update({
-        bank: r.bank || null,
-        laanetype: r.laanetype,
-        hovedstol: numOrNull(r.hovedstol),
-        restgjeld: numOrNull(r.restgjeld),
-        rente_pst: numOrNull(r.rente_pst),
-        rentetype: r.rentetype,
-        bindingstid_aar: numOrNull(r.bindingstid_aar),
-        termin_belop: numOrNull(r.termin_belop),
-        termin_frekvens: r.termin_frekvens,
-        nedbetalingstid_aar: numOrNull(r.nedbetalingstid_aar),
-        startdato: r.startdato || null,
-        notat: r.notat || null,
-      }).eq('id', aapenForm)
+      const { error } = await supabase.from('eiendom_laan').update(felt).eq('id', aapenForm)
       if (error) { visToast('Kunne ikke lagre: ' + error.message, 'feil', 4000); return }
       visToast('Lån oppdatert', 'suksess', 2000)
     }
@@ -137,6 +136,8 @@ export function EiendomLaan({ data, onEndret }: Props) {
       {data.laan.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
           <SumKort lbl="Total restgjeld" verdi={fmtNok(totalRest)} />
+          <SumKort lbl="Renter / mnd (kostnad)" verdi={fmtNok(totalRenter)} />
+          <SumKort lbl="Avdrag / mnd (egenkapital)" verdi={fmtNok(totalAvdrag)} />
           <SumKort lbl="Sum termin / mnd" verdi={fmtNok(totalMnd)} />
           <SumKort lbl="Antall lån" verdi={String(data.laan.length)} />
         </div>
@@ -229,6 +230,16 @@ function Skjema({ redigert, setRedigert, onLagre, onAvbryt }: {
   onAvbryt: () => void
 }) {
   const upd = <K extends keyof EiendomLaan>(felt: K, v: EiendomLaan[K]) => setRedigert({ ...redigert, [felt]: v })
+  const preview = { ...redigert, termin_frekvens: redigert.termin_frekvens || 'mnd', avdragsfritt: !!redigert.avdragsfritt } as EiendomLaan
+  const rMnd = renterMndEn(preview)
+  const aMnd = avdragMndEn(preview)
+  function beregnAnnuitet() {
+    const rest = Number(redigert.restgjeld), rente = Number(redigert.rente_pst), ned = Number(redigert.nedbetalingstid_aar)
+    if (!rest || !rente || !ned) { visToast('Trenger restgjeld, rente og nedbetalingstid', 'feil', 3000); return }
+    const annu = annuitetMnd(rest, rente, ned)
+    const renterM = (rest * (rente / 100)) / 12
+    setRedigert({ ...redigert, termin_frekvens: 'mnd', avdragsfritt: false, rente_belop: Math.round(renterM), avdrag_belop: Math.round(annu - renterM) })
+  }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
       <Felt lbl="Bank">
@@ -260,8 +271,17 @@ function Skjema({ redigert, setRedigert, onLagre, onAvbryt }: {
       <Felt lbl="Nedbetalingstid (år)">
         <input type="number" step="0.5" value={redigert.nedbetalingstid_aar ?? ''} onChange={e => upd('nedbetalingstid_aar', e.target.value === '' ? null : Number(e.target.value))} style={inputStil} />
       </Felt>
-      <Felt lbl="Terminbeløp (kr)">
-        <input type="number" value={redigert.termin_belop ?? ''} onChange={e => upd('termin_belop', e.target.value === '' ? null : Number(e.target.value))} style={inputStil} />
+      <Felt lbl="Avdragsfritt?">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: FARGER.tekstMid, padding: '11px 0' }}>
+          <input type="checkbox" checked={!!redigert.avdragsfritt} onChange={e => upd('avdragsfritt', e.target.checked)} />
+          Rent rentelån (ingen avdrag)
+        </label>
+      </Felt>
+      <Felt lbl="Renter (per termin)">
+        <input type="number" value={redigert.rente_belop ?? ''} onChange={e => upd('rente_belop', e.target.value === '' ? null : Number(e.target.value))} style={inputStil} placeholder="rentedel" />
+      </Felt>
+      <Felt lbl="Avdrag (per termin)">
+        <input type="number" disabled={!!redigert.avdragsfritt} value={redigert.avdragsfritt ? 0 : (redigert.avdrag_belop ?? '')} onChange={e => upd('avdrag_belop', e.target.value === '' ? null : Number(e.target.value))} style={{ ...inputStil, opacity: redigert.avdragsfritt ? 0.5 : 1 }} placeholder="avdragsdel" />
       </Felt>
       <Felt lbl="Termin">
         <select value={redigert.termin_frekvens || 'mnd'} onChange={e => upd('termin_frekvens', e.target.value as EiendomLaan['termin_frekvens'])} style={inputStil}>
@@ -276,6 +296,13 @@ function Skjema({ redigert, setRedigert, onLagre, onAvbryt }: {
       <Felt lbl="Notat" full>
         <input value={redigert.notat || ''} onChange={e => upd('notat', e.target.value || null)} style={inputStil} placeholder="Valgfritt" />
       </Felt>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 12, color: FARGER.tekstMid, background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: '10px 12px' }}>
+        <span>≈ <strong style={{ color: FARGER.feil }}>Renter {fmtNok(rMnd)}/mnd</strong> · <strong style={{ color: FARGER.suksess }}>Avdrag {fmtNok(aMnd)}/mnd</strong> · Sum {fmtNok(rMnd + aMnd)}/mnd</span>
+        <span style={{ color: FARGER.tekstLys }}>Renter teller i resultat; avdrag bygger egenkapital.</span>
+        {redigert.laanetype === 'annuitet' && !redigert.avdragsfritt && (
+          <button type="button" onClick={beregnAnnuitet} style={{ ...knappStilSekundaer, marginLeft: 'auto' }}>↻ Beregn fra rente + nedbetalingstid</button>
+        )}
+      </div>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 6 }}>
         <button onClick={onLagre} style={knappStilPrimaer}>💾 Lagre</button>
         <button onClick={onAvbryt} style={knappStilSekundaer}>Avbryt</button>
