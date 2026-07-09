@@ -32,7 +32,6 @@ type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'an
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
-const CREAM_LYS = FARGER.creamLys
 const GULL = FARGER.gull
 
 function TomtSelskap({ navn }: { navn: string }) {
@@ -236,28 +235,27 @@ export default function Home() {
       </button>
 
       {/* Nav-grupper */}
-      <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 12px 12px' }}>
-        {NAV_GRUPPER.map(g => (
-          <div key={g.tittel} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 9.5, color: 'rgba(253,252,247,0.4)', letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase', padding: '0 10px', marginBottom: 8 }}>{g.tittel}</div>
-            <div style={{ display: 'grid', gap: 2 }}>
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '10px 14px 16px' }}>
+        {NAV_GRUPPER.map((g, gi) => (
+          <div key={g.tittel} style={{ marginBottom: gi < NAV_GRUPPER.length - 1 ? 26 : 8 }}>
+            <div style={{ fontSize: 9, color: 'rgba(253,252,247,0.32)', letterSpacing: '0.26em', fontWeight: 700, textTransform: 'uppercase', padding: '0 12px', marginBottom: 10 }}>{g.tittel}</div>
+            <div style={{ display: 'grid', gap: 3 }}>
               {g.lenker.map(l => {
                 const aktiv = erAktiv(l.id)
                 return (
-                  <button key={l.id} onClick={() => navKlikk(l.id)}
+                  <button key={l.id} onClick={() => navKlikk(l.id)} className="sidemeny-lenke"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-                      background: aktiv ? 'rgba(184,154,111,0.18)' : 'transparent',
-                      borderLeft: `2.5px solid ${aktiv ? FARGER.gull : 'transparent'}`,
-                      border: 'none', borderRadius: RADIUS.sm,
-                      color: aktiv ? FARGER.creamLys : 'rgba(253,252,247,0.66)',
+                      display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+                      background: aktiv ? 'rgba(184,154,111,0.16)' : 'transparent',
+                      border: 'none', borderRadius: RADIUS.md,
+                      color: aktiv ? FARGER.creamLys : 'rgba(253,252,247,0.62)',
                       fontSize: 13, fontWeight: aktiv ? 600 : 500,
-                      padding: '9px 10px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                      padding: '11px 12px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
                       transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
-                      boxShadow: aktiv ? `inset 2.5px 0 0 ${FARGER.gull}` : 'none',
                     }}>
-                    <span style={{ fontSize: 15, width: 20, textAlign: 'center', flexShrink: 0 }}>{l.ikon}</span>
+                    <span style={{ fontSize: 15, width: 20, textAlign: 'center', flexShrink: 0, opacity: aktiv ? 1 : 0.85 }}>{l.ikon}</span>
                     {l.lbl}
+                    {aktiv && <span style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: RADIUS.pill, background: FARGER.gull }} />}
                   </button>
                 )
               })}

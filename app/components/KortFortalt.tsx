@@ -7,8 +7,14 @@ import { FARGER, RADIUS } from '../lib/styles'
  * sidens EGNE tall. Leser ingen ny datakilde: forelderen bygger `kontekst` fra
  * tallene den allerede har hentet, og sender dem hit. Auto-genereres én gang når
  * kontekst er klar; kan oppdateres manuelt.
+ *
+ * Varianter:
+ *  - lys (default): cream-boks med gull-kant, for seksjonssider.
+ *  - mørk (`mork`): tekst rett på mørk hero — brukes som «Dagens brief».
  */
-export function KortFortalt({ tittel, kontekst }: { tittel: string; kontekst: string }) {
+export function KortFortalt({ tittel, kontekst, mork = false, overskrift = 'Kort fortalt' }: {
+  tittel: string; kontekst: string; mork?: boolean; overskrift?: string
+}) {
   const [tekst, setTekst] = useState<string | null>(null)
   const [laster, setLaster] = useState(false)
   const [feil, setFeil] = useState(false)
@@ -30,14 +36,38 @@ export function KortFortalt({ tittel, kontekst }: { tittel: string; kontekst: st
     } catch { setFeil(true) } finally { setLaster(false) }
   }, [tittel, kontekst])
 
-  // Auto-generer første gang kontekst blir tilgjengelig (ikke ved hver navigasjon
-  // av samme tall). Bruker en ref for å unngå gjentatte kall.
   useEffect(() => {
     if (kontekst.trim() && hentetFor.current !== kontekst) void hent()
   }, [kontekst, hent])
 
   if (!kontekst.trim()) return null
 
+  // ── Mørk hero-variant ──────────────────────────────────────────────────────
+  if (mork) {
+    const dempet = 'rgba(253,252,247,0.62)'
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 17 }}>🤖</span>
+          <span style={{ fontSize: 10.5, color: FARGER.gull, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>{overskrift}</span>
+          {tekst && !laster && (
+            <button onClick={() => void hent()} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: dempet, fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>↻</button>
+          )}
+        </div>
+        {tekst ? (
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.65, color: 'rgba(253,252,247,0.94)', whiteSpace: 'pre-wrap' }}>{tekst}</p>
+        ) : laster ? (
+          <p style={{ margin: 0, fontSize: 13.5, color: dempet, fontStyle: 'italic' }}>Skriver dagens brief…</p>
+        ) : feil ? (
+          <p style={{ margin: 0, fontSize: 13.5, color: dempet }}>
+            Kunne ikke lage brief nå. <button onClick={() => void hent()} style={{ background: 'none', border: 'none', color: FARGER.gull, cursor: 'pointer', fontSize: 13.5, fontWeight: 600, padding: 0 }}>Prøv igjen</button>
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
+  // ── Lys standardvariant ────────────────────────────────────────────────────
   return (
     <div style={{
       background: FARGER.creamLys,
@@ -49,7 +79,7 @@ export function KortFortalt({ tittel, kontekst }: { tittel: string; kontekst: st
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: tekst || laster ? 8 : 0 }}>
         <span style={{ fontSize: 10, color: FARGER.gull, letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase' }}>
-          Kort fortalt
+          {overskrift}
         </span>
         <button onClick={() => void hent()} disabled={laster}
           style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 11, fontWeight: 600, cursor: laster ? 'default' : 'pointer', padding: 0 }}>
