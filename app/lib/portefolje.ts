@@ -12,6 +12,7 @@ const ETIKETT_KOSTNAD: Record<string, string> = {
   internett: 'Internett',
   vedlikehold: 'Vedlikehold',
   eiendomsskatt: 'Eiendomsskatt',
+  regnskap: 'Regnskap / gestor',
   ibi: 'IBI (Spania)',
   comunidad: 'Comunidad (Spania)',
   annet: 'Annet',
@@ -20,7 +21,7 @@ export const KOSTNAD_ETIKETT = ETIKETT_KOSTNAD
 
 export const KOSTNAD_KATEGORIER = [
   'kommunale','forsikring','felleskostnader','strom','internett',
-  'vedlikehold','eiendomsskatt','ibi','comunidad','annet',
+  'vedlikehold','eiendomsskatt','regnskap','ibi','comunidad','annet',
 ] as const
 
 export const LAANETYPER = ['annuitet','serie','rammelaan','annet'] as const
@@ -45,6 +46,7 @@ export const EIERETAPPE_ETIKETT: Record<string, string> = {
   analyse: 'Analyse',
   under_kjop: 'Under kjøp',
   eid: 'Eid',
+  under_oppussing: 'Under oppussing',
   salgsklar: 'Salgsklar',
   solgt: 'Solgt',
 }

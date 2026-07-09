@@ -197,6 +197,8 @@ export type Prosjekt = {
   marked?: 'spania' | 'norge'
   selskap_id?: string | null
   markedsleie_mnd?: number | null
+  strategi?: 'flipp' | 'langtid' | 'korttid' | 'uavklart'
+  vft_status?: 'har' | 'sokt' | 'mangler' | null
   eierform?: string | null
   fellesgjeld_nok?: number | null
   fellesutgifter_mnd_nok?: number | null
