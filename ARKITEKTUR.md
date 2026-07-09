@@ -101,9 +101,10 @@ migrasjoner/               SQL-migrasjoner (kjøres MANUELT i Supabase — se RE
 ## 5. `app/components/` — etter funksjonsområde
 
 - **Analyse:** `Boliganalyse`, `NorskeBoliger`, `Offmarket(Detalj)`, `TakstAnalyse`, `ScoreKort`
-- **Selskap & kapital (v2):** `Selskaper` (skatteprofil-redigering), `Kapital` (kjøpekraft, bundet EK, konsernlån), `DagligBrief` (admin-forside: kjøpekraft + flaggede eiendommer + mål + AI-brief)
+- **Kontrollrom (Fase C):** `HjemDashboard` (konsern-forside: KPI-er + grafer + raske innsikter + beste/svakeste + aktivitet + porteføljetabell), `SelskapDashboard` (Loeiendom/Lo Casas), `EiendomsRegister` (globalt register → `EiendomDetalj`), `Varsler` (flaggmotor), `KortFortalt` (C0 AI-oppsummering fra sidens tall), `MaalSeksjon` (B11)
+- **Selskap & kapital (v2):** `Selskaper` (skatteprofil-redigering), `Kapital` (kjøpekraft, bundet EK, konsernlån)
 - **Prosjektstyring:** `Regnskap`, `ProsjektFelter`, `Oppussingsbudsjett`, `Utleieanalyse`, `Selge`, `Salgspakke`, `Dokumenter`, `Kvitteringer`, `ProsjektBilder`, `SendForesporselModal` (håndverker), `TilbudHistorikk`
-- **Portefølje (`portefolje/`):** `Portefolje`, `PortefoljeDashboard` (nå med **rangering** + kjøpekraft, B6), `EiendomKort`, `EiendomDetalj`, `useEiendomData`. Faner (`faner/`): `EiendomOversikt`, **`EiendomBeslutning`** (B4/B5), `EiendomLaan/Inntekter/Kostnader/Verdi/Cashflow/Leietakere`, `EiendomOppussing`, **`EiendomTilbud`** (B8), **`EiendomTidslinje`** (B10), `EiendomAi`, `EiendomDokumenter/Bilder/Kvitteringer`
+- **Eiendomsside (`portefolje/`):** `EiendomDetalj` (åpnes fra `EiendomsRegister`), `useEiendomData`. Faner (`faner/`): `EiendomOversikt`, **`EiendomBeslutning`** (B4/B5), `EiendomLaan/Inntekter/Kostnader/Verdi/Cashflow/Leietakere`, `EiendomOppussing`, **`EiendomTilbud`** (B8), **`EiendomTidslinje`** (B10), `EiendomAi`, `EiendomDokumenter/Bilder/Kvitteringer`
 - **Håndverk/timer/AI/felles:** `Handverkere`, `Timer`, `AgentChat`, `Dashboard`, `Oppgaver`, `Aktivitetslogg`, `Innlogging`, `Toaster`
 
 Admin-UI er hardkodet på norsk (den flerspråklige portal-i18n ble fjernet i Fase A).

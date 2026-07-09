@@ -6,7 +6,7 @@ import type {
 } from '../../types'
 import { beregnBeslutning, TERSKEL_YIELD_BUNDET_EK_PST } from '../../lib/beslutning'
 import { medDefaults } from '../../lib/skatteprofil'
-import { gjeldendeLeieMnd, sumKostnaderPerMnd, rentesjokk } from '../../lib/portefolje'
+import { gjeldendeLeieMnd, sumKostnaderPerMnd, rentesjokk, sisteVerdi, totalRestgjeld } from '../../lib/portefolje'
 
 type Flagg = { farge: 'rod' | 'gul'; tekst: string }
 
@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
       const kostMnd = sumKostnaderPerMnd(kostnader)
       const stressLaan = rentesjokk(laan, 3)
       const stressCashflow = leieMnd - kostMnd - stressLaan
+      const samletVerdi = sisteVerdi(verdivurderinger)
+      const restgjeld = totalRestgjeld(laan)
 
       const flagg: Flagg[] = []
       const ly = langtid?.yield_bundet_ek_pst
@@ -94,6 +96,10 @@ export async function GET(req: NextRequest) {
         id: p.id, navn: p.navn, marked: p.marked || 'spania', valuta: selskap?.valuta || (p.marked === 'norge' ? 'NOK' : 'EUR'),
         selskap_id: p.selskap_id || null, strategi: p.strategi || 'uavklart', eieretappe: p.eieretappe || 'eid',
         bundet_ek: b.bundet_ek,
+        samlet_verdi: samletVerdi,
+        restgjeld,
+        egenkapital: samletVerdi - restgjeld,
+        leie_mnd: leieMnd,
         langtid_yield_pst: typeof ly === 'number' ? ly : null,
         cashflow_mnd: langtid?.cashflow_mnd ?? null,
         stress_cashflow_mnd: leieMnd > 0 ? stressCashflow : null,
