@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW } from '../lib/styles'
+import { KortFortalt } from './KortFortalt'
 
 type RangRad = { id: string; navn: string; marked: string; flagg: Array<{ farge: 'rod' | 'gul'; tekst: string }> }
 type Varsel = { prosjektId: string; navn: string; marked: string; farge: 'rod' | 'gul'; tekst: string }
@@ -28,12 +29,21 @@ export function Varsler({ onÅpne }: { onÅpne?: (id: string) => void }) {
   const antRod = varsler.filter(v => v.farge === 'rod').length
   const antGul = varsler.filter(v => v.farge === 'gul').length
 
+  const kontekst = useMemo(() => {
+    if (laster) return ''
+    if (varsler.length === 0) return 'Ingen flagg i porteføljen — ingen eiendommer krever oppmerksomhet akkurat nå.'
+    const linjer = varsler.map(v => `${v.farge === 'rod' ? 'RØD' : 'GUL'} · ${v.navn} (${v.marked}): ${v.tekst}`)
+    return `${antRod} røde og ${antGul} gule flagg totalt.\n${linjer.join('\n')}`
+  }, [laster, varsler, antRod, antGul])
+
   return (
     <div>
       <h1 style={{ fontSize: 28, fontWeight: 300, color: FARGER.mork, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Varsler</h1>
       <p style={{ fontSize: 14, color: FARGER.tekstMid, margin: '0 0 20px' }}>
         {antRod} røde · {antGul} gule flagg. Beregnes fra porteføljen ved lesing — ingen bakgrunnsjobber.
       </p>
+
+      <KortFortalt tittel="Varsler" kontekst={kontekst} />
 
       <div style={{ display: 'inline-flex', gap: 4, background: FARGER.hvit, padding: 4, borderRadius: RADIUS.pill, border: `1px solid ${FARGER.kantLys}`, marginBottom: 20 }}>
         {(['alle', 'rod', 'gul'] as const).map(f => (

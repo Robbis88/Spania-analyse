@@ -1,6 +1,7 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle, selectStyle } from '../lib/styles'
+import { KortFortalt } from './KortFortalt'
 import type { Konsernlaan } from '../types'
 
 type SelskapKapital = {
@@ -47,6 +48,13 @@ export function Kapital() {
     await hent()
   }
 
+  const kontekst = useMemo(() => {
+    if (laster || selskaper.length === 0) return ''
+    const kons = konsolidert.map(k => `Konsolidert (${k.valuta}): kjøpekraft ${fmt(k.kjopekraft, k.valuta)}, fri likviditet ${fmt(k.fri_likviditet, k.valuta)}, lånekapasitet ${fmt(k.laanekapasitet, k.valuta)}, bundet EK ${fmt(k.bundet_ek, k.valuta)}`)
+    const per = selskaper.map(s => `${s.navn} (${s.valuta}): kjøpekraft ${fmt(s.kjopekraft, s.valuta)}, bundet EK ${fmt(s.bundet_ek, s.valuta)}, frigjørbar ved refi ${fmt(s.frigjorbar_refi, s.valuta)}, ${s.antall_eiendommer} eiendom(mer)${s.konsern_fordring > 0 ? `, konsern-fordring ${fmt(s.konsern_fordring, s.valuta)}` : ''}${s.konsern_gjeld > 0 ? `, konsern-gjeld ${fmt(s.konsern_gjeld, s.valuta)}` : ''}`)
+    return [...kons, ...per].join('\n')
+  }, [laster, selskaper, konsolidert])
+
   if (laster) return <div style={{ padding: 40, color: FARGER.tekstLys }}>Laster kapitaloversikt…</div>
 
   return (
@@ -57,6 +65,8 @@ export function Kapital() {
       </p>
 
       {feil && <div style={{ background: FARGER.feilBg, border: `1px solid ${FARGER.feil}`, padding: 14, color: '#7a0c1e', borderRadius: RADIUS.md, marginBottom: 20 }}>{feil}</div>}
+
+      <KortFortalt tittel="Kapital / kjøpekraft" kontekst={kontekst} />
 
       {/* Kjøpekraft-hero per valuta */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 28 }}>

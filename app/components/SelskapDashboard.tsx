@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW } from '../lib/styles'
 import { STRATEGI_ETIKETT, type Strategi } from '../lib/strategi'
 import { useEurNokKurs } from '../lib/valuta'
+import { KortFortalt } from './KortFortalt'
 
 type SelskRad = {
   id: string; navn: string; valuta: string; antall_eiendommer: number
@@ -44,6 +45,17 @@ export function SelskapDashboard({ selskapId, navn, land, onÅpne }: { selskapId
 
   const valuta = selsk?.valuta || (land === 'norge' ? 'NOK' : 'EUR')
 
+  const kontekst = useMemo(() => {
+    if (laster || !selsk) return ''
+    const hoved = `${navn} (${land}). Eiendomsverdi ${fmt(selsk.samlet_verdi, valuta)}, gjeld ${fmt(selsk.restgjeld, valuta)}, egenkapital ${fmt(selsk.egenkapital, valuta)} (bundet ${fmt(selsk.bundet_ek, valuta)}), resultat/mnd ${fmt(selsk.resultat_mnd, valuta)}, kjøpekraft ${fmt(selsk.kjopekraft, valuta)}, refinansieringspotensial ${fmt(selsk.frigjorbar_refi, valuta)}, ${selsk.antall_eiendommer} eiendom(mer).`
+    const perStrategi = GRUPPER.map(g => {
+      const n = rang.filter(r => r.strategi === g.key).length
+      return n > 0 ? `${g.lbl}: ${n}` : ''
+    }).filter(Boolean).join(', ')
+    const flagg = rang.flatMap(r => r.flagg.map(f => `${f.farge === 'rod' ? 'RØD' : 'GUL'} · ${r.navn}: ${f.tekst}`))
+    return [hoved, perStrategi && `Eiendommer per strategi: ${perStrategi}.`, flagg.length ? `Flagg:\n${flagg.join('\n')}` : 'Ingen flagg.'].filter(Boolean).join('\n')
+  }, [laster, selsk, rang, navn, land, valuta])
+
   if (laster) return <div style={{ padding: 40, color: FARGER.tekstLys }}>Laster {navn}…</div>
 
   return (
@@ -52,6 +64,8 @@ export function SelskapDashboard({ selskapId, navn, land, onÅpne }: { selskapId
         <span style={{ fontSize: 24 }}>{land === 'norge' ? '🇳🇴' : '🇪🇸'}</span>
         <h1 style={{ fontSize: 28, fontWeight: 300, color: FARGER.mork, margin: 0, letterSpacing: '-0.02em' }}>{navn}</h1>
       </div>
+
+      <KortFortalt tittel={navn} kontekst={kontekst} />
 
       {selsk && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 24 }}>
