@@ -286,6 +286,50 @@ export type EiendomKostnad = {
   notat: string | null
 }
 
+// Bilagsinnboks — integrasjonsklar modell for fremtidig regnskapsimport.
+// Se BILAG_IMPORT.md. Importerte bilag bokføres IKKE på nytt (regnskap = fasit);
+// de brukes til styring: prosjektregnskap, kostnadskontroll, cashflow, avvik.
+export type BilagStatus = 'ny' | 'foreslatt' | 'godkjent' | 'laast' | 'avvist'
+
+export type BilagAiForslag = {
+  prosjekt_id?: string | null
+  selskap_id?: string | null
+  kategori?: string | null
+  underkategori?: string | null
+  felt?: Partial<Pick<Bilag, 'leverandor' | 'faktura_dato' | 'forfall_dato' | 'belop' | 'mva' | 'valuta' | 'fakturanummer'>>
+  begrunnelse?: string | null
+}
+
+export type Bilag = {
+  id: string
+  bruker: string
+  opprettet: string
+  selskap_id: string | null
+  prosjekt_id: string | null
+  leverandor: string | null
+  faktura_dato: string | null
+  forfall_dato: string | null
+  belop: number | null
+  mva: number | null
+  valuta: 'NOK' | 'EUR'
+  bilagsnummer: string | null
+  fakturanummer: string | null
+  kategori: string | null
+  underkategori: string | null
+  storage_sti: string | null
+  filnavn: string | null
+  mime_type: string | null
+  ai_forslag: BilagAiForslag | null
+  status: BilagStatus
+  godkjent_av: string | null
+  godkjent_tid: string | null
+  kilde: string
+  ekstern_id: string | null
+  ekstern_data: Record<string, unknown> | null
+  import_batch: string | null
+  notat: string | null
+}
+
 export type EiendomVerdivurdering = {
   id: string
   prosjekt_id: string

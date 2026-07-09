@@ -37,6 +37,14 @@ const HENDELSE_IKON: Record<string, string> = {
   refinansiert: '🏦', utleid: '🔑', tilbud_akseptert: '📄', anbefaling_gitt: '🤖', solgt: '✅', generell: '•',
 }
 
+function hilsen(): string {
+  const t = new Date().getHours()
+  if (t < 5) return 'God natt'
+  if (t < 10) return 'God morgen'
+  if (t < 18) return 'God dag'
+  return 'God kveld'
+}
+
 function forSiden(iso: string): string {
   const d = Date.now() - new Date(iso).getTime()
   const min = d / 60000
@@ -49,7 +57,12 @@ function forSiden(iso: string): string {
   return new Date(iso).toLocaleDateString('nb-NO')
 }
 
-export function HjemDashboard({ onÅpneEiendom }: { onÅpneEiendom?: (id: string) => void; onÅpnePortefolje?: () => void }) {
+export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
+  bruker?: string
+  onÅpneEiendom?: (id: string) => void
+  onÅpnePortefolje?: () => void
+  onÅpneVarsler?: () => void
+}) {
   const [kons, setKons] = useState<KonsRad[]>([])
   const [selsk, setSelsk] = useState<SelskRad[]>([])
   const [rang, setRang] = useState<RangRad[]>([])
@@ -89,11 +102,31 @@ export function HjemDashboard({ onÅpneEiendom }: { onÅpneEiendom?: (id: string
   const beste = medYield.length ? medYield.reduce((a, b) => (b.langtid_yield_pst! > a.langtid_yield_pst! ? b : a)) : null
   const svakest = medYield.length ? medYield.reduce((a, b) => (b.langtid_yield_pst! < a.langtid_yield_pst! ? b : a)) : null
   const renteEksponert = rang.filter(r => typeof r.stress_cashflow_mnd === 'number' && r.stress_cashflow_mnd < 0).length
-  const alleFlagg = rang.flatMap(r => r.flagg.map(f => ({ navn: r.navn, ...f })))
+
+  // Reell verditrend fra faktiske verdivurderinger (ALDRI fabrikkert — vises kun
+  // når to eller flere vurderinger finnes). Se designprinsipp C0.
+  const verdiTrend = useMemo(() => {
+    const s = hist.verdi_serie
+    if (s.length < 2) return null
+    const f = s[0].verdi, l = s[s.length - 1].verdi
+    if (!f) return null
+    return ((l - f) / f) * 100
+  }, [hist.verdi_serie])
+
+  // Varsler-panel: konkrete flagg per eiendom + syntetisk rentesjokk-flagg.
+  const varsler = useMemo(() => {
+    const ut: Array<{ navn: string; farge: 'rod' | 'gul'; tekst: string; id: string }> = []
+    for (const r of rang) for (const f of r.flagg) ut.push({ navn: r.navn, farge: f.farge, tekst: f.tekst, id: r.id })
+    if (renteEksponert > 0) ut.push({ navn: 'Renteeksponering', farge: 'rod', id: '', tekst: `${renteEksponert} eiendom${renteEksponert > 1 ? 'mer' : ''} går negativt ved +3 pp rente` })
+    // Røde først.
+    return ut.sort((a, b) => (a.farge === 'rod' ? 0 : 1) - (b.farge === 'rod' ? 0 : 1))
+  }, [rang, renteEksponert])
+
+  const toppHandling = varsler.find(v => v.farge === 'rod') || varsler[0] || null
 
   const kontekst = useMemo(() => {
     if (kons.length === 0) return ''
-    const flaggTekst = alleFlagg.length ? alleFlagg.map(f => `${f.farge === 'rod' ? 'RØD' : 'GUL'} ${f.navn}: ${f.tekst}`).join('; ') : 'ingen flagg'
+    const flaggTekst = varsler.length ? varsler.map(f => `${f.farge === 'rod' ? 'RØD' : 'GUL'} ${f.navn}: ${f.tekst}`).join('; ') : 'ingen flagg'
     return [
       `Konsern (omregnet til NOK, kurs 1 € = ${kurs.toFixed(2)} kr):`,
       `Porteføljeverdi ${fmtNok(k.verdi)}, gjeld ${fmtNok(k.gjeld)}, egenkapital ${fmtNok(k.ek)} (låst ${fmtNok(k.bundet)}, fri likviditet ${fmtNok(k.fri)}), resultat/mnd ${fmtNok(k.resultat)}, kjøpekraft ${fmtNok(k.kjopekraft)}.`,
@@ -102,88 +135,132 @@ export function HjemDashboard({ onÅpneEiendom }: { onÅpneEiendom?: (id: string
       svakest && svakest.id !== beste?.id ? `Svakeste: ${svakest.navn} ${svakest.langtid_yield_pst!.toFixed(1)} %.` : '',
       `Flagg: ${flaggTekst}.`,
     ].filter(Boolean).join(' ')
-  }, [kons, k, kurs, antall, beste, svakest, alleFlagg])
+  }, [kons, k, kurs, antall, beste, svakest, varsler])
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 300, color: FARGER.mork, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Hjem</h1>
-      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 22px' }}>Investorkontrollrom — hele konsernet i ett blikk.</p>
-
-      {/* 1. KONSERN-KONTROLLROM */}
-      <div style={{ background: FARGER.mork, borderRadius: RADIUS.xl, padding: 'clamp(18px, 3vw, 28px)', marginBottom: 22, boxShadow: SHADOW.lg }}>
-        <div style={{ fontSize: 10, color: FARGER.gull, letterSpacing: '0.24em', fontWeight: 700, marginBottom: 16 }}>KONSERN · ALLE SELSKAP</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 22 }}>
-          <Kpi lbl="Porteføljeverdi" verdi={fmtNok(k.verdi)} />
-          <Kpi lbl="Total gjeld" verdi={fmtNok(k.gjeld)} farge={FARGER.feil} />
-          <Kpi lbl="Egenkapital" verdi={fmtNok(k.ek)} farge={FARGER.suksess} sub={`låst ${fmtKort(k.bundet)} · fri ${fmtKort(k.fri)}`} />
-          <Kpi lbl="Resultat / mnd" verdi={fmtNok(k.resultat)} farge={k.resultat >= 0 ? FARGER.suksess : FARGER.feil} />
-          <Kpi lbl="Fri kapital" verdi={fmtNok(k.fri)} sub="klar til bruk" />
-          <Kpi lbl="Kjøpekraft" verdi={fmtNok(k.kjopekraft)} farge={FARGER.gull} sub="potensial" />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-          <GrafPanel tittel="Resultat siste 12 mnd">
-            <ResultatGraf serie={hist.resultat_serie} />
-          </GrafPanel>
-          <GrafPanel tittel="Porteføljeverdi">
-            <VerdiGraf serie={hist.verdi_serie} />
-          </GrafPanel>
-          <GrafPanel tittel="Fordeling eiendommer">
-            <Donut norge={k.antNorge} spania={k.antSpania} />
-          </GrafPanel>
-        </div>
+      {/* Hilsen */}
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 'clamp(24px, 3.4vw, 30px)', fontWeight: 300, color: FARGER.mork, margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+          {hilsen()}{bruker ? `, ${bruker.charAt(0).toUpperCase() + bruker.slice(1)}` : ''} <span style={{ fontWeight: 400 }}>👋</span>
+        </h1>
+        <p style={{ fontSize: 13.5, color: FARGER.tekstMid, margin: 0 }}>Her er oversikten for hele porteføljen din i dag.</p>
       </div>
 
-      {/* 2. KORT FORTALT */}
+      {/* 1. KORT FORTALT — AI-brief fra sidens egne tall (C0) */}
       <KortFortalt tittel="Hjem — konsern" kontekst={kontekst} />
 
-      {/* 3. RASKE INNSIKTER */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 22 }}>
-        <Innsikt ikon={k.resultat >= 0 ? '✓' : '⚠'} tone={k.resultat >= 0 ? 'gronn' : 'rod'} lbl="Kontantstrøm"
-          verdi={k.resultat >= 0 ? 'Positiv' : 'Negativ'} sub={`${fmtNok(k.resultat)} / mnd`} />
-        <Innsikt ikon="🔒" tone="gul" lbl="Låst egenkapital" verdi={fmtNok(k.bundet)} sub="bundet i eiendom" />
-        <Innsikt ikon={renteEksponert > 0 ? '⚠' : '✓'} tone={renteEksponert > 0 ? 'rod' : 'gronn'} lbl="Renteeksponering"
-          verdi={renteEksponert > 0 ? `${renteEksponert} eiendom${renteEksponert > 1 ? 'mer' : ''}` : 'Robust'}
-          sub={renteEksponert > 0 ? 'negativ ved +3pp rente' : 'tåler rentesjokk'} />
-        <Innsikt ikon="◆" tone="noytral" lbl="Kjøpekraft" verdi={fmtNok(k.kjopekraft)} sub="klar til bruk" />
+      {/* 2. NØKKELTALL — 6 store tall (C0: maks 5–6) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
+        <Kpi lbl="Porteføljeverdi" ikon="🏢" verdi={fmtNok(k.verdi)} trend={verdiTrend} />
+        <Kpi lbl="Total gjeld" ikon="🏦" verdi={fmtNok(k.gjeld)} />
+        <Kpi lbl="Egenkapital" ikon="💎" verdi={fmtNok(k.ek)} aksent={FARGER.suksess} sub={`låst ${fmtKort(k.bundet)} · fri ${fmtKort(k.fri)}`} />
+        <Kpi lbl="Resultat / mnd" ikon="📈" verdi={fmtNok(k.resultat)} aksent={k.resultat >= 0 ? FARGER.suksess : FARGER.feil} />
+        <Kpi lbl="Kjøpekraft" ikon="💰" verdi={fmtNok(k.kjopekraft)} aksent={FARGER.gull} sub="klar til bruk" />
+        <Kpi lbl="Antall eiendommer" ikon="🗂" verdi={String(antall)} sub={`${k.antNorge} Norge · ${k.antSpania} Spania`} />
       </div>
 
-      {/* 4. BESTE / SVAKESTE */}
-      {beste && svakest && beste.id !== svakest.id && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 22 }}>
-          <EiendomKort r={beste} tone="gronn" merke="Beste eiendom" tag="Sterk avkastning" onÅpne={onÅpneEiendom} />
-          <EiendomKort r={svakest} tone="rod" merke="Svakeste eiendom" tag={svakest.egenkapital > 0 && (svakest.cashflow_mnd ?? 0) < 0 ? 'Binder kapital' : 'Svak avkastning'} onÅpne={onÅpneEiendom} />
-        </div>
-      )}
+      {/* 3. GRAFER + VIKTIGE VARSLER */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 22, alignItems: 'stretch' }}>
+        <Kort>
+          <KortHode tittel="Kontantstrøm" undertittel="siste 12 mnd">
+            <span style={{ fontSize: 20, fontWeight: 700, color: k.resultat >= 0 ? FARGER.suksess : FARGER.feil }}>{fmtNok(k.resultat)}</span>
+            <span style={{ fontSize: 12, color: FARGER.tekstLys, marginLeft: 4 }}>/ mnd</span>
+          </KortHode>
+          <div style={{ display: 'flex', gap: 14, margin: '2px 0 12px', fontSize: 11, color: FARGER.tekstMid }}>
+            <Legende farge={FARGER.suksess} tekst="Inntekter" />
+            <Legende farge={FARGER.feil} tekst="Kostnader" />
+          </div>
+          <ResultatGraf serie={hist.resultat_serie} />
+        </Kort>
 
-      {/* 5. + 6. Aktivitet + tabell */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 22, marginBottom: 22, alignItems: 'start' }}>
-        <div style={{ gridColumn: rang.length > 0 ? 'auto' : '1 / -1' }}>
-          <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Siste aktivitet</div>
-          {aktivitet.length === 0 ? (
-            <div style={{ fontSize: 13, color: FARGER.tekstLys, fontStyle: 'italic' }}>Ingen registrert aktivitet ennå.</div>
+        <Kort>
+          <KortHode tittel="Porteføljeverdi">
+            <span style={{ fontSize: 20, fontWeight: 700, color: FARGER.mork }}>{fmtKort(k.verdi)}</span>
+            {verdiTrend !== null && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: verdiTrend >= 0 ? FARGER.suksess : FARGER.feil, marginLeft: 8 }}>
+                {verdiTrend >= 0 ? '↑' : '↓'} {Math.abs(verdiTrend).toFixed(1).replace('.', ',')} %
+              </span>
+            )}
+          </KortHode>
+          <VerdiGraf serie={hist.verdi_serie} />
+        </Kort>
+
+        <Kort>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, textTransform: 'uppercase' }}>Viktige varsler</span>
+            {varsler.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: FARGER.feil, background: FARGER.feilBg, borderRadius: RADIUS.pill, padding: '2px 8px' }}>{varsler.length}</span>}
+          </div>
+          {varsler.length === 0 ? (
+            <div style={{ fontSize: 13, color: FARGER.tekstLys, padding: '18px 0', textAlign: 'center' }}>Ingen aktive varsler ✓</div>
           ) : (
             <div style={{ display: 'grid', gap: 2 }}>
-              {aktivitet.map(a => (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', borderBottom: `1px solid ${FARGER.kantUltralys}` }}>
-                  <span style={{ fontSize: 15, width: 22, textAlign: 'center' }}>{HENDELSE_IKON[a.hendelsestype || 'generell'] || '•'}</span>
-                  <span style={{ flex: 1, fontSize: 13, color: FARGER.mork }}>
-                    {a.handling}
-                    {typeof a.detaljer?.navn === 'string' && <span style={{ color: FARGER.tekstMid }}> — {a.detaljer.navn as string}</span>}
+              {varsler.slice(0, 5).map((v, i) => (
+                <button key={i} onClick={() => onÅpneVarsler?.()}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', background: 'none', border: 'none', borderBottom: i < Math.min(varsler.length, 5) - 1 ? `1px solid ${FARGER.kantUltralys}` : 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: RADIUS.pill, background: v.farge === 'rod' ? FARGER.feil : FARGER.advarsel, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: FARGER.mork, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.navn}</span>
+                    <span style={{ display: 'block', fontSize: 11.5, color: FARGER.tekstMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.tekst}</span>
                   </span>
-                  <span style={{ fontSize: 11, color: FARGER.tekstLys, whiteSpace: 'nowrap' }}>{forSiden(a.tidspunkt)}</span>
-                </div>
+                  <span style={{ color: FARGER.tekstSvak, fontSize: 14 }}>›</span>
+                </button>
               ))}
             </div>
           )}
+          {onÅpneVarsler && (
+            <button onClick={() => onÅpneVarsler()} style={{ marginTop: 10, background: 'none', border: 'none', color: FARGER.gull, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Se alle varsler →</button>
+          )}
+        </Kort>
+      </div>
+
+      {/* 4. PORTEFØLJETABELL + SISTE AKTIVITET */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 22, alignItems: 'stretch' }}>
+        <div style={{ flex: '2 1 360px', minWidth: 0 }}>
+          <Kort>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, textTransform: 'uppercase' }}>Eiendomsportefølje</span>
+              {onÅpneEiendom && <button onClick={() => onÅpneEiendom('')} style={{ background: 'none', border: 'none', color: FARGER.gull, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Vis alle →</button>}
+            </div>
+            {rang.length === 0
+              ? <div style={{ fontSize: 13, color: FARGER.tekstLys, padding: '18px 0' }}>Ingen eiendommer i porteføljen ennå.</div>
+              : <PortefoljeTabell rader={rang} onÅpne={onÅpneEiendom} />}
+          </Kort>
         </div>
 
-        {rang.length > 0 && (
-          <div>
-            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Eiendomsportefølje</div>
-            <PortefoljeTabell rader={rang} onÅpne={onÅpneEiendom} />
-          </div>
-        )}
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <Kort>
+            <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Siste aktivitet</div>
+            {aktivitet.length === 0 ? (
+              <div style={{ fontSize: 13, color: FARGER.tekstLys, fontStyle: 'italic' }}>Ingen registrert aktivitet ennå.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 2 }}>
+                {aktivitet.map(a => (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 2px', borderBottom: `1px solid ${FARGER.kantUltralys}` }}>
+                    <span style={{ fontSize: 15, width: 22, textAlign: 'center' }}>{HENDELSE_IKON[a.hendelsestype || 'generell'] || '•'}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: FARGER.mork, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {a.handling}
+                      {typeof a.detaljer?.navn === 'string' && <span style={{ color: FARGER.tekstMid }}> — {a.detaljer.navn as string}</span>}
+                    </span>
+                    <span style={{ fontSize: 11, color: FARGER.tekstLys, whiteSpace: 'nowrap' }}>{forSiden(a.tidspunkt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Kort>
+        </div>
       </div>
+
+      {/* 5. BESTE / SVAKESTE / AI-ANBEFALING */}
+      {(beste || toppHandling) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 22 }}>
+          {beste && <EiendomKort r={beste} tone="gronn" merke="Beste investering akkurat nå" tag="Sterk avkastning" onÅpne={onÅpneEiendom} />}
+          {svakest && beste && svakest.id !== beste.id && (
+            <EiendomKort r={svakest} tone="rod" merke="Svakeste investering" tag={svakest.egenkapital > 0 && (svakest.cashflow_mnd ?? 0) < 0 ? 'Binder kapital' : 'Svak avkastning'} onÅpne={onÅpneEiendom} />
+          )}
+          <AiAnbefaling handling={toppHandling} onÅpne={onÅpneVarsler} />
+        </div>
+      )}
 
       {/* Mål (B11) */}
       <MaalSeksjon selsk={selsk} rang={rang} />
@@ -191,28 +268,53 @@ export function HjemDashboard({ onÅpneEiendom }: { onÅpneEiendom?: (id: string
   )
 }
 
-function Kpi({ lbl, verdi, farge, sub }: { lbl: string; verdi: string; farge?: string; sub?: string }) {
+// ─── Nøkkeltall-kort (lyst) ──────────────────────────────────────────────────
+function Kpi({ lbl, ikon, verdi, aksent, sub, trend }: { lbl: string; ikon: string; verdi: string; aksent?: string; sub?: string; trend?: number | null }) {
   return (
-    <div>
-      <div style={{ fontSize: 10, color: 'rgba(253,252,247,0.55)', letterSpacing: '0.06em', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</div>
-      <div style={{ fontSize: 'clamp(18px, 2.2vw, 23px)', fontWeight: 700, color: farge || FARGER.creamLys, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{verdi}</div>
-      {sub && <div style={{ fontSize: 11, color: 'rgba(253,252,247,0.5)', marginTop: 3 }}>{sub}</div>}
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 16, boxShadow: SHADOW.xs }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 10, color: FARGER.tekstLys, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</span>
+        <span style={{ width: 28, height: 28, borderRadius: RADIUS.pill, background: FARGER.flateLys, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{ikon}</span>
+      </div>
+      <div style={{ fontSize: 'clamp(17px, 2vw, 21px)', fontWeight: 700, color: aksent || FARGER.mork, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{verdi}</div>
+      {trend != null ? (
+        <div style={{ fontSize: 11, fontWeight: 600, color: trend >= 0 ? FARGER.suksess : FARGER.feil, marginTop: 4 }}>
+          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1).replace('.', ',')} % siden forrige vurdering
+        </div>
+      ) : sub ? (
+        <div style={{ fontSize: 11, color: FARGER.tekstLys, marginTop: 4 }}>{sub}</div>
+      ) : null}
     </div>
   )
 }
 
-function GrafPanel({ tittel, children }: { tittel: string; children: React.ReactNode }) {
+// ─── Kort-primitiver ─────────────────────────────────────────────────────────
+function Kort({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: 'rgba(253,252,247,0.04)', border: '1px solid rgba(253,252,247,0.08)', borderRadius: RADIUS.md, padding: 14 }}>
-      <div style={{ fontSize: 10, color: 'rgba(253,252,247,0.6)', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 12, textTransform: 'uppercase' }}>{tittel}</div>
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 18, boxShadow: SHADOW.xs, height: '100%', boxSizing: 'border-box' }}>
       {children}
     </div>
   )
 }
 
+function KortHode({ tittel, undertittel, children }: { tittel: string; undertittel?: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork }}>
+        {tittel}{undertittel && <span style={{ fontSize: 11, color: FARGER.tekstLys, fontWeight: 400, marginLeft: 6 }}>{undertittel}</span>}
+      </span>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function Legende({ farge, tekst }: { farge: string; tekst: string }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: farge }} />{tekst}</span>
+}
+
 function TomGraf({ tekst }: { tekst: string }) {
   return (
-    <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'rgba(253,252,247,0.4)', fontSize: 11.5, lineHeight: 1.5, padding: '0 8px' }}>
+    <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: FARGER.tekstLys, fontSize: 11.5, lineHeight: 1.5, padding: '0 8px' }}>
       {tekst}
     </div>
   )
@@ -253,68 +355,54 @@ function VerdiGraf({ serie }: { serie: Array<{ dato: string; verdi: number }> })
   const areal = `0,${H} ${linje} ${W},${H}`
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: H }}>
-      <polygon points={areal} fill={FARGER.gull} opacity={0.18} />
+      <polygon points={areal} fill={FARGER.gull} opacity={0.16} />
       <polyline points={linje} fill="none" stroke={FARGER.gullVarm} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
 
-function Donut({ norge, spania }: { norge: number; spania: number }) {
-  const total = norge + spania
-  if (total === 0) return <TomGraf tekst="Ingen eiendommer registrert ennå." />
-  const r = 34, C = 2 * Math.PI * r
-  const nAndel = norge / total
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, height: 120, justifyContent: 'center' }}>
-      <svg viewBox="0 0 90 90" style={{ width: 100, height: 100 }}>
-        <circle cx={45} cy={45} r={r} fill="none" stroke={FARGER.gull} strokeWidth={11} strokeDasharray={`${C * nAndel} ${C}`} transform="rotate(-90 45 45)" />
-        <circle cx={45} cy={45} r={r} fill="none" stroke="rgba(253,252,247,0.22)" strokeWidth={11} strokeDasharray={`${C * (1 - nAndel)} ${C}`} strokeDashoffset={-C * nAndel} transform="rotate(-90 45 45)" />
-        <text x={45} y={44} textAnchor="middle" fontSize={17} fontWeight={700} fill={FARGER.creamLys}>{total}</text>
-        <text x={45} y={57} textAnchor="middle" fontSize={7} fill="rgba(253,252,247,0.6)">totalt</text>
-      </svg>
-      <div style={{ fontSize: 11.5, color: 'rgba(253,252,247,0.85)', display: 'grid', gap: 6 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: FARGER.gull, marginRight: 7 }} />Norge · {norge}</span>
-        <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: 'rgba(253,252,247,0.22)', marginRight: 7 }} />Spania · {spania}</span>
-      </div>
-    </div>
-  )
-}
-
-const TONER: Record<string, { bg: string; kant: string; ikon: string }> = {
-  gronn: { bg: FARGER.suksessBg, kant: FARGER.suksess, ikon: FARGER.suksess },
-  rod: { bg: FARGER.feilBg, kant: FARGER.feil, ikon: FARGER.feil },
-  gul: { bg: FARGER.advarselBg, kant: FARGER.advarsel, ikon: FARGER.advarsel },
-  noytral: { bg: FARGER.hvit, kant: FARGER.gull, ikon: FARGER.gull },
-}
-
-function Innsikt({ ikon, tone, lbl, verdi, sub }: { ikon: string; tone: string; lbl: string; verdi: string; sub: string }) {
-  const t = TONER[tone] || TONER.noytral
-  return (
-    <div style={{ background: FARGER.hvit, border: `1.5px solid ${FARGER.kantLys}`, borderTop: `3px solid ${t.kant}`, borderRadius: RADIUS.md, padding: 16, boxShadow: SHADOW.xs }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ width: 22, height: 22, borderRadius: RADIUS.pill, background: t.bg, color: t.ikon, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{ikon}</span>
-        <span style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.02em' }}>{lbl}</span>
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork, marginBottom: 2 }}>{verdi}</div>
-      <div style={{ fontSize: 11, color: FARGER.tekstLys }}>{sub}</div>
-    </div>
-  )
+const TONER: Record<string, { bg: string; kant: string }> = {
+  gronn: { bg: FARGER.suksessBg, kant: FARGER.suksess },
+  rod: { bg: FARGER.feilBg, kant: FARGER.feil },
 }
 
 function EiendomKort({ r, tone, merke, tag, onÅpne }: { r: RangRad; tone: 'gronn' | 'rod'; merke: string; tag: string; onÅpne?: (id: string) => void }) {
   const t = TONER[tone]
   const ltv = r.samlet_verdi > 0 ? (r.restgjeld / r.samlet_verdi) * 100 : null
   return (
-    <button onClick={() => onÅpne?.(r.id)} style={{ background: t.bg, border: `1.5px solid ${t.kant}44`, borderRadius: RADIUS.lg, padding: 18, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', boxShadow: SHADOW.sm }}>
-      <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>{merke}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: FARGER.mork, marginBottom: 10 }}>{r.navn}</div>
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
+    <button onClick={() => onÅpne?.(r.id)} style={{ background: t.bg, border: `1.5px solid ${t.kant}44`, borderRadius: RADIUS.lg, padding: 18, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', boxShadow: SHADOW.xs }}>
+      <div style={{ fontSize: 10.5, color: FARGER.tekstMid, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>{merke}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: FARGER.mork, marginBottom: 10 }}>{r.navn}</div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, marginBottom: 12 }}>
         <span><span style={{ color: FARGER.tekstMid }}>Netto/mnd </span><strong style={{ color: (r.cashflow_mnd ?? 0) >= 0 ? FARGER.suksess : FARGER.feil }}>{r.cashflow_mnd !== null ? fmtVal(r.cashflow_mnd, r.valuta) : '–'}</strong></span>
         <span><span style={{ color: FARGER.tekstMid }}>Yield </span><strong style={{ color: FARGER.mork }}>{r.langtid_yield_pst !== null ? r.langtid_yield_pst.toFixed(1) + ' %' : '–'}</strong></span>
         {ltv !== null && <span><span style={{ color: FARGER.tekstMid }}>LTV </span><strong style={{ color: ltv > 85 ? FARGER.feil : FARGER.mork }}>{ltv.toFixed(0)} %</strong></span>}
       </div>
       <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: RADIUS.pill, background: t.kant, color: FARGER.hvit }}>{tag}</span>
     </button>
+  )
+}
+
+// Mørkt AI-kort: løfter den viktigste handlingen akkurat nå (fra flaggene, ingen
+// egen AI-kall — deterministisk «neste beste handling»).
+function AiAnbefaling({ handling, onÅpne }: { handling: { navn: string; farge: 'rod' | 'gul'; tekst: string } | null; onÅpne?: () => void }) {
+  return (
+    <div style={{ background: FARGER.mork, borderRadius: RADIUS.lg, padding: 18, boxShadow: SHADOW.sm, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 10, color: FARGER.gull, letterSpacing: '0.18em', fontWeight: 700, textTransform: 'uppercase' }}>AI-anbefaling for deg</span>
+        <span style={{ marginLeft: 'auto', fontSize: 16 }}>🤖</span>
+      </div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.55, color: 'rgba(253,252,247,0.9)', flex: 1 }}>
+        {handling
+          ? <>{handling.farge === 'rod' ? '🔴' : '🟡'} <strong style={{ color: FARGER.creamLys }}>{handling.navn}:</strong> {handling.tekst}. Se tallgrunnlaget og anbefalt handling.</>
+          : 'Ingen kritiske flagg akkurat nå — porteføljen ser sunn ut. Åpne en eiendom for å se beslutningsmotorens anbefaling.'}
+      </p>
+      {onÅpne && (
+        <button onClick={onÅpne} style={{ alignSelf: 'flex-start', background: FARGER.gull, color: FARGER.mork, border: 'none', borderRadius: RADIUS.pill, padding: '9px 18px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+          Se anbefalinger →
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -328,7 +416,7 @@ function Td({ children, h, farge, fet }: { children: React.ReactNode; h?: boolea
 function PortefoljeTabell({ rader, onÅpne }: { rader: RangRad[]; onÅpne?: (id: string) => void }) {
   const status = (r: RangRad) => r.flagg.some(f => f.farge === 'rod') ? FARGER.feil : r.flagg.some(f => f.farge === 'gul') ? FARGER.advarsel : FARGER.suksess
   return (
-    <div style={{ overflowX: 'auto', background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, boxShadow: SHADOW.xs }}>
+    <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
         <thead>
           <tr>

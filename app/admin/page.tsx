@@ -26,8 +26,9 @@ const HjemDashboard = dynamic(() => import('../components/HjemDashboard').then(m
 const SelskapDashboard = dynamic(() => import('../components/SelskapDashboard').then(m => m.SelskapDashboard), { ssr: false, loading: laster })
 const Varsler = dynamic(() => import('../components/Varsler').then(m => m.Varsler), { ssr: false, loading: laster })
 const EiendomsRegister = dynamic(() => import('../components/EiendomsRegister').then(m => m.EiendomsRegister), { ssr: false, loading: laster })
+const Bilagsinnboks = dynamic(() => import('../components/Bilagsinnboks').then(m => m.Bilagsinnboks), { ssr: false, loading: laster })
 
-type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'kapital' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
+type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'kapital' | 'selge' | 'regnskap' | 'bilag' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -53,6 +54,7 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   kapital: 'Kapital',
   selge: 'Selge',
   regnskap: 'Regnskap',
+  bilag: 'Bilagsinnboks',
   timer: 'Timer',
   handverkere: 'Håndverkere',
   selskaper: 'Selskaper',
@@ -109,6 +111,7 @@ const NAV_MER: NavLink[] = [
   { id: 'norge', lbl: 'Norske boliger' },
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
+  { id: 'bilag', lbl: 'Bilag' },
   { id: 'timer', lbl: 'Timer' },
   { id: 'handverkere', lbl: 'Håndverk' },
   { id: 'selskaper', lbl: 'Selskaper' },
@@ -300,7 +303,7 @@ export default function Home() {
 
       {!aktivSeksjon && (
         <main style={{ maxWidth: 1200, margin: '0 auto', padding: erMobil ? '24px 18px 100px' : '36px 28px 100px' }}>
-          <HjemDashboard onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} />
+          <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />
           <div id="gjoremal" style={{ marginTop: 44 }}>
             <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
             <Oppgaver />
@@ -312,7 +315,7 @@ export default function Home() {
         <main style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '20px 18px 100px' : '36px 28px 100px' }}>
           <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
 
-          {aktivSeksjon === 'hjem' && <HjemDashboard onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} />}
+          {aktivSeksjon === 'hjem' && <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />}
           {aktivSeksjon === 'varsler' && <Varsler onÅpne={() => gåTil('eiendommer')} />}
           {aktivSeksjon === 'eiendommer' && <EiendomsRegister />}
           {aktivSeksjon === 'loeiendom' && (norgeSelskap
@@ -327,6 +330,7 @@ export default function Home() {
           {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
           {aktivSeksjon === 'selskaper' && <Selskaper />}
           {aktivSeksjon === 'kapital' && <Kapital />}
+          {aktivSeksjon === 'bilag' && <Bilagsinnboks />}
           {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
           {aktivSeksjon === 'regnskap' && (
             <Regnskap
