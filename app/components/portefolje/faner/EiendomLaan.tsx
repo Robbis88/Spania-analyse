@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { hentAktivBruker } from '../../../lib/aktivBruker'
 import { visToast } from '../../../lib/toast'
@@ -25,6 +25,42 @@ type Props = { data: EiendomData; onEndret: () => void | Promise<void> }
 export function EiendomLaan({ data, onEndret }: Props) {
   const [aapenForm, setAapenForm] = useState<string | null>(null)  // lån-id eller 'nytt'
   const [redigert, setRedigert] = useState<Partial<EiendomLaan>>({})
+  const [analyserer, setAnalyserer] = useState(false)
+  const filInput = useRef<HTMLInputElement>(null)
+
+  // Last opp lånedokument (PDF/bilde) → Claude vision trekker ut vilkårene og
+  // forhåndsutfyller Nytt lån-skjemaet. Dine tall vinner: alt kan endres før lagring.
+  async function analyserDokument(fil: File) {
+    setAnalyserer(true)
+    try {
+      const fd = new FormData()
+      fd.append('fil', fil)
+      const r = await fetch('/api/laan/analyser', { method: 'POST', body: fd })
+      const d = await r.json()
+      if (!r.ok || !d.suksess) { visToast(d.feil || 'Kunne ikke lese dokumentet', 'feil', 4000); return }
+      const f = d.felt as Record<string, unknown>
+      const antall = Object.values(f).filter(v => v !== null && v !== undefined).length
+      if (antall === 0) { visToast('Fant ingen lånevilkår i dokumentet — fyll inn manuelt', 'feil', 4000); return }
+      setRedigert({
+        bank: (f.bank as string) || undefined,
+        laanetype: (f.laanetype as EiendomLaan['laanetype']) || 'annuitet',
+        hovedstol: (f.hovedstol as number) ?? null,
+        restgjeld: (f.restgjeld as number) ?? null,
+        rente_pst: (f.rente_pst as number) ?? null,
+        rentetype: (f.rentetype as EiendomLaan['rentetype']) || 'flytende',
+        bindingstid_aar: (f.bindingstid_aar as number) ?? null,
+        nedbetalingstid_aar: (f.nedbetalingstid_aar as number) ?? null,
+        termin_belop: (f.termin_belop as number) ?? null,
+        termin_frekvens: (f.termin_frekvens as EiendomLaan['termin_frekvens']) || 'mnd',
+        startdato: (f.startdato as string) || null,
+      })
+      setAapenForm('nytt')
+      visToast(`Leste ${antall} felt fra dokumentet — sjekk og lagre`, 'suksess', 3500)
+    } catch { visToast('Analyse feilet', 'feil', 4000) } finally {
+      setAnalyserer(false)
+      if (filInput.current) filInput.current.value = ''
+    }
+  }
 
   const totalRest = useMemo(() => totalRestgjeld(data.laan), [data.laan])
   const totalMnd = useMemo(() => totalLaanKostnadMnd(data.laan), [data.laan])
@@ -150,10 +186,19 @@ export function EiendomLaan({ data, onEndret }: Props) {
           <Skjema redigert={redigert} setRedigert={setRedigert} onLagre={lagre} onAvbryt={() => { setAapenForm(null); setRedigert({}) }} />
         </div>
       ) : (
-        <button onClick={startNytt}
-          style={{ background: FARGER.mork, color: '#fff', border: 'none', padding: '10px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 18 }}>
-          + Nytt lån
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
+          <button onClick={startNytt}
+            style={{ background: FARGER.mork, color: '#fff', border: 'none', padding: '10px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            + Nytt lån
+          </button>
+          <button onClick={() => filInput.current?.click()} disabled={analyserer}
+            style={{ background: '#fff', color: FARGER.mork, border: `1.5px solid ${FARGER.gull}`, padding: '10px 18px', borderRadius: RADIUS.sm, fontSize: 12, fontWeight: 600, cursor: analyserer ? 'default' : 'pointer', letterSpacing: '0.02em', opacity: analyserer ? 0.6 : 1 }}>
+            {analyserer ? '⏳ Leser dokument…' : '✨ Last opp lånedokument'}
+          </button>
+          <input ref={filInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+            onChange={e => { const f = e.target.files?.[0]; if (f) void analyserDokument(f) }}
+            style={{ display: 'none' }} />
+        </div>
       )}
 
       {/* Stresstest */}
