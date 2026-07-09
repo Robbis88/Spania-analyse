@@ -14,12 +14,10 @@ const laster = () => <div style={{ textAlign: 'center', padding: 60, color: FARG
 const Oppgaver = dynamic(() => import('../components/Oppgaver').then(m => m.Oppgaver), { ssr: false, loading: laster })
 const AgentChat = dynamic(() => import('../components/AgentChat').then(m => m.AgentChat), { ssr: false, loading: laster })
 const Boliganalyse = dynamic(() => import('../components/Boliganalyse').then(m => m.Boliganalyse), { ssr: false, loading: laster })
-const BoligerSeksjon = dynamic(() => import('../components/BoligerSeksjon').then(m => m.BoligerSeksjon), { ssr: false, loading: laster })
 const Selge = dynamic(() => import('../components/Selge').then(m => m.Selge), { ssr: false, loading: laster })
 const Regnskap = dynamic(() => import('../components/Regnskap').then(m => m.Regnskap), { ssr: false, loading: laster })
 const Aktivitetslogg = dynamic(() => import('../components/Aktivitetslogg').then(m => m.Aktivitetslogg), { ssr: false, loading: laster })
 const NorskeBoliger = dynamic(() => import('../components/NorskeBoliger').then(m => m.NorskeBoliger), { ssr: false, loading: laster })
-const Portefolje = dynamic(() => import('../components/portefolje/Portefolje').then(m => m.Portefolje), { ssr: false, loading: laster })
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 const Selskaper = dynamic(() => import('../components/Selskaper').then(m => m.Selskaper), { ssr: false, loading: laster })
@@ -29,7 +27,7 @@ const SelskapDashboard = dynamic(() => import('../components/SelskapDashboard').
 const Varsler = dynamic(() => import('../components/Varsler').then(m => m.Varsler), { ssr: false, loading: laster })
 const EiendomsRegister = dynamic(() => import('../components/EiendomsRegister').then(m => m.EiendomsRegister), { ssr: false, loading: laster })
 
-type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
+type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'kapital' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -52,10 +50,7 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   varsler: 'Varsler',
   analyse: 'Boliganalyse',
   norge: 'Norske boliger',
-  portefolje: 'Min portefølje',
   kapital: 'Kapital',
-  flipp: 'Flipp',
-  utleie: 'Utleie',
   selge: 'Selge',
   regnskap: 'Regnskap',
   timer: 'Timer',
@@ -188,11 +183,6 @@ export default function Home() {
   }
 
   if (!bruker) return <Innlogging onLoggetInn={loggInn} />
-
-  function åpneProsjekt(id: string) {
-    setAktivSeksjon('regnskap')
-    setVisProsjekt(id)
-  }
 
   function hjem() {
     setAktivSeksjon(null)
@@ -336,10 +326,7 @@ export default function Home() {
           {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
           {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
           {aktivSeksjon === 'selskaper' && <Selskaper />}
-          {aktivSeksjon === 'portefolje' && <Portefolje onTilbake={hjem} />}
           {aktivSeksjon === 'kapital' && <Kapital />}
-          {aktivSeksjon === 'flipp' && <BoligerSeksjon kategori="flipp" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
-          {aktivSeksjon === 'utleie' && <BoligerSeksjon kategori="utleie" onTilbake={hjem} onÅpneProsjekt={åpneProsjekt} />}
           {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
           {aktivSeksjon === 'regnskap' && (
             <Regnskap
