@@ -20,6 +20,15 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [akseptertTilbud, setAkseptertTilbud] = useState<number | null>(null)
   const [minReno, setMinReno] = useState<string>('')  // "min vurdering" — vinner hvis satt
   const [vft, setVft] = useState<VftStatus | ''>((p.vft_status as VftStatus) || '')
+  // Tidsstyrte planforutsetninger (lagres på prosjektet ved blur)
+  const [varighet, setVarighet] = useState<string>(p.oppussing_varighet_mnd != null ? String(p.oppussing_varighet_mnd) : '')
+  const [arv, setArv] = useState<string>(p.forventet_salgsverdi ? String(p.forventet_salgsverdi) : '')
+  const [forventetLeie, setForventetLeie] = useState<string>(p.forventet_leie_mnd ? String(p.forventet_leie_mnd) : '')
+
+  async function lagrePlan(felt: 'oppussing_varighet_mnd' | 'forventet_salgsverdi' | 'forventet_leie_mnd', v: string) {
+    const tall = v.trim() === '' ? null : Number(v)
+    await supabase.from('prosjekter').update({ [felt]: tall }).eq('id', p.id)
+  }
 
   async function settVft(v: VftStatus | '') {
     setVft(v)
@@ -61,7 +70,10 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
     skatteprofil,
     airbnbData: (p.airbnb_data as AirbnbData | null) || null,
     renoveringskost: effektivReno,
-  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno])
+    oppussingVarighetMnd: varighet.trim() !== '' ? Number(varighet) : null,
+    forventetSalgssum: arv.trim() !== '' ? Number(arv) : null,
+    forventetLeieMnd: forventetLeie.trim() !== '' ? Number(forventetLeie) : null,
+  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno, varighet, arv, forventetLeie])
 
   async function lagreMinReno() {
     if (minReno.trim() === '') return
@@ -118,6 +130,28 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
             Dine tall brukes i beregningene{refReno !== null ? ` · avvik ${fmtNok(Number(minReno) - refReno)}` : ''}.
           </div>
         )}
+      </div>
+
+      {/* Planforutsetninger — tidsstyrt motor */}
+      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>⏱ Planforutsetninger</div>
+        <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 14, maxWidth: 560, lineHeight: 1.5 }}>
+          Motoren tar hensyn til hvor lang tid oppussingen tar: holdekostnad (renter + drift) trekkes fra ved flipp, og leiestart utsettes tilsvarende. Forventet salgssum og leie brukes som plantall til faktiske tall finnes.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Oppussing varighet (mnd)</label>
+            <input type="number" value={varighet} onChange={e => setVarighet(e.target.value)} onBlur={() => lagrePlan('oppussing_varighet_mnd', varighet)} placeholder="0" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Forventet salgssum (ARV)</label>
+            <input type="number" value={arv} onChange={e => setArv(e.target.value)} onBlur={() => lagrePlan('forventet_salgsverdi', arv)} placeholder="etter oppussing" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Forventet leie/mnd</label>
+            <input type="number" value={forventetLeie} onChange={e => setForventetLeie(e.target.value)} onBlur={() => lagrePlan('forventet_leie_mnd', forventetLeie)} placeholder="planleie" style={inputStyle} />
+          </div>
+        </div>
       </div>
 
       {/* VFT-lisens (C6, kun Spania) */}
@@ -180,9 +214,12 @@ function ScenarioKort({ s, erBeste, terskel }: { s: ScenarioResultat; erBeste: b
       border: erBeste ? `2px solid ${FARGER.gull}` : `1px solid ${FARGER.kantUltralys}`,
       boxShadow: SHADOW.sm, opacity: s.tilgjengelig ? 1 : 0.6,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.01em' }}>{s.tittel}</div>
-        {erBeste && <span style={{ fontSize: 10, fontWeight: 700, color: FARGER.gull, letterSpacing: '0.1em' }}>BESTE YIELD</span>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.01em' }}>
+          {s.tittel}
+          {typeof s.varighet_mnd === 'number' && <span style={{ fontSize: 10.5, fontWeight: 600, color: FARGER.tekstMid, marginLeft: 7 }}>⏱ {s.varighet_mnd} mnd</span>}
+        </div>
+        {erBeste && <span style={{ fontSize: 10, fontWeight: 700, color: FARGER.gull, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>BESTE YIELD</span>}
       </div>
 
       {!s.tilgjengelig ? (

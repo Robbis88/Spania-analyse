@@ -41,6 +41,8 @@ export type ScenarioResultat = {
   frigjort_kapital?: number
   gevinst_etter_skatt?: number
   ny_ltv_pst?: number
+  // Oppussingsvarighet som ligger til grunn (mnd) — vises som ⏱-merke.
+  varighet_mnd?: number
   // Eksplisitt skattelinje per scenario (regel: salg/gevinst = selskapsskatt,
   // utleie = ordinær selskapsskatt, refinansiering = ingen skatt). `tekst` vises
   // i stedet for beløp når skatten ikke er et tall (f.eks. «Ingen»).
@@ -58,6 +60,10 @@ export type BeslutningInput = {
   airbnbData?: AirbnbData | null
   // Renoveringskost fra akseptert tilbud (B8) — overstyrer prosjekt.oppussing_faktisk hvis satt.
   renoveringskost?: number | null
+  // Tidsstyrte planforutsetninger — overstyrer prosjekt-feltene hvis satt (B5-mønster).
+  oppussingVarighetMnd?: number | null   // hvor lenge oppussingen tar (mnd)
+  forventetSalgssum?: number | null      // ARV — forventet salgssum etter oppussing
+  forventetLeieMnd?: number | null       // planleie før faktiske inntekter finnes
 }
 
 export type Beslutning = {
@@ -92,45 +98,69 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const kostnaderMnd = sumKostnaderPerMnd(kostnader)
   const laanMnd = totalLaanKostnadMnd(laan)
 
+  // Tidsstyrte planforutsetninger (input overstyrer prosjekt-feltene, B5).
+  const varighet = Math.max(0, input.oppussingVarighetMnd ?? prosjekt.oppussing_varighet_mnd ?? 0)
+  const arv = input.forventetSalgssum ?? prosjekt.forventet_salgsverdi ?? 0            // forventet salgssum etter oppussing
+  const forventetLeie = input.forventetLeieMnd ?? prosjekt.forventet_leie_mnd ?? 0
+  // Bæring i oppussingsperioden: renter + drift, ingen leieinntekt mens det pusses.
+  const holdekostMnd = laanMnd + kostnaderMnd
+  const holdekostnadOppussing = holdekostMnd * varighet
+
   // Salg / bundet EK (delt formel med B3)
   const oppussing = (renoveringskost !== null && renoveringskost !== undefined) ? renoveringskost : (prosjekt.oppussing_faktisk || 0)
   const anskaffelse = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0) + oppussing
-  const { salgskostnad, gevinst, gevinstskatt, nettoVedSalg, bundet_ek } = beregnBundetEk(verdi, restgjeld, anskaffelse, gevinst_pst)
+  const { salgskostnad, gevinstskatt, bundet_ek } = beregnBundetEk(verdi, restgjeld, anskaffelse, gevinst_pst)
 
   const yieldPaaEk = (aarligNetto: number) => bundet_ek > 0 ? (aarligNetto / bundet_ek) * 100 : 0
 
-  // 1) Flipp / selg nå
+  // 1) Flipp — «selg nå» (dagens verdi) eller «fullfør oppussing og selg» (ARV +
+  //    holdekostnad i oppussingsperioden), avhengig av om forventet salgssum er satt.
+  const planlagtFlipp = arv > 0 && (varighet > 0 || arv !== verdi)
+  const salgsVerdiF = planlagtFlipp ? arv : verdi
+  const salgskostnadF = salgsVerdiF * (SALGSKOST_PST / 100)
+  const gevinstF = Math.max(0, salgsVerdiF - anskaffelse - salgskostnadF)
+  const gevinstskattF = gevinstF * (gevinst_pst / 100)
+  const holdekostFlipp = planlagtFlipp ? holdekostnadOppussing : 0
+  const nettoFlipp = salgsVerdiF - restgjeld - salgskostnadF - gevinstskattF - holdekostFlipp
   const flipp: ScenarioResultat = {
-    type: 'flipp', tittel: 'Flipp / selg nå', tilgjengelig: verdi > 0,
-    utilgjengeligGrunn: verdi > 0 ? undefined : 'Mangler verdivurdering',
-    gevinst_etter_skatt: gevinst - gevinstskatt,
-    frigjort_kapital: nettoVedSalg,
-    skatt_linje: { lbl: `Gevinstskatt (selskap, ${gevinst_pst} %)`, verdi: -gevinstskatt },
+    type: 'flipp', tittel: planlagtFlipp ? 'Fullfør oppussing og selg' : 'Flipp / selg nå',
+    tilgjengelig: salgsVerdiF > 0,
+    utilgjengeligGrunn: salgsVerdiF > 0 ? undefined : 'Mangler verdivurdering / forventet salgssum',
+    gevinst_etter_skatt: gevinstF - gevinstskattF,
+    frigjort_kapital: nettoFlipp,
+    varighet_mnd: planlagtFlipp && varighet > 0 ? varighet : undefined,
+    skatt_linje: { lbl: `Gevinstskatt (selskap, ${gevinst_pst} %)`, verdi: -gevinstskattF },
     detaljer: [
-      { lbl: 'Markedsverdi', verdi },
+      { lbl: planlagtFlipp ? 'Forventet salgssum (ARV)' : 'Markedsverdi', verdi: salgsVerdiF },
       { lbl: 'Restgjeld', verdi: -restgjeld },
-      { lbl: `Salgskostnad (${SALGSKOST_PST} %)`, verdi: -salgskostnad },
-      { lbl: `Gevinstskatt (${gevinst_pst} %)`, verdi: -gevinstskatt },
-      { lbl: 'Frigjort kapital', verdi: nettoVedSalg },
+      { lbl: `Salgskostnad (${SALGSKOST_PST} %)`, verdi: -salgskostnadF },
+      ...(holdekostFlipp > 0 ? [{ lbl: `Holdekostnad (${varighet} mnd oppussing)`, verdi: -holdekostFlipp }] : []),
+      { lbl: `Gevinstskatt (${gevinst_pst} %)`, verdi: -gevinstskattF },
+      { lbl: planlagtFlipp ? 'Frigjort kapital etter salg' : 'Frigjort kapital', verdi: nettoFlipp },
     ],
   }
 
-  // 2) Langtidsleie (basert på registrerte inntekter/kostnader/lån)
-  const langtidAarNettoForSkatt = (leieMnd - kostnaderMnd) * 12
+  // 2) Langtidsleie — bruker registrert leie, ellers forventet planleie. Leiestart
+  //    utsettes med oppussingsvarigheten (bæring i mellomtiden).
+  const effektivLeie = leieMnd > 0 ? leieMnd : forventetLeie
+  const leieErPlan = leieMnd <= 0 && forventetLeie > 0
+  const langtidAarNettoForSkatt = (effektivLeie - kostnaderMnd) * 12
   const langtidSkatt = Math.max(0, langtidAarNettoForSkatt) * (utleie_pst / 100)
   const langtidAarNetto = langtidAarNettoForSkatt - langtidSkatt
-  const langtidCashflowMnd = leieMnd - kostnaderMnd - laanMnd
+  const langtidCashflowMnd = effektivLeie - kostnaderMnd - laanMnd
   const langtid: ScenarioResultat = {
-    type: 'langtid', tittel: 'Langtidsleie', tilgjengelig: leieMnd > 0,
-    utilgjengeligGrunn: leieMnd > 0 ? undefined : 'Mangler registrert leieinntekt',
+    type: 'langtid', tittel: 'Langtidsleie', tilgjengelig: effektivLeie > 0,
+    utilgjengeligGrunn: effektivLeie > 0 ? undefined : 'Mangler leieinntekt eller forventet leie',
     yield_bundet_ek_pst: yieldPaaEk(langtidAarNetto),
     cashflow_mnd: langtidCashflowMnd,
+    varighet_mnd: varighet > 0 ? varighet : undefined,
     skatt_linje: { lbl: `Utleieskatt (${utleie_pst} %)`, verdi: -langtidSkatt },
     detaljer: [
-      { lbl: 'Leie/mnd', verdi: leieMnd },
+      { lbl: leieErPlan ? 'Forventet leie/mnd' : 'Leie/mnd', verdi: effektivLeie },
       { lbl: 'Driftskostnad/mnd', verdi: -kostnaderMnd },
       { lbl: 'Lån/mnd', verdi: -laanMnd },
-      { lbl: 'Cashflow/mnd', verdi: langtidCashflowMnd },
+      { lbl: 'Cashflow/mnd (i drift)', verdi: langtidCashflowMnd },
+      ...(varighet > 0 ? [{ lbl: `Leiestart om ${varighet} mnd — bæring`, verdi: -holdekostnadOppussing }] : []),
       { lbl: `Utleieskatt/år (${utleie_pst} %)`, verdi: -langtidSkatt },
       { lbl: 'Yield på bundet EK', verdi: yieldPaaEk(langtidAarNetto), pst: true },
     ],
@@ -156,11 +186,13 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
       type: 'korttid', tittel: 'Korttidsleie (Airbnb)', tilgjengelig: true,
       yield_bundet_ek_pst: yieldPaaEk(korttidAarNetto),
       cashflow_mnd: (o.netto_uten_lan / 12) - laanMnd,
+      varighet_mnd: varighet > 0 ? varighet : undefined,
       skatt_linje: { lbl: `Utleieskatt (${utleie_pst} %)`, verdi: -korttidSkatt },
       detaljer: [
         { lbl: 'Brutto/år (realistisk)', verdi: o.brutto_inntekt },
         { lbl: 'Driftskostnad/år', verdi: -o.kostnader_lopende },
         { lbl: 'Netto før skatt/år', verdi: korttidAarNettoForSkatt },
+        ...(varighet > 0 ? [{ lbl: `Utleiestart om ${varighet} mnd — bæring`, verdi: -holdekostnadOppussing }] : []),
         { lbl: `Utleieskatt/år (${utleie_pst} %)`, verdi: -korttidSkatt },
         { lbl: 'Yield på bundet EK', verdi: yieldPaaEk(korttidAarNetto), pst: true },
       ],

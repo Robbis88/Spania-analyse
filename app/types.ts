@@ -197,6 +197,9 @@ export type Prosjekt = {
   marked?: 'spania' | 'norge'
   selskap_id?: string | null
   markedsleie_mnd?: number | null
+  // Tidsstyrt motor (B4): planforutsetninger. ARV = forventet_salgsverdi (over).
+  oppussing_varighet_mnd?: number | null   // hvor lenge oppussingen tar (mnd)
+  forventet_leie_mnd?: number | null        // planleie før faktiske inntekter finnes
   strategi?: 'flipp' | 'langtid' | 'korttid' | 'uavklart'
   vft_status?: 'har' | 'sokt' | 'mangler' | null
   eierform?: string | null
