@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { FARGER, RADIUS, SHADOW } from '../lib/styles'
 import { STRATEGI_ETIKETT, type Strategi } from '../lib/strategi'
+import { useEurNokKurs } from '../lib/valuta'
 
 type SelskRad = {
   id: string; navn: string; valuta: string; antall_eiendommer: number
@@ -28,6 +29,7 @@ export function SelskapDashboard({ selskapId, navn, land, onÅpne }: { selskapId
   const [selsk, setSelsk] = useState<SelskRad | null>(null)
   const [rang, setRang] = useState<RangRad[]>([])
   const [laster, setLaster] = useState(true)
+  const eurNok = useEurNokKurs()
 
   useEffect(() => {
     Promise.all([
@@ -59,6 +61,14 @@ export function SelskapDashboard({ selskapId, navn, land, onÅpne }: { selskapId
           <Tall lbl="Resultat / mnd" v={fmt(selsk.resultat_mnd, valuta)} farge={selsk.resultat_mnd >= 0 ? FARGER.suksess : FARGER.feil} />
           <Tall lbl="Kjøpekraft" v={fmt(selsk.kjopekraft, valuta)} farge={FARGER.gull} />
           <Tall lbl="Refinansieringspotensial" v={fmt(selsk.frigjorbar_refi, valuta)} />
+        </div>
+      )}
+
+      {/* Spania-særtrekk (C6): valuta EUR + NOK + valutarisiko */}
+      {land === 'spania' && selsk && (
+        <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14, marginBottom: 14, fontSize: 13, color: FARGER.tekstMid }}>
+          💱 Kurs 1 € = {eurNok.toFixed(2)} kr · Egenkapital ~{(selsk.egenkapital * eurNok / 1_000_000).toFixed(1).replace('.', ',')} MNOK ·
+          valutarisiko ±5 % = ±{Math.round(selsk.egenkapital * eurNok * 0.05).toLocaleString('nb-NO')} kr
         </div>
       )}
 

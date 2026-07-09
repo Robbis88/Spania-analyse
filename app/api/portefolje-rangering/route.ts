@@ -85,6 +85,10 @@ export async function GET(req: NextRequest) {
       if (leieMnd > 0 && stressCashflow < -2000) {
         flagg.push({ farge: 'gul', tekst: `Rentesjokk +3pp: cashflow ${Math.round(stressCashflow)}/mnd` })
       }
+      // VFT/turistlisens — korttid i Spania uten lisens (C6)
+      if (p.marked === 'spania' && p.strategi === 'korttid' && p.vft_status !== 'har') {
+        flagg.push({ farge: 'rod', tekst: p.vft_status === 'sokt' ? 'VFT-lisens søkt — ikke godkjent ennå' : 'Mangler VFT-turistlisens' })
+      }
 
       return {
         id: p.id, navn: p.navn, marked: p.marked || 'spania', valuta: selskap?.valuta || (p.marked === 'norge' ? 'NOK' : 'EUR'),

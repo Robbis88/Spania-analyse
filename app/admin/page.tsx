@@ -27,6 +27,7 @@ const Kapital = dynamic(() => import('../components/Kapital').then(m => m.Kapita
 const HjemDashboard = dynamic(() => import('../components/HjemDashboard').then(m => m.HjemDashboard), { ssr: false, loading: laster })
 const SelskapDashboard = dynamic(() => import('../components/SelskapDashboard').then(m => m.SelskapDashboard), { ssr: false, loading: laster })
 const Varsler = dynamic(() => import('../components/Varsler').then(m => m.Varsler), { ssr: false, loading: laster })
+const EiendomsRegister = dynamic(() => import('../components/EiendomsRegister').then(m => m.EiendomsRegister), { ssr: false, loading: laster })
 
 type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
@@ -323,7 +324,7 @@ export default function Home() {
 
           {aktivSeksjon === 'hjem' && <HjemDashboard onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} />}
           {aktivSeksjon === 'varsler' && <Varsler onÅpne={() => gåTil('eiendommer')} />}
-          {aktivSeksjon === 'eiendommer' && <Portefolje onTilbake={hjem} />}
+          {aktivSeksjon === 'eiendommer' && <EiendomsRegister />}
           {aktivSeksjon === 'loeiendom' && (norgeSelskap
             ? <SelskapDashboard selskapId={norgeSelskap.id} navn={norgeSelskap.navn} land="norge" onÅpne={() => gåTil('eiendommer')} />
             : <TomtSelskap navn="Loeiendom" />)}
