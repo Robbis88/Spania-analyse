@@ -4,259 +4,196 @@
 > Se også `AGENTS.md`: dette er en Next.js-versjon med breaking changes — slå opp i
 > `node_modules/next/dist/docs/` før du skriver Next.js-spesifikk kode.
 >
-> **Status:** Dette dokumentet beskriver tilstanden **etter Fase A (rydding)**.
-> Kommende arbeid (beslutningsmotor, kapitaloversikt m.m.) er beskrevet i `PROSJEKT.md`.
+> **Status:** Beskriver tilstanden **etter Fase A (rydding) + Fase B (v2)**.
+> Den opprinnelige planen ligger i `PROSJEKT.md` (alle 9 milepæler er bygget).
 
 ---
 
 ## 1. Hva er dette?
 
-Et **internt styringsverktøy for eiendomsinvestering**, bygget som én Next.js-app. Det dekker
-hele livsløpet til en investering — fra analyse av et potensielt kjøp, via oppussing og drift,
-til utleie og salg — for **to markeder**: Spania (Costa del Sol) og Norge.
+Et **internt styringsverktøy for eiendomsinvestering** for Loeiendom AS (Norge) og LO-casas SL
+(Spania), bygget som én Next.js-app. Det dekker hele livsløpet — analyse → oppussing → drift →
+utleie/salg — for to markeder, og svarer kontinuerlig på to spørsmål:
 
-Systemet er tungt AI-drevet (Claude) for analyse, OCR, bildebehandling og en chat-agent.
+1. **Per eiendom:** «Hva er beste bruk av denne akkurat nå?» (flipp / langtid / korttid / behold+refi)
+2. **Per portefølje:** «Hvor mye kan vi kjøpe for neste runde?» (kjøpekraft)
 
-> Historikk: appen hadde tidligere også en offentlig utleieportal og en betalt
-> boliginspeksjonstjeneste (med Stripe). Begge ble fjernet i Fase A — se `PROSJEKT.md`.
+Systemet anbefaler med begrunnelse og regnestykke bak — **aldri falske sikkerhetsprosenter**.
+Tungt AI-drevet (Claude) for analyse, OCR, bildebehandling, beslutningsanbefalinger og daglig brief.
+
+> Historikk: hadde tidligere en offentlig utleieportal + betalt inspeksjonstjeneste (Stripe).
+> Begge fjernet i Fase A. All data legges inn manuelt — ingen skraping/bankfeeds/regnskapsintegrasjon.
 
 ### Én flate
-
-| Flate | Målgruppe | Tilgang |
-|---|---|---|
-| `/admin` | Eier/drift | Sesjons-cookie (`/api/auth`) |
-| `/` | — | Redirecter til `/admin` |
+| Flate | Tilgang |
+|---|---|
+| `/admin` | Sesjons-cookie (`/api/auth`) |
+| `/` | Redirect → `/admin` |
 
 ---
 
 ## 2. Teknisk stack
 
-| Lag | Teknologi | Fil/pakke |
-|---|---|---|
-| Rammeverk | Next.js 16.2 (App Router) | `next@16.2.4` |
-| UI | React 19.2, inline-styles (ingen CSS-rammeverk) | `app/lib/styles.ts` |
-| Språk | TypeScript 5 | `tsconfig.json` |
-| Database + fillagring | Supabase (Postgres + Storage) | `@supabase/supabase-js` |
-| AI (tekst/vision) | Anthropic Claude (`sonnet`) | `@anthropic-ai/sdk` |
-| AI (bildegenerering) | Replicate (Nano Banana / Flux Kontext) | `replicate` |
-| E-post | Resend | `resend` |
-| Bildebehandling | sharp | `sharp` |
-| PDF | jsPDF + autotable | `jspdf`, `jspdf-autotable` |
-| Nettskraping | rå `fetch` + regex (ikke cheerio/playwright i praksis) | — |
+| Lag | Teknologi |
+|---|---|
+| Rammeverk | Next.js 16.2 (App Router), React 19.2 |
+| Språk | TypeScript 5 |
+| UI | Inline-styles på design-tokens (`app/lib/styles.ts`) — ingen CSS-rammeverk |
+| Database + fillagring | Supabase (Postgres + Storage) |
+| AI (tekst/vision) | Anthropic Claude — `@anthropic-ai/sdk` (`claude-sonnet-4-6`, OCR `claude-sonnet-4-5`) |
+| AI (bilde) | Replicate (Nano Banana / Flux Kontext) |
+| E-post | Resend · Bildebehandling | sharp · PDF | jsPDF |
 
-**Scripts:** `npm run dev` · `npm run build` · `npm run start` · `npm run lint`
-
-> Merk: `next.config.ts` er tom (ingen custom config). Stripe ble avinstallert i Fase A.
+**Scripts:** `npm run dev` · `build` · `start` · `lint`. `next.config.ts` er tom.
 
 ---
 
-## 3. Mappestruktur
+## 3. Mappestruktur (utdrag)
 
 ```
 app/
-  page.tsx                  Redirect → /admin (portalen er fjernet)
-  layout.tsx                Root layout (Geist-fonter, Toaster, metadata)
-  globals.css               Animasjoner + utility-klasser (anim-fade-up, skimmer, kort-loft …)
-  types.ts                  ★ Domenemodellen — all TypeScript-typing samlet her
-  admin/page.tsx            Adminpanel (11 seksjoner, lazy-loaded)
+  page.tsx                  Redirect → /admin
+  admin/page.tsx            Adminpanel (13 seksjoner, lazy-loaded) + daglig brief på forsiden
+  types.ts                  ★ Domenemodellen
   api/                      Route handlers (se §6)
   components/               React-komponenter (se §5)
-    portefolje/faner/       Faner i eiendomsdetalj
+    portefolje/faner/       Faner i eiendomsdetalj (inkl. Beslutning, Tilbud, Tidslinje)
     norsk/                  Norsk kalkulator-modul
   lib/                      Forretningslogikk + infrastruktur (se §4)
-next.config.ts             (tom)
-migrasjoner/               SQL-migrasjoner (kjøres manuelt i Supabase)
+migrasjoner/               SQL-migrasjoner (kjøres MANUELT i Supabase — se README der)
 ```
 
-> Fjernet i Fase A: `app/bolig/`, `app/laast/`, `app/inspeksjon/`, `app/api/inspeksjon/`,
-> `app/api/utleie-portal/`, `app/api/portal-tilgang/`, `app/components/portal/`, `middleware.ts`.
+> **Migrasjoner kjøres aldri automatisk.** All ny SQL legges også på utklippstavlen (Roberts flyt: lim inn i Supabase SQL Editor).
 
 ---
 
 ## 4. `app/lib/` — forretningslogikk & infrastruktur
 
-Delt i tre lag: **rene beregninger**, **PDF-byggere**, og **infrastruktur**.
-
-### 4.1 Rene beregningsfunksjoner (single source of truth)
-
-> Prinsipp: samme funksjon brukes både live i UI **og** når PDF-ene rekonstruerer tallene
-> fra lagret Supabase-state. Det garanterer at PDF alltid matcher skjerm. Endrer du en
-> formel, endres begge steder samtidig.
-
-| Fil | Marked | Ansvar |
-|---|---|---|
-| `beregninger.ts` | 🇪🇸 | Total investering, cashflow, yield, ROI. `beregnSalg`: kapitalgevinstskatt **19 % (EU) / 24 % (ikke-EU)** + plusvalía + 3 % kildeskatt-retention |
-| `utleie.ts` | 🇪🇸 | Airbnb-motor: nattpris × belegg × dager, interpolerer år 1 → etablert, 3 scenarier. `beregnAar` gir full årsoversikt |
-| `catastro.ts` | 🇪🇸 | Slår opp spansk matrikkel (areal, byggeår) fra gratis Catastro OVC-API |
-| `norskKalkulator.ts` | 🇳🇴 | Flippe-/bo-og-flipp-kalkyle: dokumentavgift, holdekostnader, skatt (**22 %**, fritak ≥12 mnd botid). `regnFinansiering` modellerer hva banken faktisk finansierer + refinansiering etter oppussing |
-| `norskBankScore.ts` | 🇳🇴 | Bankscore 0–100: gjeldsgrad 25 % (Finanstilsynets 5×-regel), belåningsgrad 25 %, betjeningsevne 30 % (SIFO-livsopphold), stresstest +3pp 20 %. `regnTotalScore` = AI-flippescore + bankscore + megler-realisme |
-| `offmarket.ts` | 🇳🇴 | Adressesøk mot Geonorge/matrikkel, dyplenker (SeEiendom/NVE/Enova), budkalkyle (2,5 % dokumentavgift) |
-| `portefolje.ts` | felles | KPI for eide eiendommer: cashflow, LTV (`belaningsgrad`), yield, `rentesjokk`-stresstest, `annuitetMnd` |
-| `oppussing.ts` | felles | Oppussingsbudsjett, ROI, brutto fortjeneste, `erEstimatUtdatert` |
-| `oppgaver.ts` | felles | `beregnEffektivPrioritet` (frist-eskalering), `fristTekst` |
-| `prosjektSync.ts` | felles | Holder duplikate felt (leie/lån) konsistente mellom `prosjekter` og `utleieanalyse`. ⚠️ Planlagt fjernet i B7 (én kilde per tall) |
-
-### 4.2 PDF-byggere (jsPDF, dynamisk importert)
-
-| Fil | Genererer |
-|---|---|
-| `pdf.ts` | Spansk prosjekt-PDF (full analyse + før/etter-bilder) |
-| `pdfNorsk.ts` | ★ Norsk flippe-prospekt "klart til bankmøte" (~1130 linjer). Rekonstruerer hele kalkylen fra `norskKalkulator.ts` + `norskBankScore.ts` |
-| `pdfCashflow.ts` | Årsrapport for regnskapsfører fra `eiendom_cashflow` |
-| `pdfSalgspakke.ts` | Kjøper-/investorrettet salgspakke (server-side, laster bilder direkte) |
-| `pdfOffmarket.ts` / `pdfOffmarketBank.ts` | Off-market-rapport (vanlig + bankvennlig) |
-
-### 4.3 Infrastruktur / sikkerhet
-
+### 4.1 Rene beregninger (single source of truth — brukes både i UI og PDF/AI)
 | Fil | Ansvar |
 |---|---|
-| `supabase.ts` | Anon-klient (klient-side). Bruker `NEXT_PUBLIC_SUPABASE_KEY` (ikke `_ANON_KEY`) |
-| `supabaseAdmin.ts` | `hentSupabaseAdmin()` — service-role singleton (server-side, de fleste API-ruter) |
-| `requireAuth.ts` | HMAC-signert HTTPOnly sesjons-cookie `admin-sesjon` (7 dager, `timingSafeEqual`) |
-| `aktivBruker.ts` | Klient-side "hvem er innlogget" via localStorage (kun UI, ikke sikkerhet) |
-| `rateLimit.ts` | In-memory per IP (login 10/min). ⚠️ Kun per Vercel-instans — trenger Redis for skalering |
-| `epost.ts` | Resend-integrasjon, avsender `post@loeiendom.com`, signatur + tekst→HTML |
-| `logg.ts` | `loggAktivitet` → `aktivitetslogg`-tabellen |
-| `styles.ts` | Design-tokens: `FARGER`, `RADIUS`, `SHADOW`, `MOTION`, `SPACING`, `BREAKPOINT` + input-hjelpere |
-| `format.ts` | `fmtNok`, `fmtEur`, `fmtBelop` (skjermformatering) |
+| `beslutning.ts` | ★ **Beslutningsmotoren (B4).** `beregnBeslutning` → 4 scenarier (flipp/langtid/korttid/refi) på **bundet EK**, med selskapets skatteprofil. `beregnBundetEk` er delt med kapitaloversikten. Terskler/forutsetninger som konstanter (yield-terskel 6 %, salgskost 2 %, maks LTV 75 %) |
+| `skatteprofil.ts` | Defaults per land (= dagens satser), type-guards, `gevinstSatsPst`/`utleieSatsPst`, `medDefaults` |
+| `beregninger.ts` 🇪🇸 | `beregnSalg` (CGT 19/24 %, plusvalía, 3 % retention) — tar nå satser som param |
+| `utleie.ts` 🇪🇸 | Airbnb-motor, `beregnAar` (langtidsleie sendes inn som param etter B7) |
+| `norskKalkulator.ts` 🇳🇴 | Flippe-/bo-kalkyle — skattesatser parametrisert (default 22 %) |
+| `norskBankScore.ts` 🇳🇴 | Bankscore 0–100 (SIFO, 5×-regel, stresstest) |
+| `offmarket.ts` · `catastro.ts` | Off-market (Geonorge) · spansk matrikkel |
+| `portefolje.ts` | KPI for eide eiendommer: `sisteVerdi`, `totalRestgjeld`, `gjeldendeLeieMnd`, `belaningsgrad`, `rentesjokk`, `annuitetMnd` m.fl. |
+| `oppussing.ts` · `oppgaver.ts` | Oppussingsbudsjett · oppgave-prioritering |
+| `tilbud.ts` | Konstanter for tilbudsopplasting (mime, arbeidstyper, storage-sti) |
+
+> **Fjernet i B7:** `prosjektSync.ts`. Leie/lån har nå **én kilde** (`prosjekter.leieinntekt_mnd` / `lån_mnd`); Utleie-fanen leser/skriver dem direkte.
+
+### 4.2 PDF-byggere (jsPDF): `pdf.ts`, `pdfNorsk.ts`, `pdfCashflow.ts`, `pdfSalgspakke.ts`, `pdfOffmarket(Bank).ts`
+
+### 4.3 Infrastruktur
+| Fil | Ansvar |
+|---|---|
+| `supabase.ts` / `supabaseAdmin.ts` | Anon-klient (klient) / service-role (`hentSupabaseAdmin`, server) |
+| `requireAuth.ts` | HMAC-signert sesjons-cookie `admin-sesjon` |
+| `logg.ts` | `loggAktivitet` → `aktivitetslogg` — utvidet med `prosjekt_id` + `hendelsestype` (B10) |
+| `rateLimit.ts` | In-memory per IP (login). ⚠️ Kun per Vercel-instans |
+| `epost.ts` · `styles.ts` · `format.ts` · `aktivBruker.ts` | Resend · tokens · formatering · localStorage-UI-hint |
 
 ---
 
-## 5. `app/components/` — komponenter etter funksjonsområde
+## 5. `app/components/` — etter funksjonsområde
 
-**A. Analyse av nye kjøp:** `Boliganalyse` (Spania), `NorskeBoliger` (Finn-flipp, cacher per URL),
-`Offmarket`/`OffmarketDetalj`, `TakstAnalyse`, `ScoreKort`.
+- **Analyse:** `Boliganalyse`, `NorskeBoliger`, `Offmarket(Detalj)`, `TakstAnalyse`, `ScoreKort`
+- **Selskap & kapital (v2):** `Selskaper` (skatteprofil-redigering), `Kapital` (kjøpekraft, bundet EK, konsernlån), `DagligBrief` (admin-forside: kjøpekraft + flaggede eiendommer + mål + AI-brief)
+- **Prosjektstyring:** `Regnskap`, `ProsjektFelter`, `Oppussingsbudsjett`, `Utleieanalyse`, `Selge`, `Salgspakke`, `Dokumenter`, `Kvitteringer`, `ProsjektBilder`, `SendForesporselModal` (håndverker), `TilbudHistorikk`
+- **Portefølje (`portefolje/`):** `Portefolje`, `PortefoljeDashboard` (nå med **rangering** + kjøpekraft, B6), `EiendomKort`, `EiendomDetalj`, `useEiendomData`. Faner (`faner/`): `EiendomOversikt`, **`EiendomBeslutning`** (B4/B5), `EiendomLaan/Inntekter/Kostnader/Verdi/Cashflow/Leietakere`, `EiendomOppussing`, **`EiendomTilbud`** (B8), **`EiendomTidslinje`** (B10), `EiendomAi`, `EiendomDokumenter/Bilder/Kvitteringer`
+- **Håndverk/timer/AI/felles:** `Handverkere`, `Timer`, `AgentChat`, `Dashboard`, `Oppgaver`, `Aktivitetslogg`, `Innlogging`, `Toaster`
 
-**B. Norsk kalkulator-modul (`norsk/`):** `types.ts`, `KalkInput`, `HusholdningPanel`,
-`SalgEgenBolig`, `LagredeProsjekter`.
-
-**C. Prosjekt- & regnskapsstyring:** `Regnskap` (nav for ett prosjekt), `ProsjektFelter`,
-`Oppussingsbudsjett`, `Utleieanalyse`, `Selge`/`SalgsanalyseVisning`, `Salgspakke`,
-`Dokumenter`, `Kvitteringer`, `ProsjektBilder`, `NesteSteg`, `ProsjektDialog`, `TilbudHistorikk`,
-`BoligerSeksjon`/`BoligListe`. `SendForesporselModal` (håndverker-forespørsel med bilder — brukt
-av `ProsjektBilder` og `Oppussingsbudsjett`).
-
-**D. Portefølje — eide eiendommer (`portefolje/`):** `Portefolje`, `PortefoljeDashboard`,
-`EiendomKort`, `EiendomDetalj`, `useEiendomData` (sentral data-hook). Faner (`faner/`):
-`EiendomOversikt`, `EiendomVerdi`, `EiendomLaan`, `EiendomInntekter`, `EiendomKostnader`,
-`EiendomCashflow`, `EiendomLeietakere`, `EiendomAi` + wrappere `EiendomOppussing/Bilder/Dokumenter/Kvitteringer`.
-
-**E. Håndverk & timer:** `Handverkere` (register + forespørsler med AI-oversettelse), `Timer`.
-E-post: `SendteEposter`, `EpostGodkjenningsKort`.
-
-**F. AI-assistent:** `AgentChat` (flytende Claude-chat med tool_use, PDF- og e-postutkast).
-
-**G. Felles:** `Dashboard`, `Oppgaver`, `Aktivitetslogg`, `Innlogging`, `Toaster`.
-
-> Fjernet i Fase A: `components/portal/*` (PortalHeader, InteresseModal), `UtleiePortalAdmin`,
-> `Inspeksjon`. Admin-UI er hardkodet på norsk (den flerspråklige i18n hørte til portalen og er fjernet).
+Admin-UI er hardkodet på norsk (den flerspråklige portal-i18n ble fjernet i Fase A).
 
 ---
 
 ## 6. API-ruter (`app/api/`)
 
-Mønster: alle ruter bruker `requireAuth(req)` + `hentSupabaseAdmin()`. AI via `@anthropic-ai/sdk`.
+Alle krever `requireAuth` + `hentSupabaseAdmin`.
 
 | Gruppe | Ruter |
 |---|---|
-| **Auth/oppsett** | `auth` (login/logout/sesjon), `auth/brukere`, `husholdning-default`, `dashboard` |
-| **Analyse (AI)** | `analyse` (Spania), `analyse-norge` (Finn), `airbnb`, `analyse-takst` (vision), `catastro`, `agent/salgsestimat` |
-| **AI-agent** | `agent` (chat + e-postutkast) |
-| **Dokumenter** | `dokument/{last-opp,oppdater,signert-url,slett}`, `dokument-sjekkpunkt` |
-| **Kvitteringer (OCR)** | `kvittering/{last-opp,analyser,oppdater,signert-url,slett}` |
-| **Bilder** | `bilder/{last-opp,analyser,generer,generer/[id],signert-url,slett}` |
-| **E-post** | `epost/send` (Resend) |
-| **Portefølje** | `portefolje/{ai-forslag,cashflow-pdf,verdivurdering-fil}`, `salgspakke` |
-| **Salg** | `selge/analyse` |
-| **Off-market** | `offmarket/{innhent,sammenlignbar,analyse,pdf,bank-pdf}` |
-| **Håndverker** | `handverker/{send-foresporsel,oversett}` |
-
-Alle krever admin-auth. Lange AI-ruter setter `maxDuration` (300s for `airbnb`, `offmarket/analyse`; 60s for `salgspakke`, `handverker/send-foresporsel`).
-
-> Fjernet i Fase A: `api/inspeksjon/*`, `api/utleie-portal/*`, `api/portal-tilgang`.
+| Auth/oppsett | `auth`, `auth/brukere`, `husholdning-default`, `dashboard` |
+| Analyse (AI) | `analyse`, `analyse-norge`, `airbnb`, `analyse-takst`, `catastro`, `agent`, `agent/salgsestimat` |
+| Dokument/kvittering/bilder | `dokument/*`, `dokument-sjekkpunkt`, `kvittering/*`, `bilder/*` |
+| Salg/portefølje | `selge/analyse`, `portefolje/{ai-forslag,cashflow-pdf,verdivurdering-fil}`, `salgspakke`, `offmarket/*` |
+| E-post/håndverker | `epost/send`, `handverker/{send-foresporsel,oversett}` |
+| **v2 — selskap & kapital** | `selskaper`, `konsernlaan`, `kapital` |
+| **v2 — beslutning** | `beslutning` (AI-anbefaling), `portefolje-rangering`, `estimat-justering` (B5), `brief` (B9) |
+| **v2 — tilbud** | `tilbud`, `tilbud/last-opp`, `tilbud/analyser` (Claude-OCR) |
+| **v2 — mål** | `maal` |
 
 ---
 
-## 7. Autentisering & tilgang
+## 7. Autentisering
 
-Én mekanisme igjen etter Fase A:
-
-**Admin-sesjon** (`requireAuth.ts`) — HMAC-signert cookie `admin-sesjon`. Brukere defineres i
-`APP_USERS` (JSON) eller `APP_USERNAME`/`APP_PASSWORD`. Beskytter alle API-ruter.
-
-`aktivBruker.ts` (localStorage) er kun UI-hint — **ikke** sikkerhet; server verifiserer alltid sesjons-cookien.
-
-> Fjernet i Fase A: portal-passordvegg (`middleware.ts` + `portalAuth.ts`) og de token-baserte
-> kundesidene for inspeksjon.
+Én mekanisme: **admin-sesjon** (`requireAuth.ts`), HMAC-signert cookie, brukere fra `APP_USERS`/`APP_USERNAME`+`APP_PASSWORD`. `aktivBruker.ts` (localStorage) er kun UI-hint, ikke sikkerhet.
 
 ---
 
 ## 8. Datamodell (Supabase)
 
-Sentral tabell: **`prosjekter`** — bred rad som dekker begge markeder (kjøpesum, oppussing, leie,
-lån, `kategori: flipp|utleie`, `marked: spania|norge`) og lagrer AI-resultater som **JSONB-blobber**:
-`bolig_data`, `airbnb_score`, `airbnb_data`, `salgsanalyse_data`, `norsk_kalkulator_data`,
-`portefolje_ai_data`, `off_market_data`. `er_portefolje` + `eieretappe`
-(analyse → under_kjøp → eid → salgsklar → solgt) markerer eide eiendommer.
+**`prosjekter`** — sentral, dekker begge markeder + AI-JSONB-blobber. v2-felt: `selskap_id`, `markedsleie_mnd`. (`er_portefolje` + `eieretappe` markerer eide eiendommer.)
 
 | Domene | Tabeller |
 |---|---|
-| Oppussing | `oppussing_budsjett`, `oppussing_poster`, `oppussing_tillegg` |
-| Portefølje (eide) | `eiendom_laan`, `eiendom_inntekter`, `eiendom_kostnader`, `eiendom_verdivurderinger`, `eiendom_cashflow`, `eiendom_leietakere` |
-| Dokumentflyt | `dokumenter`, `dokument_sjekkpunkter`, `kvitteringer` (OCR-felt), `prosjekt_bilder` |
-| Utleieanalyse | `utleieanalyse` |
-| Drift | `oppgaver`, `handverkere`, `tilbudsforesporsler`, `timeloggning`, `eposter`, `aktivitetslogg`, `husholdning_default` |
+| **Selskap & kapital (v2)** | `selskaper` (navn, land, valuta, `skatteprofil` jsonb, `fri_likviditet`, `laanekapasitet`), `konsernlaan` |
+| Oppussing/tilbud | `oppussing_budsjett/poster/tillegg`, **`tilbud`** (v2, m/ OCR-felt + `akseptert`) |
+| Portefølje (eide) | `eiendom_laan/inntekter/kostnader/verdivurderinger/cashflow/leietakere` |
+| Utleie/dokument | `utleieanalyse`, `dokumenter`, `dokument_sjekkpunkter`, `kvitteringer`, `prosjekt_bilder` |
+| **v2 — læring/mål** | `estimat_justeringer` (B5), `maal` (B11) |
+| Drift/logg | `oppgaver`, `handverkere`, `tilbudsforesporsler`, `timeloggning`, `eposter`, `aktivitetslogg` (+ `prosjekt_id`, `hendelsestype`), `husholdning_default` |
 
-Storage-buckets: `bilder`, `dokumenter` (private — tilgang via signerte URL-er).
+Storage-buckets: `bilder`, `dokumenter` (tilbud ligger under `dokumenter/tilbud/…`).
 
-Domenemodellen i TypeScript er samlet i **`app/types.ts`**.
-
-> Fjernet i Fase A (via `migrasjoner/`): tabellene `inspeksjon_bestillinger`,
-> `inspeksjon_rapporter`, `inspeksjon_tilbud`, `utleie_foresporsler`, `interesse_registreringer`;
-> portal-/publiserings- og `*_oversettelser`-kolonner på `prosjekter`; storage-bucket `inspeksjon`.
+**Migrasjoner** (kjør i rekkefølge i Supabase — filene ligger i `migrasjoner/`):
+`A1/A3` (rydding) → `B1_selskaper` → `B7_drop_langtidsleie_maned` → `B2_B3_konsernlaan_kapital`
+→ `B8_B10_tilbud_tidslinje` → `B5_estimat_justeringer` → `B6_markedsleie` → `B11_maal`.
 
 ---
 
-## 9. Typisk dataflyt (livsløp for en investering)
+## 9. Dataflyt — beslutningskjeden (v2)
 
 ```
-1. ANALYSE     Admin analyserer annonse (Spania /api/analyse el. Finn /api/analyse-norge)
-               → Claude gir score/strategi → lagres som JSONB på prosjekter
-2. KJØP        Prosjekt får budsjett, dokumentsjekkliste, kvitteringer (OCR via Claude vision)
-3. OPPUSSING   Bilder lastes opp → AI-analyse → Replicate genererer "etter"-visualisering
-4. UTLEIE/SALG Utleieanalyse (beregnAar) eller salgskalkyle. prosjektSync holder leie/lån i synk
-5. RAPPORT     PDF for bankmøte (pdfNorsk), regnskapsfører (pdfCashflow), kjøper (pdfSalgspakke)
-   → alt logges i aktivitetslogg
+tilbud (B8, OCR)  →  min vurdering (B5, "dine tall vinner")  →  BESLUTNINGSMOTOR (B4)
+    (kilde: renoveringskost)                                        beregnBeslutning + skatteprofil
+        │                                                                   │
+        └──────────► estimat_justeringer (mater AI med historikk)          ▼
+                                                          porteføljerangering (B6, yield på bundet EK + flagg)
+                                                                            │
+                                                                            ▼
+                                                          kapitaloversikt (B3) + konsernlån (B2)
+                                                                            │
+                                                                            ▼
+                                                          daglig brief (B9) + mål (B11) på admin-forsiden
 ```
+
+Hvert tall har **én kilde**; alt annet beregnes ved lesing. `beregnBundetEk` deles mellom Beslutning (B4) og Kapital/Rangering (B3/B6) så tallet er identisk overalt.
 
 ---
 
 ## 10. Miljøvariabler
 
-| Variabel | Brukes til |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase-URL (klient + server) |
-| `NEXT_PUBLIC_SUPABASE_KEY` | Anon-nøkkel (klient-side) — **merk uvanlig navn** |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service-role (server-side admin-klient) |
-| `ANTHROPIC_API_KEY` | Claude (all AI) |
-| `RESEND_API_KEY` | E-post |
-| `BILDE_MODELL` | Overstyr Replicate-bildemodell (default Nano Banana) |
-| `APP_USERS` (JSON) el. `APP_USERNAME`/`APP_PASSWORD` | Admin-brukere |
-| `AUTH_SECRET` | HMAC-hemmelighet for sesjons-cookie (utledes fra APP_* hvis mangler) |
-| `EPOST_SIGNATUR_LINJER` | E-postsignatur |
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_KEY` (**uvanlig navn — ikke `_ANON_KEY`**),
+`SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `BILDE_MODELL`,
+`APP_USERS` (JSON) el. `APP_USERNAME`/`APP_PASSWORD`, `AUTH_SECRET`, `EPOST_SIGNATUR_LINJER`.
 
-> Utgått i Fase A: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`,
-> `PORTAL_PASSORD`, `UTLEIE_FORESPORSEL_EPOST`.
+> Utgått i Fase A: `STRIPE_*`, `CRON_SECRET`, `PORTAL_PASSORD`, `UTLEIE_FORESPORSEL_EPOST`.
 
 ---
 
 ## 11. Konvensjoner & fallgruver
 
-- **Språk i kode:** norsk (variabler, funksjoner, kommentarer, æøå i felt som `kjøpesum`). Følg dette.
-- **Ingen CSS-rammeverk:** all styling via inline-styles + `app/lib/styles.ts`-tokens. Nye animasjoner legges i `app/globals.css`.
-- **Beregninger er delt sannhet:** endrer du en formel i `lib/`, sjekk at PDF-en som bruker den fortsatt stemmer.
-- **`prosjektSync`:** leie/mnd og lån/mnd lagres to steder (`prosjekter` + `utleieanalyse`) — bruk sync-funksjonene. Fjernes i B7 (én kilde per tall).
-- **Rate-limit er in-memory:** fungerer bare per instans. Ved skalering trengs Redis.
-- **Next.js med breaking changes:** se `AGENTS.md` — les `node_modules/next/dist/docs/` før Next-spesifikk kode.
-- **Supabase-nøkkelnavn:** klient-anon bruker `NEXT_PUBLIC_SUPABASE_KEY`, ikke standard `_ANON_KEY`.
-- **Ny SQL → utklippstavlen:** generert SQL legges på clipboard for innliming i Supabase SQL Editor.
+- **Norsk i kode** (variabler, funksjoner, æøå i felt som `kjøpesum`).
+- **Ingen CSS-rammeverk** — inline-styles + `styles.ts`-tokens; animasjoner i `globals.css`.
+- **Beregninger er delt sannhet** — endrer du en formel i `lib/`, treffer det UI, PDF og AI-kontekst samtidig.
+- **Én kilde per tall** (B7-prinsippet) — ingen sync-funksjoner, ingen duplikatfelt. Sjekk om et tall finnes før du lager nytt felt.
+- **Skattesatser er parametriske** — kommer fra `selskaper.skatteprofil` (defaults = dagens verdier i `skatteprofil.ts`). Endre formler forsiktig; endre satser i admin.
+- **`bundet EK` = `beregnBundetEk`** — bruk den ene funksjonen, ikke kopier formelen.
+- **Ny SQL → utklippstavlen** og som fil i `migrasjoner/`. Kjøres manuelt i Supabase.
+- **Rate-limit er in-memory** (per instans). **Supabase select-strenger** tåler ikke `ø` i typeparseren — bruk `select('*')` for tabeller med æøå-kolonner.
+- **AI gir aldri falske sikkerhetsprosenter** — anbefaling + begrunnelse + regnestykke.
+- **Next.js med breaking changes** — se `AGENTS.md`, les `node_modules/next/dist/docs/`.
