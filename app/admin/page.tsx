@@ -106,14 +106,14 @@ const NAV_PRIMAER: NavLink[] = [
   { id: 'kapital', lbl: 'Kapital' },
   { id: 'varsler', lbl: 'Varsler' },
 ]
-// Sekundærfunksjoner — vises etter et skille
+// Sekundærfunksjoner — vises etter et skille.
+// Flipp/Utleie/Portefølje er tatt ut av navigasjonen (C10 steg 8): de er dekket
+// av Eiendommer-registeret + selskapsdashboardene. Render-grenene og komponentene
+// beholdes til `er_portefolje`-migrasjonen er kjørt, så fjerningen er reversibel.
 const NAV_MER: NavLink[] = [
   { id: 'norge', lbl: 'Norske boliger' },
-  { id: 'flipp', lbl: 'Flipp' },
-  { id: 'utleie', lbl: 'Utleie' },
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
-  { id: 'portefolje', lbl: 'Portefølje' },
   { id: 'timer', lbl: 'Timer' },
   { id: 'handverkere', lbl: 'Håndverk' },
   { id: 'selskaper', lbl: 'Selskaper' },
