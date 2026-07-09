@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
 
       return {
         id: p.id, navn: p.navn, marked: p.marked || 'spania', valuta: selskap?.valuta || (p.marked === 'norge' ? 'NOK' : 'EUR'),
+        selskap_id: p.selskap_id || null, strategi: p.strategi || 'uavklart', eieretappe: p.eieretappe || 'eid',
         bundet_ek: b.bundet_ek,
         langtid_yield_pst: typeof ly === 'number' ? ly : null,
         cashflow_mnd: langtid?.cashflow_mnd ?? null,

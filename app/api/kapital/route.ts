@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
-import type { EiendomLaan, EiendomVerdivurdering, Konsernlaan, Prosjekt, Selskap } from '../../types'
-import { sisteVerdi, totalRestgjeld } from '../../lib/portefolje'
+import type { EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, Konsernlaan, Prosjekt, Selskap } from '../../types'
+import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalLaanKostnadMnd } from '../../lib/portefolje'
 import { beregnBundetEk, MAKS_LTV_PST } from '../../lib/beslutning'
 import { gevinstSatsPst, medDefaults } from '../../lib/skatteprofil'
 
@@ -42,13 +42,19 @@ export async function GET(req: NextRequest) {
     const ider = prosjekter.map(p => p.id)
     let laanAlle: EiendomLaan[] = []
     let vurdAlle: EiendomVerdivurdering[] = []
+    let inntekterAlle: EiendomInntekt[] = []
+    let kostnaderAlle: EiendomKostnad[] = []
     if (ider.length > 0) {
-      const [laanRes, vurdRes] = await Promise.all([
+      const [laanRes, vurdRes, innRes, kostRes] = await Promise.all([
         admin.from('eiendom_laan').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_verdivurderinger').select('*').in('prosjekt_id', ider),
+        admin.from('eiendom_inntekter').select('*').in('prosjekt_id', ider),
+        admin.from('eiendom_kostnader').select('*').in('prosjekt_id', ider),
       ])
       laanAlle = (laanRes.data || []) as EiendomLaan[]
       vurdAlle = (vurdRes.data || []) as EiendomVerdivurdering[]
+      inntekterAlle = (innRes.data || []) as EiendomInntekt[]
+      kostnaderAlle = (kostRes.data || []) as EiendomKostnad[]
     }
 
     const perSelskap = selskaper.map(s => {
@@ -59,15 +65,21 @@ export async function GET(req: NextRequest) {
       let bundetEk = 0
       let frigjorbarRefi = 0
       let samletVerdi = 0
+      let samletGjeld = 0
+      let resultatMnd = 0
       for (const e of eiendommer) {
         const laan = laanAlle.filter(l => (l as { prosjekt_id?: string }).prosjekt_id === e.id)
         const vurd = vurdAlle.filter(v => (v as { prosjekt_id?: string }).prosjekt_id === e.id)
+        const inntekter = inntekterAlle.filter(i => (i as { prosjekt_id?: string }).prosjekt_id === e.id)
+        const kostnader = kostnaderAlle.filter(k => (k as { prosjekt_id?: string }).prosjekt_id === e.id)
         const verdi = sisteVerdi(vurd)
         const gjeld = totalRestgjeld(laan)
         const anskaffelse = (e.kjøpesum || 0) + (e.kjøpskostnader || 0) + (e.oppussing_faktisk || 0)
         bundetEk += beregnBundetEk(verdi, gjeld, anskaffelse, gevinstPst).bundet_ek
         frigjorbarRefi += Math.max(0, verdi * (MAKS_LTV_PST / 100) - gjeld)
         samletVerdi += verdi
+        samletGjeld += gjeld
+        resultatMnd += gjeldendeLeieMnd(inntekter) - sumKostnaderPerMnd(kostnader) - totalLaanKostnadMnd(laan)
       }
 
       const fordringer = konsernlaan.filter(l => l.fra_selskap === s.id)
@@ -84,6 +96,9 @@ export async function GET(req: NextRequest) {
         id: s.id, navn: s.navn, land: s.land, valuta: s.valuta,
         antall_eiendommer: eiendommer.length,
         samlet_verdi: samletVerdi,
+        restgjeld: samletGjeld,
+        egenkapital: samletVerdi - samletGjeld,
+        resultat_mnd: resultatMnd,
         bundet_ek: bundetEk,
         frigjorbar_refi: frigjorbarRefi,
         fri_likviditet: friLikviditet,
@@ -96,9 +111,14 @@ export async function GET(req: NextRequest) {
     })
 
     // Konsolidert per valuta (kan ikke summere NOK og EUR uten kurs)
-    const perValuta: Record<string, { valuta: string; bundet_ek: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }> = {}
+    const perValuta: Record<string, { valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number; resultat_mnd: number; antall: number; bundet_ek: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }> = {}
     for (const r of perSelskap) {
-      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, bundet_ek: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0 })
+      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, samlet_verdi: 0, restgjeld: 0, egenkapital: 0, resultat_mnd: 0, antall: 0, bundet_ek: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0 })
+      v.samlet_verdi += r.samlet_verdi
+      v.restgjeld += r.restgjeld
+      v.egenkapital += r.egenkapital
+      v.resultat_mnd += r.resultat_mnd
+      v.antall += r.antall_eiendommer
       v.bundet_ek += r.bundet_ek
       v.fri_likviditet += r.fri_likviditet
       v.laanekapasitet += r.laanekapasitet

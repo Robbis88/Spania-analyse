@@ -19,43 +19,36 @@ const Selge = dynamic(() => import('../components/Selge').then(m => m.Selge), { 
 const Regnskap = dynamic(() => import('../components/Regnskap').then(m => m.Regnskap), { ssr: false, loading: laster })
 const Aktivitetslogg = dynamic(() => import('../components/Aktivitetslogg').then(m => m.Aktivitetslogg), { ssr: false, loading: laster })
 const NorskeBoliger = dynamic(() => import('../components/NorskeBoliger').then(m => m.NorskeBoliger), { ssr: false, loading: laster })
-const Dashboard = dynamic(() => import('../components/Dashboard').then(m => m.Dashboard), { ssr: false, loading: laster })
 const Portefolje = dynamic(() => import('../components/portefolje/Portefolje').then(m => m.Portefolje), { ssr: false, loading: laster })
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 const Selskaper = dynamic(() => import('../components/Selskaper').then(m => m.Selskaper), { ssr: false, loading: laster })
 const Kapital = dynamic(() => import('../components/Kapital').then(m => m.Kapital), { ssr: false, loading: laster })
-const DagligBrief = dynamic(() => import('../components/DagligBrief').then(m => m.DagligBrief), { ssr: false, loading: laster })
+const HjemDashboard = dynamic(() => import('../components/HjemDashboard').then(m => m.HjemDashboard), { ssr: false, loading: laster })
+const SelskapDashboard = dynamic(() => import('../components/SelskapDashboard').then(m => m.SelskapDashboard), { ssr: false, loading: laster })
+const Varsler = dynamic(() => import('../components/Varsler').then(m => m.Varsler), { ssr: false, loading: laster })
 
-type Seksjon = 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
+type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'portefolje' | 'kapital' | 'flipp' | 'utleie' | 'selge' | 'regnskap' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
 const CREAM_LYS = FARGER.creamLys
 const GULL = FARGER.gull
 
-type Snarvei = {
-  id: Exclude<Seksjon, null>
-  ikon: string
-  tittel: string
-  beskrivelse: string
+function TomtSelskap({ navn }: { navn: string }) {
+  return (
+    <div style={{ background: FARGER.creamLys, border: `1px dashed ${FARGER.gullSvak}`, borderRadius: RADIUS.md, padding: 40, textAlign: 'center', color: FARGER.tekstLys, fontSize: 14 }}>
+      Fant ikke selskapet «{navn}». Kjør migrasjonen <code>B1_selskaper.sql</code> i Supabase.
+    </div>
+  )
 }
 
-const SEKSJONER: Snarvei[] = [
-  { id: 'analyse', ikon: '01', tittel: 'Boliganalyse', beskrivelse: 'Vurder ny eiendom — score, yield og strategi (Spania)' },
-  { id: 'norge', ikon: '02', tittel: 'Norske boliger', beskrivelse: 'Flippe-kalkulator for norske Finn-annonser' },
-  { id: 'portefolje', ikon: '03', tittel: 'Min portefølje', beskrivelse: 'Eide eiendommer i Norge — verdi, lån, leie, cashflow' },
-  { id: 'kapital', ikon: '11', tittel: 'Kapital', beskrivelse: 'Kjøpekraft, bundet EK og konsernlån per selskap' },
-  { id: 'flipp', ikon: '04', tittel: 'Boligflipp', beskrivelse: 'Kjøp, puss opp, selg med fortjeneste' },
-  { id: 'utleie', ikon: '05', tittel: 'Boligutleie', beskrivelse: 'Aktive utleieboliger og prognoser' },
-  { id: 'selge', ikon: '06', tittel: 'Selge bolig', beskrivelse: 'Salg, skatt og sluttkalkyle' },
-  { id: 'regnskap', ikon: '07', tittel: 'Regnskap', beskrivelse: 'Tall, oversikt og årsrapport' },
-  { id: 'timer', ikon: '08', tittel: 'Timer', beskrivelse: 'Loggfør arbeidstimer per prosjekt — felles oversikt' },
-  { id: 'handverkere', ikon: '09', tittel: 'Håndverkere', beskrivelse: 'Nettverk av rørleggere, elektrikere, flisleggere osv.' },
-  { id: 'selskaper', ikon: '10', tittel: 'Selskaper', beskrivelse: 'Loeiendom AS og LO-casas — skattesatser per selskap' },
-]
-
 const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
+  hjem: 'Hjem',
+  loeiendom: 'Loeiendom',
+  locasas: 'Lo Casas',
+  eiendommer: 'Eiendommer',
+  varsler: 'Varsler',
   analyse: 'Boliganalyse',
   norge: 'Norske boliger',
   portefolje: 'Min portefølje',
@@ -102,21 +95,31 @@ function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbak
 }
 
 type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
-const NAV_LINKS: NavLink[] = [
+// Primær nav (C2) — kontrollrommet
+const NAV_PRIMAER: NavLink[] = [
+  { id: 'hjem', lbl: 'Hjem' },
   { id: 'analyse', lbl: 'Analyse' },
-  { id: 'norge', lbl: 'Norge' },
-  { id: 'portefolje', lbl: 'Portefølje' },
+  { id: 'loeiendom', lbl: 'Loeiendom' },
+  { id: 'locasas', lbl: 'Lo Casas' },
+  { id: 'eiendommer', lbl: 'Eiendommer' },
   { id: 'kapital', lbl: 'Kapital' },
+  { id: 'varsler', lbl: 'Varsler' },
+]
+// Sekundærfunksjoner — vises etter et skille
+const NAV_MER: NavLink[] = [
+  { id: 'norge', lbl: 'Norske boliger' },
   { id: 'flipp', lbl: 'Flipp' },
   { id: 'utleie', lbl: 'Utleie' },
   { id: 'selge', lbl: 'Selge' },
   { id: 'regnskap', lbl: 'Regnskap' },
+  { id: 'portefolje', lbl: 'Portefølje' },
   { id: 'timer', lbl: 'Timer' },
   { id: 'handverkere', lbl: 'Håndverk' },
   { id: 'selskaper', lbl: 'Selskaper' },
   { id: 'gjoremal', lbl: 'Gjøremål' },
   { id: 'logg', lbl: 'Logg' },
 ]
+const NAV_LINKS: NavLink[] = [...NAV_PRIMAER, ...NAV_MER]
 
 export default function Home() {
   const [bruker, setBruker] = useState<string | null>(null)
@@ -126,6 +129,7 @@ export default function Home() {
   const [mobilMenyApen, setMobilMenyApen] = useState(false)
   const [prosjektNavn, setProsjektNavn] = useState<Record<string, string>>({})
   const [scrollet, setScrollet] = useState(false)
+  const [selskaper, setSelskaper] = useState<Array<{ id: string; navn: string; land: 'norge' | 'spania' }>>([])
 
   useEffect(() => {
     const lagret = hentAktivBruker()
@@ -164,6 +168,11 @@ export default function Home() {
     })
   }, [bruker, visProsjekt])
 
+  useEffect(() => {
+    if (!bruker) return
+    fetch('/api/selskaper').then(r => r.json()).then(d => setSelskaper(d.selskaper || [])).catch(() => {})
+  }, [bruker])
+
   function loggInn(b: string) {
     settAktivBruker(b)
     setBruker(b)
@@ -200,6 +209,9 @@ export default function Home() {
       document.getElementById('gjoremal')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
   }
+
+  const norgeSelskap = selskaper.find(s => s.land === 'norge')
+  const spaniaSelskap = selskaper.find(s => s.land === 'spania')
 
   return (
     <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
@@ -296,96 +308,28 @@ export default function Home() {
       )}
 
       {!aktivSeksjon && (
-        <>
-          <section style={{
-            background: `linear-gradient(180deg, ${CREAM_LYS} 0%, ${CREAM} 100%)`,
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <div aria-hidden style={{
-              position: 'absolute', top: '-20%', right: '-10%',
-              width: '50%', height: '120%',
-              background: `radial-gradient(circle, ${GULL}15 0%, transparent 60%)`,
-              pointerEvents: 'none',
-            }} />
-            <div style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '64px 24px' : '110px 28px', textAlign: 'center', position: 'relative' }}>
-              <div className="anim-fade-up" style={{ fontSize: 11, color: GULL, letterSpacing: '0.32em', fontWeight: 700, marginBottom: 22 }}>ADMIN</div>
-              <h1 className="anim-fade-up" style={{ fontSize: 'clamp(34px, 5vw, 56px)', lineHeight: 1.05, fontWeight: 300, color: MØRK, margin: '0 0 22px', letterSpacing: '-0.025em', animationDelay: '60ms' }}>
-                Velkommen, {bruker.charAt(0).toUpperCase() + bruker.slice(1)}
-              </h1>
-              <p className="anim-fade-up" style={{ fontSize: 'clamp(16px, 2vw, 18px)', lineHeight: 1.6, color: FARGER.tekstMid, margin: '0 auto 40px', maxWidth: 580, fontWeight: 300, animationDelay: '120ms' }}>
-                Analyser eiendommer, følg opp prosjekter og publiser boliger til portalen — alt på ett sted.
-              </p>
-              <button onClick={() => gåTil('analyse')} className="anim-fade-up knapp-hover-loft" style={{
-                background: MØRK, color: CREAM_LYS, border: 'none',
-                padding: '16px 32px', fontSize: 13, fontWeight: 600,
-                letterSpacing: '-0.005em',
-                cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 10,
-                borderRadius: RADIUS.pill,
-                boxShadow: SHADOW.md,
-                animationDelay: '180ms',
-              }}>
-                Analyser ny bolig
-                <span aria-hidden>→</span>
-              </button>
-            </div>
-          </section>
-
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 0' }}>
-            <DagligBrief onÅpnePortefolje={() => gåTil('portefolje')} />
-          </section>
-
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 16px' }}>
-            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Oversikt — Spania</div>
-            <Dashboard marked="spania" onApneProsjekt={(id) => { setAktivSeksjon('regnskap'); setVisProsjekt(id) }} />
-            <p style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 14, fontStyle: 'italic' }}>
-              Norske prosjekter ligger i sin egen Norge-fane med eget dashboard.
-            </p>
-          </section>
-
-          <section style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 28px 96px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: erMobil ? 40 : 56 }}>
-              <div>
-                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Snarveier</div>
-                <div style={{ display: 'grid', gridTemplateColumns: erMobil ? '1fr' : 'repeat(2, 1fr)', gap: 16 }}>
-                  {SEKSJONER.map((boks, i) => (
-                    <button
-                      key={boks.id}
-                      onClick={() => gåTil(boks.id)}
-                      className="kort-loft anim-fade-up"
-                      style={{
-                        background: FARGER.hvit,
-                        border: `1px solid ${FARGER.kantUltralys}`,
-                        padding: '28px 26px',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        borderRadius: RADIUS.lg,
-                        boxShadow: SHADOW.sm,
-                        animationDelay: `${Math.min(i, 8) * 40}ms`,
-                        display: 'flex', flexDirection: 'column',
-                      }}
-                    >
-                      <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.18em', fontWeight: 700, marginBottom: 12 }}>{boks.ikon}</div>
-                      <div style={{ fontSize: 19, fontWeight: 500, color: MØRK, marginBottom: 8, letterSpacing: '-0.015em' }}>{boks.tittel}</div>
-                      <div style={{ fontSize: 13.5, color: FARGER.tekstMid, lineHeight: 1.55, fontWeight: 400 }}>{boks.beskrivelse}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div id="gjoremal">
-                <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
-                <Oppgaver />
-              </div>
-            </div>
-          </section>
-        </>
+        <main style={{ maxWidth: 1200, margin: '0 auto', padding: erMobil ? '24px 18px 100px' : '36px 28px 100px' }}>
+          <HjemDashboard onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} />
+          <div id="gjoremal" style={{ marginTop: 44 }}>
+            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
+            <Oppgaver />
+          </div>
+        </main>
       )}
 
       {aktivSeksjon && (
         <main style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '20px 18px 100px' : '36px 28px 100px' }}>
           <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
 
+          {aktivSeksjon === 'hjem' && <HjemDashboard onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} />}
+          {aktivSeksjon === 'varsler' && <Varsler onÅpne={() => gåTil('eiendommer')} />}
+          {aktivSeksjon === 'eiendommer' && <Portefolje onTilbake={hjem} />}
+          {aktivSeksjon === 'loeiendom' && (norgeSelskap
+            ? <SelskapDashboard selskapId={norgeSelskap.id} navn={norgeSelskap.navn} land="norge" onÅpne={() => gåTil('eiendommer')} />
+            : <TomtSelskap navn="Loeiendom" />)}
+          {aktivSeksjon === 'locasas' && (spaniaSelskap
+            ? <SelskapDashboard selskapId={spaniaSelskap.id} navn={spaniaSelskap.navn} land="spania" onÅpne={() => gåTil('eiendommer')} />
+            : <TomtSelskap navn="Lo Casas" />)}
           {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
           {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
           {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
