@@ -6,11 +6,12 @@ import { loggAktivitet } from '../lib/logg'
 import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle, selectStyle } from '../lib/styles'
 import { EIERETAPPE_ETIKETT } from '../lib/portefolje'
 import { STRATEGI_ETIKETT, type Strategi } from '../lib/strategi'
-import { tomtProsjekt, type Prosjekt } from '../types'
+import { medDefaults, erNorge } from '../lib/skatteprofil'
+import { tomtProsjekt, type Prosjekt, type Skatteprofil } from '../types'
 import { EiendomDetalj } from './portefolje/EiendomDetalj'
 
 type Rad = Pick<Prosjekt, 'id' | 'navn' | 'marked' | 'selskap_id' | 'eieretappe' | 'strategi'>
-type Selskap = { id: string; navn: string; land: 'norge' | 'spania' }
+type Selskap = { id: string; navn: string; land: 'norge' | 'spania'; skatteprofil?: Partial<Skatteprofil> | null }
 
 export function EiendomsRegister() {
   const [rader, setRader] = useState<Rad[]>([])
@@ -103,7 +104,18 @@ function NyEiendom({ selskaper, onLagret }: { selskaper: Selskap[]; onLagret: ()
   const [navn, setNavn] = useState('')
   const [selskapId, setSelskapId] = useState(selskaper[0]?.id || '')
   const [kjopesum, setKjopesum] = useState('')
+  const [kjopskost, setKjopskost] = useState('')
+  const [rortKost, setRortKost] = useState(false)  // har brukeren overstyrt auto-forslaget?
   const [lagrer, setLagrer] = useState(false)
+
+  // Dokumentavgift (2,5 % for norske selskap) foreslås automatisk inn i
+  // kjøpskostnader. Satsen hentes fra selskapets skatteprofil. Kan overstyres.
+  const valgtSelskap = selskaper.find(s => s.id === selskapId)
+  const prof = valgtSelskap ? medDefaults(valgtSelskap.land, valgtSelskap.skatteprofil) : null
+  const dokPst = prof && erNorge(prof) ? prof.dokumentavgift_pst : 0
+  const dokForslag = dokPst > 0 && Number(kjopesum) > 0 ? Math.round((Number(kjopesum) * dokPst) / 100) : 0
+  const visKost = rortKost ? kjopskost : (dokForslag ? String(dokForslag) : '')
+  const autoFylt = !rortKost && dokForslag > 0
 
   async function lagre() {
     const selskap = selskaper.find(s => s.id === selskapId)
@@ -117,6 +129,7 @@ function NyEiendom({ selskaper, onLagret }: { selskaper: Selskap[]; onLagret: ()
       selskap_id: selskap.id,
       marked: selskap.land,
       kjøpesum: Number(kjopesum) || 0,
+      kjøpskostnader: Number(visKost) || 0,
       er_portefolje: true,
       eieretappe: 'eid',
       strategi: 'uavklart',
@@ -125,12 +138,12 @@ function NyEiendom({ selskaper, onLagret }: { selskaper: Selskap[]; onLagret: ()
     setLagrer(false)
     if (error) { alert('Kunne ikke lagre: ' + error.message); return }
     await loggAktivitet({ handling: 'la til eiendom i register', tabell: 'prosjekter', rad_id: id, prosjekt_id: id, hendelsestype: 'kjopt', detaljer: { navn: nytt.navn } })
-    setNavn(''); setKjopesum('')
+    setNavn(''); setKjopesum(''); setKjopskost(''); setRortKost(false)
     onLagret()
   }
 
   return (
-    <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 18, marginBottom: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'end' }}>
+    <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 18, marginBottom: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'start' }}>
       <div><label style={labelStyle}>Navn / adresse</label><input value={navn} onChange={e => setNavn(e.target.value)} style={inputStyle} placeholder="Søndre Skogvei 12" /></div>
       <div><label style={labelStyle}>Selskap</label>
         <select value={selskapId} onChange={e => setSelskapId(e.target.value)} style={selectStyle}>
@@ -139,7 +152,14 @@ function NyEiendom({ selskaper, onLagret }: { selskaper: Selskap[]; onLagret: ()
         </select>
       </div>
       <div><label style={labelStyle}>Kjøpesum</label><input type="number" value={kjopesum} onChange={e => setKjopesum(e.target.value)} style={inputStyle} /></div>
-      <button onClick={lagre} disabled={lagrer || !navn.trim() || !selskapId} style={{ background: FARGER.mork, color: FARGER.creamLys, border: 'none', borderRadius: RADIUS.pill, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (lagrer || !navn.trim() || !selskapId) ? 0.6 : 1 }}>
+      <div>
+        <label style={labelStyle}>Kjøpskostnader</label>
+        <input type="number" value={visKost} onChange={e => { setRortKost(true); setKjopskost(e.target.value) }} style={inputStyle} placeholder="omkostninger" />
+        <div style={{ fontSize: 10.5, color: autoFylt ? FARGER.gull : FARGER.tekstLys, marginTop: 4, lineHeight: 1.4 }}>
+          {autoFylt ? `Dokumentavgift ${String(dokPst).replace('.', ',')} % (auto) — kan overstyres` : dokPst > 0 ? 'Inkl. dokumentavgift 2,5 %' : 'Omkostninger ved kjøp'}
+        </div>
+      </div>
+      <button onClick={lagre} disabled={lagrer || !navn.trim() || !selskapId} style={{ background: FARGER.mork, color: FARGER.creamLys, border: 'none', borderRadius: RADIUS.pill, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (lagrer || !navn.trim() || !selskapId) ? 0.6 : 1, marginTop: 22 }}>
         {lagrer ? 'Lagrer…' : 'Legg til'}
       </button>
     </div>

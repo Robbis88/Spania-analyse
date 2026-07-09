@@ -41,6 +41,10 @@ export type ScenarioResultat = {
   frigjort_kapital?: number
   gevinst_etter_skatt?: number
   ny_ltv_pst?: number
+  // Eksplisitt skattelinje per scenario (regel: salg/gevinst = selskapsskatt,
+  // utleie = ordinær selskapsskatt, refinansiering = ingen skatt). `tekst` vises
+  // i stedet for beløp når skatten ikke er et tall (f.eks. «Ingen»).
+  skatt_linje?: { lbl: string; verdi?: number; tekst?: string }
   detaljer: Array<{ lbl: string; verdi: number; pst?: boolean }>
 }
 
@@ -101,6 +105,7 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     utilgjengeligGrunn: verdi > 0 ? undefined : 'Mangler verdivurdering',
     gevinst_etter_skatt: gevinst - gevinstskatt,
     frigjort_kapital: nettoVedSalg,
+    skatt_linje: { lbl: `Gevinstskatt (selskap, ${gevinst_pst} %)`, verdi: -gevinstskatt },
     detaljer: [
       { lbl: 'Markedsverdi', verdi },
       { lbl: 'Restgjeld', verdi: -restgjeld },
@@ -120,11 +125,13 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     utilgjengeligGrunn: leieMnd > 0 ? undefined : 'Mangler registrert leieinntekt',
     yield_bundet_ek_pst: yieldPaaEk(langtidAarNetto),
     cashflow_mnd: langtidCashflowMnd,
+    skatt_linje: { lbl: `Utleieskatt (${utleie_pst} %)`, verdi: -langtidSkatt },
     detaljer: [
       { lbl: 'Leie/mnd', verdi: leieMnd },
       { lbl: 'Driftskostnad/mnd', verdi: -kostnaderMnd },
       { lbl: 'Lån/mnd', verdi: -laanMnd },
       { lbl: 'Cashflow/mnd', verdi: langtidCashflowMnd },
+      { lbl: `Utleieskatt/år (${utleie_pst} %)`, verdi: -langtidSkatt },
       { lbl: 'Yield på bundet EK', verdi: yieldPaaEk(langtidAarNetto), pst: true },
     ],
   }
@@ -149,10 +156,12 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
       type: 'korttid', tittel: 'Korttidsleie (Airbnb)', tilgjengelig: true,
       yield_bundet_ek_pst: yieldPaaEk(korttidAarNetto),
       cashflow_mnd: (o.netto_uten_lan / 12) - laanMnd,
+      skatt_linje: { lbl: `Utleieskatt (${utleie_pst} %)`, verdi: -korttidSkatt },
       detaljer: [
         { lbl: 'Brutto/år (realistisk)', verdi: o.brutto_inntekt },
         { lbl: 'Driftskostnad/år', verdi: -o.kostnader_lopende },
         { lbl: 'Netto før skatt/år', verdi: korttidAarNettoForSkatt },
+        { lbl: `Utleieskatt/år (${utleie_pst} %)`, verdi: -korttidSkatt },
         { lbl: 'Yield på bundet EK', verdi: yieldPaaEk(korttidAarNetto), pst: true },
       ],
     }
@@ -175,6 +184,7 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     frigjort_kapital: frigjortRefi,
     cashflow_mnd: refiCashflowMnd,
     ny_ltv_pst: MAKS_LTV_PST,
+    skatt_linje: { lbl: 'Refinansiering', tekst: 'Ingen skatt' },
     detaljer: [
       { lbl: `Nytt lån (${MAKS_LTV_PST} % LTV)`, verdi: maksLaan },
       { lbl: 'Innfri eksisterende gjeld', verdi: -restgjeld },

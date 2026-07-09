@@ -196,6 +196,14 @@ function ScenarioKort({ s, erBeste, terskel }: { s: ScenarioResultat; erBeste: b
               {svakLeie && <div style={{ fontSize: 11, color: FARGER.feil, marginTop: 2 }}>⚠️ under terskel ({terskel} %)</div>}
             </div>
           )}
+          {s.skatt_linje && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, background: FARGER.flateLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.sm, padding: '7px 10px', marginBottom: 10 }}>
+              <span style={{ fontSize: 11.5, color: FARGER.tekstMid, fontWeight: 600 }}>🧾 {s.skatt_linje.lbl}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: s.skatt_linje.tekst ? FARGER.suksess : ((s.skatt_linje.verdi ?? 0) < 0 ? FARGER.feil : FARGER.mork) }}>
+                {s.skatt_linje.tekst ?? fmtNok(s.skatt_linje.verdi ?? 0)}
+              </span>
+            </div>
+          )}
           <div>
             {s.detaljer.map((d, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: i > 0 ? `1px solid ${FARGER.kantUltralys}` : 'none', fontSize: 12.5 }}>
