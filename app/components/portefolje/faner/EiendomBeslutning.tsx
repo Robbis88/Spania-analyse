@@ -4,6 +4,8 @@ import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle } from '../../../lib/sty
 import { fmtNok, SumKort } from './faneUi'
 import { beregnBeslutning, type ScenarioResultat } from '../../../lib/beslutning'
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
+import { supabase } from '../../../lib/supabase'
+import { VFT_STATUS, VFT_ETIKETT, type VftStatus } from '../../../lib/strategi'
 import type { AirbnbData, Selskap, Skatteprofil, Tilbud } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
 
@@ -17,6 +19,12 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [feil, setFeil] = useState<string | null>(null)
   const [akseptertTilbud, setAkseptertTilbud] = useState<number | null>(null)
   const [minReno, setMinReno] = useState<string>('')  // "min vurdering" — vinner hvis satt
+  const [vft, setVft] = useState<VftStatus | ''>((p.vft_status as VftStatus) || '')
+
+  async function settVft(v: VftStatus | '') {
+    setVft(v)
+    await supabase.from('prosjekter').update({ vft_status: v || null }).eq('id', p.id)
+  }
 
   // Hent selskapets skatteprofil (faller tilbake til default for markedet)
   useEffect(() => {
@@ -111,6 +119,18 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
           </div>
         )}
       </div>
+
+      {/* VFT-lisens (C6, kun Spania) */}
+      {p.marked === 'spania' && (
+        <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>VFT / turistlisens</span>
+          <select value={vft} onChange={e => settVft(e.target.value as VftStatus | '')} style={{ ...inputStyle, maxWidth: 180 }}>
+            <option value="">Ikke satt</option>
+            {VFT_STATUS.map(s => <option key={s} value={s}>{VFT_ETIKETT[s]}</option>)}
+          </select>
+          {vft !== 'har' && <span style={{ fontSize: 12, color: FARGER.feil }}>Kreves for lovlig korttidsutleie i Spania.</span>}
+        </div>
+      )}
 
       {/* AI-anbefaling */}
       <div style={{ background: FARGER.mork, borderRadius: RADIUS.lg, padding: 22, marginBottom: 22, color: FARGER.creamLys, boxShadow: SHADOW.md }}>
