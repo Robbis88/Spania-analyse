@@ -92,39 +92,42 @@ function Breadcrumbs({ aktivSeksjon, visProsjekt, prosjektNavn, onHjem, onTilbak
   )
 }
 
-type NavLink = { id: Seksjon | 'gjoremal'; lbl: string }
-// Primær nav (C2) — kontrollrommet
-const NAV_PRIMAER: NavLink[] = [
-  { id: 'hjem', lbl: 'Hjem' },
-  { id: 'analyse', lbl: 'Analyse' },
-  { id: 'loeiendom', lbl: 'Loeiendom' },
-  { id: 'locasas', lbl: 'Lo Casas' },
-  { id: 'eiendommer', lbl: 'Eiendommer' },
-  { id: 'kapital', lbl: 'Kapital' },
-  { id: 'varsler', lbl: 'Varsler' },
-]
-// Sekundærfunksjoner — vises etter et skille.
+type NavLink = { id: Seksjon | 'gjoremal'; lbl: string; ikon: string }
+// Sidemeny (C2) — kontrollrommet gruppert i Hovedmeny / Verktøy / System.
 // Flipp/Utleie/Portefølje er tatt ut av navigasjonen (C10 steg 8): de er dekket
 // av Eiendommer-registeret + selskapsdashboardene. Render-grenene og komponentene
 // beholdes til `er_portefolje`-migrasjonen er kjørt, så fjerningen er reversibel.
-const NAV_MER: NavLink[] = [
-  { id: 'norge', lbl: 'Norske boliger' },
-  { id: 'selge', lbl: 'Selge' },
-  { id: 'regnskap', lbl: 'Regnskap' },
-  { id: 'bilag', lbl: 'Bilag' },
-  { id: 'timer', lbl: 'Timer' },
-  { id: 'handverkere', lbl: 'Håndverk' },
-  { id: 'selskaper', lbl: 'Selskaper' },
-  { id: 'gjoremal', lbl: 'Gjøremål' },
-  { id: 'logg', lbl: 'Logg' },
+const NAV_GRUPPER: Array<{ tittel: string; lenker: NavLink[] }> = [
+  { tittel: 'Hovedmeny', lenker: [
+    { id: 'hjem', lbl: 'Hjem', ikon: '🏠' },
+    { id: 'analyse', lbl: 'Analyse', ikon: '🔍' },
+    { id: 'loeiendom', lbl: 'Loeiendom', ikon: '🏢' },
+    { id: 'locasas', lbl: 'Lo Casas', ikon: '🌅' },
+    { id: 'eiendommer', lbl: 'Eiendommer', ikon: '🗂️' },
+    { id: 'kapital', lbl: 'Kapital', ikon: '💰' },
+    { id: 'varsler', lbl: 'Varsler', ikon: '🔔' },
+  ] },
+  { tittel: 'Verktøy', lenker: [
+    { id: 'norge', lbl: 'Norske boliger', ikon: '🇳🇴' },
+    { id: 'selge', lbl: 'Selge', ikon: '🏷️' },
+    { id: 'regnskap', lbl: 'Regnskap', ikon: '📊' },
+    { id: 'bilag', lbl: 'Bilag', ikon: '📄' },
+    { id: 'handverkere', lbl: 'Håndverkere', ikon: '🔨' },
+    { id: 'selskaper', lbl: 'Selskaper', ikon: '🏛️' },
+    { id: 'timer', lbl: 'Timer', ikon: '⏱️' },
+    { id: 'gjoremal', lbl: 'Gjøremål', ikon: '✅' },
+  ] },
+  { tittel: 'System', lenker: [
+    { id: 'logg', lbl: 'Aktivitetslogg', ikon: '📜' },
+  ] },
 ]
-const NAV_LINKS: NavLink[] = [...NAV_PRIMAER, ...NAV_MER]
 
 export default function Home() {
   const [bruker, setBruker] = useState<string | null>(null)
   const [aktivSeksjon, setAktivSeksjon] = useState<Seksjon>(null)
   const [visProsjekt, setVisProsjekt] = useState<string | null>(null)
   const [erMobil, setErMobil] = useState(false)
+  const [smalSkjerm, setSmalSkjerm] = useState(false)
   const [mobilMenyApen, setMobilMenyApen] = useState(false)
   const [prosjektNavn, setProsjektNavn] = useState<Record<string, string>>({})
   const [scrollet, setScrollet] = useState(false)
@@ -145,7 +148,10 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    function sjekkBredde() { setErMobil(window.innerWidth < BREAKPOINT.mobil) }
+    function sjekkBredde() {
+      setErMobil(window.innerWidth < BREAKPOINT.mobil)
+      setSmalSkjerm(window.innerWidth < BREAKPOINT.tablet)
+    }
     sjekkBredde()
     window.addEventListener('resize', sjekkBredde)
     return () => window.removeEventListener('resize', sjekkBredde)
@@ -207,141 +213,181 @@ export default function Home() {
   const norgeSelskap = selskaper.find(s => s.land === 'norge')
   const spaniaSelskap = selskaper.find(s => s.land === 'spania')
 
-  return (
-    <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 20,
-        background: scrollet ? 'rgba(250, 250, 246, 0.85)' : 'rgba(250, 250, 246, 0.6)',
-        backdropFilter: 'saturate(180%) blur(20px)',
-        WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-        borderBottom: scrollet ? `1px solid ${FARGER.kantUltralys}` : '1px solid transparent',
-        boxShadow: scrollet ? SHADOW.xs : 'none',
-        padding: erMobil ? '12px 18px' : '14px 28px',
-        display: 'flex', alignItems: 'center', gap: 16,
-        transition: `background ${MOTION.normal}, border-color ${MOTION.normal}, box-shadow ${MOTION.normal}`,
-      }}>
-        <button onClick={hjem} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 12, flex: erMobil ? 1 : 'initial' }}>
-          <Image src="/logo.png" alt="Leganger & Osvaag" width={erMobil ? 36 : 40} height={erMobil ? 36 : 40} style={{ objectFit: 'contain' }} priority />
-          {!erMobil && <span style={{ fontSize: 13, fontWeight: 600, color: MØRK, letterSpacing: '0.18em' }}>LEGANGER &amp; OSVAAG</span>}
-        </button>
+  const SIDEBAR_W = 236
+  const navKlikk = (id: NavLink['id']) => {
+    if (id === 'gjoremal') gåTilGjoremal()
+    else gåTil(id as Seksjon)
+    setMobilMenyApen(false)
+  }
+  const erAktiv = (id: NavLink['id']) => id === 'hjem' ? (!aktivSeksjon || aktivSeksjon === 'hjem') : aktivSeksjon === id
 
-        {!erMobil && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-            {NAV_LINKS.map(l => {
-              const aktiv = aktivSeksjon === l.id
-              const onClick = l.id === 'gjoremal' ? gåTilGjoremal : () => gåTil(l.id as Seksjon)
-              return (
-                <button key={l.id} onClick={onClick} className="nav-lenke"
-                  style={{
-                    background: aktiv ? FARGER.mork : 'transparent',
-                    border: 'none', cursor: 'pointer',
-                    fontSize: 12, fontWeight: aktiv ? 600 : 500,
-                    color: aktiv ? FARGER.creamLys : FARGER.tekstMid,
-                    padding: '8px 14px',
-                    letterSpacing: '-0.005em',
-                    borderRadius: RADIUS.pill,
-                    transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
-                  }}>{l.lbl}</button>
-              )
-            })}
+  const sidemeny = (iDrawer: boolean) => (
+    <aside style={{
+      width: SIDEBAR_W, background: FARGER.mork, color: FARGER.creamLys,
+      display: 'flex', flexDirection: 'column',
+      height: '100vh', position: 'fixed', top: 0, left: 0, zIndex: 40,
+      boxShadow: iDrawer ? SHADOW.xl : 'none',
+    }}>
+      {/* Logo */}
+      <button onClick={() => { hjem(); setMobilMenyApen(false) }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 11, padding: '18px 18px 16px' }}>
+        <Image src="/logo.png" alt="Leganger & Osvaag" width={34} height={34} style={{ objectFit: 'contain', borderRadius: 8 }} priority />
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: FARGER.creamLys, letterSpacing: '0.12em', textAlign: 'left', lineHeight: 1.3 }}>LEGANGER &amp;<br />OSVAAG</span>
+      </button>
+
+      {/* Nav-grupper */}
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 12px 12px' }}>
+        {NAV_GRUPPER.map(g => (
+          <div key={g.tittel} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 9.5, color: 'rgba(253,252,247,0.4)', letterSpacing: '0.22em', fontWeight: 700, textTransform: 'uppercase', padding: '0 10px', marginBottom: 8 }}>{g.tittel}</div>
+            <div style={{ display: 'grid', gap: 2 }}>
+              {g.lenker.map(l => {
+                const aktiv = erAktiv(l.id)
+                return (
+                  <button key={l.id} onClick={() => navKlikk(l.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+                      background: aktiv ? 'rgba(184,154,111,0.18)' : 'transparent',
+                      borderLeft: `2.5px solid ${aktiv ? FARGER.gull : 'transparent'}`,
+                      border: 'none', borderRadius: RADIUS.sm,
+                      color: aktiv ? FARGER.creamLys : 'rgba(253,252,247,0.66)',
+                      fontSize: 13, fontWeight: aktiv ? 600 : 500,
+                      padding: '9px 10px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                      transition: `background ${MOTION.rask}, color ${MOTION.rask}`,
+                      boxShadow: aktiv ? `inset 2.5px 0 0 ${FARGER.gull}` : 'none',
+                    }}>
+                    <span style={{ fontSize: 15, width: 20, textAlign: 'center', flexShrink: 0 }}>{l.ikon}</span>
+                    {l.lbl}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        )}
-
-        {!erMobil && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Link href="/" className="nav-lenke" style={{ fontSize: 12, color: FARGER.tekstMid, textDecoration: 'none', letterSpacing: '-0.005em', fontWeight: 500 }}>↗ Portal</Link>
-            <div style={{ width: 1, height: 18, background: FARGER.kantUltralys }} />
-            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} className="nav-lenke" style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 12, cursor: 'pointer', letterSpacing: '-0.005em', fontWeight: 500 }}>Logg ut</button>
-          </div>
-        )}
-
-        {erMobil && (
-          <button onClick={() => setMobilMenyApen(o => !o)}
-            aria-label="Meny"
-            style={{
-              background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`,
-              cursor: 'pointer', padding: 0,
-              width: 40, height: 40, fontSize: 17, color: MØRK,
-              borderRadius: RADIUS.pill,
-              boxShadow: SHADOW.xs,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            {mobilMenyApen ? '✕' : '☰'}
-          </button>
-        )}
+        ))}
       </nav>
 
-      {erMobil && mobilMenyApen && (
-        <div className="anim-fade-down" style={{ background: CREAM_LYS, borderTop: `1px solid ${FARGER.kantUltralys}`, padding: '14px 16px 18px', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: SHADOW.md }}>
-          {NAV_LINKS.map(l => {
-            const aktiv = aktivSeksjon === l.id
-            const onClick = () => {
-              if (l.id === 'gjoremal') gåTilGjoremal()
-              else gåTil(l.id as Seksjon)
-              setMobilMenyApen(false)
-            }
-            return (
-              <button key={l.id} onClick={onClick}
-                style={{
-                  background: aktiv ? FARGER.mork : 'transparent',
-                  color: aktiv ? FARGER.creamLys : MØRK,
-                  border: 'none', cursor: 'pointer',
-                  fontSize: 14, fontWeight: aktiv ? 600 : 500,
-                  padding: '12px 16px', textAlign: 'left',
-                  letterSpacing: '-0.005em',
-                  borderRadius: RADIUS.pill,
-                }}>{l.lbl}</button>
-            )
-          })}
-          <div style={{ borderTop: `1px solid ${FARGER.kantUltralys}`, marginTop: 10, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 8px 4px' }}>
-            <span style={{ fontSize: 13, color: MØRK, fontWeight: 600, letterSpacing: '-0.005em' }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</span>
-            <button onClick={loggUt} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, fontSize: 12, cursor: 'pointer', letterSpacing: '-0.005em', fontWeight: 500 }}>Logg ut</button>
+      {/* Bunn: portal + bruker + logg ut */}
+      <div style={{ borderTop: '1px solid rgba(253,252,247,0.1)', padding: '12px 16px 16px' }}>
+        <Link href="/" style={{ fontSize: 11.5, color: 'rgba(253,252,247,0.55)', textDecoration: 'none', fontWeight: 500 }}>↗ Portal</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+          <span style={{ width: 32, height: 32, borderRadius: RADIUS.pill, background: FARGER.gull, color: FARGER.mork, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{bruker.charAt(0).toUpperCase()}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.creamLys, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</div>
+            <div style={{ fontSize: 10.5, color: 'rgba(253,252,247,0.45)' }}>Admin</div>
           </div>
+          <button onClick={loggUt} title="Logg ut" style={{ background: 'none', border: 'none', color: 'rgba(253,252,247,0.55)', fontSize: 15, cursor: 'pointer', padding: 4 }}>⎋</button>
         </div>
+      </div>
+    </aside>
+  )
+
+  const iDag = new Date().toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+  const selskapVerdi = aktivSeksjon === 'loeiendom' ? 'loeiendom' : aktivSeksjon === 'locasas' ? 'locasas' : 'alle'
+
+  return (
+    <div style={{ background: CREAM, minHeight: '100vh', color: MØRK }}>
+      {/* SIDEMENY — fast på desktop, uttrekk på smal skjerm */}
+      {!smalSkjerm && sidemeny(false)}
+      {smalSkjerm && mobilMenyApen && (
+        <>
+          <div onClick={() => setMobilMenyApen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,23,38,0.4)', zIndex: 39 }} />
+          {sidemeny(true)}
+        </>
       )}
 
-      {!aktivSeksjon && (
-        <main style={{ maxWidth: 1200, margin: '0 auto', padding: erMobil ? '24px 18px 100px' : '36px 28px 100px' }}>
-          <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />
-          <div id="gjoremal" style={{ marginTop: 44 }}>
-            <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
-            <Oppgaver />
-          </div>
-        </main>
-      )}
-
-      {aktivSeksjon && (
-        <main style={{ maxWidth: 1100, margin: '0 auto', padding: erMobil ? '20px 18px 100px' : '36px 28px 100px' }}>
-          <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
-
-          {aktivSeksjon === 'hjem' && <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />}
-          {aktivSeksjon === 'varsler' && <Varsler onÅpne={() => gåTil('eiendommer')} />}
-          {aktivSeksjon === 'eiendommer' && <EiendomsRegister />}
-          {aktivSeksjon === 'loeiendom' && (norgeSelskap
-            ? <SelskapDashboard selskapId={norgeSelskap.id} navn={norgeSelskap.navn} land="norge" onÅpne={() => gåTil('eiendommer')} />
-            : <TomtSelskap navn="Loeiendom" />)}
-          {aktivSeksjon === 'locasas' && (spaniaSelskap
-            ? <SelskapDashboard selskapId={spaniaSelskap.id} navn={spaniaSelskap.navn} land="spania" onÅpne={() => gåTil('eiendommer')} />
-            : <TomtSelskap navn="Lo Casas" />)}
-          {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
-          {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
-          {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
-          {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
-          {aktivSeksjon === 'selskaper' && <Selskaper />}
-          {aktivSeksjon === 'kapital' && <Kapital />}
-          {aktivSeksjon === 'bilag' && <Bilagsinnboks />}
-          {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
-          {aktivSeksjon === 'regnskap' && (
-            <Regnskap
-              onTilbake={hjem}
-              visProsjektId={visProsjekt}
-              onSettVisProsjekt={setVisProsjekt}
-            />
+      {/* HOVEDOMRÅDE */}
+      <div style={{ marginLeft: smalSkjerm ? 0 : SIDEBAR_W, minWidth: 0 }}>
+        {/* TOPPLINJE */}
+        <header style={{
+          position: 'sticky', top: 0, zIndex: 20,
+          background: scrollet ? 'rgba(250, 250, 246, 0.85)' : 'rgba(250, 250, 246, 0.72)',
+          backdropFilter: 'saturate(180%) blur(20px)', WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+          borderBottom: `1px solid ${scrollet ? FARGER.kantUltralys : 'transparent'}`,
+          boxShadow: scrollet ? SHADOW.xs : 'none',
+          padding: erMobil ? '10px 16px' : '12px 26px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          transition: `background ${MOTION.normal}, border-color ${MOTION.normal}, box-shadow ${MOTION.normal}`,
+        }}>
+          {smalSkjerm && (
+            <button onClick={() => setMobilMenyApen(o => !o)} aria-label="Meny"
+              style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, cursor: 'pointer', width: 38, height: 38, fontSize: 16, color: MØRK, borderRadius: RADIUS.pill, boxShadow: SHADOW.xs, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {mobilMenyApen ? '✕' : '☰'}
+            </button>
           )}
-          {aktivSeksjon === 'logg' && <Aktivitetslogg onTilbake={hjem} />}
-        </main>
-      )}
+
+          <div style={{ flex: 1 }} />
+
+          {/* Selskapsvelger */}
+          <select value={selskapVerdi} onChange={e => { const v = e.target.value; if (v === 'loeiendom') gåTil('loeiendom'); else if (v === 'locasas') gåTil('locasas'); else hjem() }}
+            style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.pill, padding: erMobil ? '8px 10px' : '8px 14px', fontSize: 12.5, fontWeight: 600, color: MØRK, cursor: 'pointer', fontFamily: 'inherit', boxShadow: SHADOW.xs, outline: 'none' }}>
+            <option value="alle">🏢 Alle selskaper</option>
+            <option value="loeiendom">Loeiendom (Norge)</option>
+            <option value="locasas">Lo Casas (Spania)</option>
+          </select>
+
+          {!erMobil && (
+            <span style={{ fontSize: 12.5, color: FARGER.tekstMid, fontWeight: 500, background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.pill, padding: '8px 14px', boxShadow: SHADOW.xs, whiteSpace: 'nowrap' }}>📅 {iDag}</span>
+          )}
+
+          <button onClick={() => gåTil('varsler')} aria-label="Varsler"
+            style={{ position: 'relative', background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.pill, width: 38, height: 38, fontSize: 15, cursor: 'pointer', boxShadow: SHADOW.xs, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            🔔
+          </button>
+
+          {!smalSkjerm && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, paddingLeft: 4 }}>
+              <span style={{ width: 34, height: 34, borderRadius: RADIUS.pill, background: FARGER.mork, color: FARGER.creamLys, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{bruker.charAt(0).toUpperCase()}</span>
+              <div style={{ lineHeight: 1.25 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: MØRK }}>{bruker.charAt(0).toUpperCase() + bruker.slice(1)}</div>
+                <div style={{ fontSize: 10.5, color: FARGER.tekstLys }}>Admin</div>
+              </div>
+            </div>
+          )}
+        </header>
+
+        {/* INNHOLD */}
+        {!aktivSeksjon && (
+          <main style={{ maxWidth: 1280, margin: '0 auto', padding: erMobil ? '22px 16px 100px' : '30px 30px 100px' }}>
+            <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />
+            <div id="gjoremal" style={{ marginTop: 44 }}>
+              <div style={{ fontSize: 11, color: GULL, letterSpacing: '0.28em', fontWeight: 700, marginBottom: 20, textTransform: 'uppercase' }}>Gjøremål</div>
+              <Oppgaver />
+            </div>
+          </main>
+        )}
+
+        {aktivSeksjon && (
+          <main style={{ maxWidth: 1180, margin: '0 auto', padding: erMobil ? '18px 16px 100px' : '30px 30px 100px' }}>
+            <Breadcrumbs aktivSeksjon={aktivSeksjon} visProsjekt={visProsjekt} prosjektNavn={prosjektNavn} onHjem={hjem} onTilbakeSeksjon={() => setVisProsjekt(null)} />
+
+            {aktivSeksjon === 'hjem' && <HjemDashboard bruker={bruker} onÅpneEiendom={() => gåTil('eiendommer')} onÅpnePortefolje={() => gåTil('eiendommer')} onÅpneVarsler={() => gåTil('varsler')} />}
+            {aktivSeksjon === 'varsler' && <Varsler onÅpne={() => gåTil('eiendommer')} />}
+            {aktivSeksjon === 'eiendommer' && <EiendomsRegister />}
+            {aktivSeksjon === 'loeiendom' && (norgeSelskap
+              ? <SelskapDashboard selskapId={norgeSelskap.id} navn={norgeSelskap.navn} land="norge" onÅpne={() => gåTil('eiendommer')} />
+              : <TomtSelskap navn="Loeiendom" />)}
+            {aktivSeksjon === 'locasas' && (spaniaSelskap
+              ? <SelskapDashboard selskapId={spaniaSelskap.id} navn={spaniaSelskap.navn} land="spania" onÅpne={() => gåTil('eiendommer')} />
+              : <TomtSelskap navn="Lo Casas" />)}
+            {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
+            {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
+            {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
+            {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
+            {aktivSeksjon === 'selskaper' && <Selskaper />}
+            {aktivSeksjon === 'kapital' && <Kapital />}
+            {aktivSeksjon === 'bilag' && <Bilagsinnboks />}
+            {aktivSeksjon === 'selge' && <Selge onTilbake={hjem} />}
+            {aktivSeksjon === 'regnskap' && (
+              <Regnskap
+                onTilbake={hjem}
+                visProsjektId={visProsjekt}
+                onSettVisProsjekt={setVisProsjekt}
+              />
+            )}
+            {aktivSeksjon === 'logg' && <Aktivitetslogg onTilbake={hjem} />}
+          </main>
+        )}
+      </div>
 
       <AgentChat />
     </div>
