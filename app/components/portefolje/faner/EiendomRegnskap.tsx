@@ -15,6 +15,7 @@ import {
 } from '../../../lib/portefolje'
 import type { EiendomData } from '../useEiendomData'
 import { SumKort, fmtDato, TomTilstand } from './faneUi'
+import { EiendomDokumentImport } from './EiendomDokumentImport'
 
 type Vedlegg = {
   kvitteringer: number
@@ -23,7 +24,7 @@ type Vedlegg = {
   bilder: number
 }
 
-export function EiendomRegnskap({ data }: { data: EiendomData }) {
+export function EiendomRegnskap({ data, onEndret }: { data: EiendomData; onEndret: () => void }) {
   const p = data.prosjekt
   const erSpania = (p?.marked || 'spania') === 'spania'
   const valuta = erSpania ? '€' : 'kr'
@@ -97,6 +98,9 @@ export function EiendomRegnskap({ data }: { data: EiendomData }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {/* 0) DOKUMENTDREVET OPPDATERING */}
+      <EiendomDokumentImport data={data} onEndret={onEndret} />
+
       {/* 1) VERDI OG BELÅNING */}
       <Seksjon tittel="Verdi og belåning" undertittel={sisteVurdering ? `Siste verdivurdering ${fmtDato(sisteVurdering.dato)}${sisteVurdering.kilde ? ` · ${VURDERING_KILDE_ETIKETT[sisteVurdering.kilde] || sisteVurdering.kilde}` : ''}` : 'Ingen verdivurdering registrert ennå'}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>

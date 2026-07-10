@@ -149,7 +149,7 @@ export function EiendomDetalj({ prosjektId, onTilbake, onSeOffmarket }: Props) {
 
       {/* Fane-innhold */}
       {aktivFane === 'oversikt'   && <EiendomOversikt data={data} />}
-      {aktivFane === 'regnskap'   && <EiendomRegnskap data={data} />}
+      {aktivFane === 'regnskap'   && <EiendomRegnskap data={data} onEndret={refresh} />}
       {aktivFane === 'beslutning' && <EiendomBeslutning data={data} />}
       {aktivFane === 'laan'       && <EiendomLaan data={data} onEndret={refresh} />}
       {aktivFane === 'inntekter'  && <EiendomInntekter data={data} onEndret={refresh} />}
