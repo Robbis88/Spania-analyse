@@ -105,7 +105,8 @@ const NAV_GRUPPER: Array<{ tittel: string; lenker: NavLink[] }> = [
     { id: 'varsler', lbl: 'Varsler', ikon: '🔔' },
   ] },
   { tittel: 'Verktøy', lenker: [
-    { id: 'selge', lbl: 'Selge', ikon: '🏷️' },
+    // «Selge» (spansk salgsskatt-oppgjør) er skjult fra menyen — komponenten,
+    // /api/selge og beregnSalg beholdes. Legg tilbake denne linjen for å vise den igjen.
     { id: 'regnskap', lbl: 'Regnskap', ikon: '📊' },
     { id: 'bilag', lbl: 'Bilag', ikon: '📄' },
     { id: 'handverkere', lbl: 'Håndverkere', ikon: '🔨' },
