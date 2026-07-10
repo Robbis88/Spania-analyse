@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { hentAktivBruker } from '../lib/aktivBruker'
 import { loggAktivitet } from '../lib/logg'
@@ -55,8 +55,8 @@ type AnalyseResultat = {
   fasiliteter?: string[]
 }
 
-export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
-  const [input, setInput] = useState('')
+export function Boliganalyse({ onTilbake, initialInput, autoRun }: { onTilbake: () => void; initialInput?: string; autoRun?: boolean }) {
+  const [input, setInput] = useState(initialInput ?? '')
   const [result, setResult] = useState<AnalyseResultat | null>(null)
   const [loading, setLoading] = useState(false)
   const [airbnbLoading, setAirbnbLoading] = useState(false)
@@ -77,6 +77,13 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
     brukstype: string | null; adresse: string | null; postnummer: string | null
     kommune: string | null; provins: string | null
   } | null>(null)
+
+  // Når ruteren mater inn en pastet annonse (input er alt forhåndsutfylt via
+  // useState-initialiseringen), kjør analysen automatisk én gang.
+  useEffect(() => {
+    if (autoRun && initialInput) void analyser(initialInput)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function hentCatastro() {
     if (!refcat.trim() || catastroLaster) return
@@ -147,11 +154,11 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
     setAirbnbLoading(false)
   }
 
-  async function analyser() {
+  async function analyser(tekst: string = input) {
     setLoading(true); setResult(null); setAirbnbAnalyse(''); setAirbnbScore(null); setAirbnbData(null); setVisSkjema(false); setLagreMelding('')
     setSteg('analyserer')
     try {
-      const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: input }) })
+      const res = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyText: tekst }) })
       const data: AnalyseResultat = await res.json()
       setResult(data)
       const nyBolig: Bolig = {
@@ -351,7 +358,7 @@ export function Boliganalyse({ onTilbake }: { onTilbake: () => void }) {
           }}
         />
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <button onClick={analyser} disabled={loading || airbnbLoading || !input} className="knapp-hover-loft" style={{
+          <button onClick={() => analyser()} disabled={loading || airbnbLoading || !input} className="knapp-hover-loft" style={{
             flex: 1, background: (loading || airbnbLoading) ? FARGER.tekstLys : FARGER.mork,
             color: FARGER.creamLys, border: 'none', padding: 14, borderRadius: RADIUS.pill,
             fontSize: 14, fontWeight: 600, cursor: (loading || airbnbLoading) ? 'not-allowed' : 'pointer',

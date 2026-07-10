@@ -13,11 +13,10 @@ import { BREAKPOINT, FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 const laster = () => <div style={{ textAlign: 'center', padding: 60, color: FARGER.tekstLys }}>Laster…</div>
 const Oppgaver = dynamic(() => import('../components/Oppgaver').then(m => m.Oppgaver), { ssr: false, loading: laster })
 const AgentChat = dynamic(() => import('../components/AgentChat').then(m => m.AgentChat), { ssr: false, loading: laster })
-const Boliganalyse = dynamic(() => import('../components/Boliganalyse').then(m => m.Boliganalyse), { ssr: false, loading: laster })
+const AnalyseRuter = dynamic(() => import('../components/AnalyseRuter').then(m => m.AnalyseRuter), { ssr: false, loading: laster })
 const Selge = dynamic(() => import('../components/Selge').then(m => m.Selge), { ssr: false, loading: laster })
 const Regnskap = dynamic(() => import('../components/Regnskap').then(m => m.Regnskap), { ssr: false, loading: laster })
 const Aktivitetslogg = dynamic(() => import('../components/Aktivitetslogg').then(m => m.Aktivitetslogg), { ssr: false, loading: laster })
-const NorskeBoliger = dynamic(() => import('../components/NorskeBoliger').then(m => m.NorskeBoliger), { ssr: false, loading: laster })
 const Timer = dynamic(() => import('../components/Timer').then(m => m.Timer), { ssr: false, loading: laster })
 const Handverkere = dynamic(() => import('../components/Handverkere').then(m => m.Handverkere), { ssr: false, loading: laster })
 const Selskaper = dynamic(() => import('../components/Selskaper').then(m => m.Selskaper), { ssr: false, loading: laster })
@@ -28,7 +27,7 @@ const Varsler = dynamic(() => import('../components/Varsler').then(m => m.Varsle
 const EiendomsRegister = dynamic(() => import('../components/EiendomsRegister').then(m => m.EiendomsRegister), { ssr: false, loading: laster })
 const Bilagsinnboks = dynamic(() => import('../components/Bilagsinnboks').then(m => m.Bilagsinnboks), { ssr: false, loading: laster })
 
-type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'norge' | 'kapital' | 'selge' | 'regnskap' | 'bilag' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
+type Seksjon = 'hjem' | 'loeiendom' | 'locasas' | 'eiendommer' | 'varsler' | 'analyse' | 'kapital' | 'selge' | 'regnskap' | 'bilag' | 'timer' | 'handverkere' | 'selskaper' | 'logg' | null
 
 const MØRK = FARGER.mork
 const CREAM = FARGER.cream
@@ -49,7 +48,6 @@ const SEKSJON_LBL: Record<Exclude<Seksjon, null>, string> = {
   eiendommer: 'Eiendommer',
   varsler: 'Varsler',
   analyse: 'Boliganalyse',
-  norge: 'Norske boliger',
   kapital: 'Kapital',
   selge: 'Selge',
   regnskap: 'Regnskap',
@@ -107,7 +105,6 @@ const NAV_GRUPPER: Array<{ tittel: string; lenker: NavLink[] }> = [
     { id: 'varsler', lbl: 'Varsler', ikon: '🔔' },
   ] },
   { tittel: 'Verktøy', lenker: [
-    { id: 'norge', lbl: 'Norske boliger', ikon: '🇳🇴' },
     { id: 'selge', lbl: 'Selge', ikon: '🏷️' },
     { id: 'regnskap', lbl: 'Regnskap', ikon: '📊' },
     { id: 'bilag', lbl: 'Bilag', ikon: '📄' },
@@ -367,8 +364,7 @@ export default function Home() {
             {aktivSeksjon === 'locasas' && (spaniaSelskap
               ? <SelskapDashboard selskapId={spaniaSelskap.id} navn={spaniaSelskap.navn} land="spania" onÅpne={() => gåTil('eiendommer')} />
               : <TomtSelskap navn="Lo Casas" />)}
-            {aktivSeksjon === 'analyse' && <Boliganalyse onTilbake={hjem} />}
-            {aktivSeksjon === 'norge' && <NorskeBoliger onTilbake={hjem} />}
+            {aktivSeksjon === 'analyse' && <AnalyseRuter onTilbake={hjem} />}
             {aktivSeksjon === 'timer' && <Timer onTilbake={hjem} />}
             {aktivSeksjon === 'handverkere' && <Handverkere onTilbake={hjem} />}
             {aktivSeksjon === 'selskaper' && <Selskaper />}

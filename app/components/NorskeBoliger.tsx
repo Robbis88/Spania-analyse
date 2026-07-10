@@ -190,9 +190,9 @@ type MeglerVurdering = {
 
 // Husholdning er flyttet til ./norsk/types.ts
 
-export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
+export function NorskeBoliger({ onTilbake, initialInput, autoRun }: { onTilbake: () => void; initialInput?: string; autoRun?: boolean }) {
   const [modus, setModus] = useState<Modus>('ren')
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(initialInput ?? '')
   const [finnUrl, setFinnUrl] = useState<string>('')
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [laster, setLaster] = useState(false)
@@ -332,17 +332,18 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     setOppussingsposter(p => p.map((post, idx) => idx === i ? { ...post, [felt]: verdi } : post))
   }
 
-  async function analyser(opts: { tvingNy?: boolean } = {}) {
-    if (!input.trim() || laster) return
+  async function analyser(opts: { tvingNy?: boolean; tekst?: string } = {}) {
+    const kilde = opts.tekst ?? input
+    if (!kilde.trim() || laster) return
     setLaster(true); setFeil(''); setAnalyse(null); setLagretId(null); setFraCache(null)
     setTakstData(null); setTakstFilnavn(null)
     // Hvis input er en URL, husk den så den blir med på prosjektet og PDF-en
-    const trimmet = input.trim()
+    const trimmet = kilde.trim()
     setFinnUrl(trimmet.startsWith('http') ? trimmet : '')
 
     // Sjekk cache først (med mindre brukeren tvinger ny analyse)
     if (!opts.tvingNy) {
-      const cached = lesCache(input)
+      const cached = lesCache(kilde)
       if (cached) {
         const a = cached.analyse as Analyse
         setAnalyse(a)
@@ -356,7 +357,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     try {
       const res = await fetch('/api/analyse-norge', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyText: input }),
+        body: JSON.stringify({ propertyText: kilde }),
       })
       const data = await res.json()
       if (data.error) {
@@ -364,7 +365,7 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
       } else {
         setAnalyse(data)
         fyllFraAnalyse(data)
-        lagreCache(input, data)
+        lagreCache(kilde, data)
         setFraCache(null)
       }
     } catch (e) {
@@ -377,6 +378,14 @@ export function NorskeBoliger({ onTilbake }: { onTilbake: () => void }) {
     fjernCache(input)
     void analyser({ tvingNy: true })
   }
+
+  // Når ruteren mater inn en pastet Finn-annonse (input er alt forhåndsutfylt
+  // via useState-initialiseringen), kjør analysen automatisk én gang.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (autoRun && initialInput) void analyser({ tekst: initialInput })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Hent alle lagrede norske prosjekter — vises som liste øverst.
   // Filtrerer ut prosjekter brukeren har valgt å skjule for seg selv (eller

@@ -79,7 +79,7 @@ export function Dashboard({ onApneProsjekt, marked }: Props) {
       <div style={{ background: FARGER.hvit, border: `1px dashed ${FARGER.gull}55`, borderRadius: RADIUS.lg, padding: 48, textAlign: 'center', color: FARGER.tekstMid }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
         <div style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork, letterSpacing: '-0.005em' }}>Ingen prosjekter ennå</div>
-        <div style={{ fontSize: 13, marginTop: 6 }}>Lag ditt første via Boliganalyse, Norske boliger eller Regnskap.</div>
+        <div style={{ fontSize: 13, marginTop: 6 }}>Lag ditt første via Boliganalyse eller Regnskap.</div>
       </div>
     )
   }
