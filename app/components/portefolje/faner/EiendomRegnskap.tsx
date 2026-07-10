@@ -13,6 +13,7 @@ import {
   totalRenterMnd, totalAvdragMnd, totalLaanKostnadMnd, cashflowMnd,
   VURDERING_KILDE_ETIKETT,
 } from '../../../lib/portefolje'
+import { SALGSKOST_PST } from '../../../lib/beslutning'
 import type { EiendomData } from '../useEiendomData'
 import { SumKort, fmtDato, TomTilstand } from './faneUi'
 import { EiendomDokumentImport } from './EiendomDokumentImport'
@@ -60,11 +61,25 @@ export function EiendomRegnskap({ data, onEndret }: { data: EiendomData; onEndre
     return () => { avbrutt = true }
   }, [p])
 
-  // === Nøkkeltall (løpende) ===
-  const verdi = sisteVerdi(data.verdivurderinger)
+  // === Kapital nå (ekte) vs forventet ved salg (urealisert) ===
+  const kjopesum = p?.kjøpesum || 0
+  const kjopskost = p?.kjøpskostnader || 0
+  const oppussing = p?.oppussingsbudsjett || 0
+  const totalInvestert = kjopesum + kjopskost + oppussing
   const restgjeld = totalRestgjeld(data.laan)
-  const egenkapital = verdi - restgjeld
-  const ltv = belaningsgrad(restgjeld, verdi)
+  const innskuttEK = totalInvestert - restgjeld
+
+  // Markedsverdi = ekte verdivurdering hvis lagt inn, ellers kjøpsverdi. ALDRI ARV:
+  // forventet salgssum er en prognose og skal ikke blåse opp egenkapital/LTV.
+  const ekteVurdering = sisteVerdi(data.verdivurderinger)
+  const harVurdering = data.verdivurderinger.length > 0 && ekteVurdering > 0
+  const markedsverdi = harVurdering ? ekteVurdering : kjopesum
+  const ltv = belaningsgrad(restgjeld, markedsverdi)
+
+  // Forventet ved salg (urealisert) — holdes helt adskilt fra egenkapitalen.
+  const arv = p?.forventet_salgsverdi || 0
+  const salgskostForventet = arv * (SALGSKOST_PST / 100)
+  const forventetGevinst = arv > 0 ? arv - salgskostForventet - totalInvestert : 0
 
   const leieMnd = gjeldendeLeieMnd(data.inntekter)
   const kostMnd = sumKostnaderPerMnd(data.kostnader)
@@ -101,15 +116,36 @@ export function EiendomRegnskap({ data, onEndret }: { data: EiendomData; onEndre
       {/* 0) DOKUMENTDREVET OPPDATERING */}
       <EiendomDokumentImport data={data} onEndret={onEndret} />
 
-      {/* 1) VERDI OG BELÅNING */}
-      <Seksjon tittel="Verdi og belåning" undertittel={sisteVurdering ? `Siste verdivurdering ${fmtDato(sisteVurdering.dato)}${sisteVurdering.kilde ? ` · ${VURDERING_KILDE_ETIKETT[sisteVurdering.kilde] || sisteVurdering.kilde}` : ''}` : 'Ingen verdivurdering registrert ennå'}>
+      {/* 1) KAPITAL NÅ (ekte) */}
+      <Seksjon tittel="Kapital nå" undertittel="Din egen kapital bundet i boligen i dag — uavhengig av forventet salgsgevinst">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-          <SumKort lbl="Markedsverdi" verdi={peng(verdi)} />
-          <SumKort lbl="Restgjeld" verdi={peng(restgjeld)} farge={FARGER.feil} />
-          <SumKort lbl="Egenkapital" verdi={peng(egenkapital)} farge={egenkapital >= 0 ? '#2D7D46' : FARGER.feil} />
-          <SumKort lbl="Belåningsgrad (LTV)" verdi={verdi > 0 ? `${ltv.toFixed(0)} %` : '–'} farge={ltv > 85 ? FARGER.feil : ltv > 70 ? '#B05E0A' : '#2D7D46'} />
+          <SumKort lbl="Total investert" verdi={peng(totalInvestert)} />
+          <SumKort lbl="Lån (restgjeld)" verdi={peng(restgjeld)} farge={FARGER.feil} />
+          <SumKort lbl="Innskutt egenkapital" verdi={peng(innskuttEK)} farge={innskuttEK >= 0 ? '#2D7D46' : FARGER.feil} />
+          <SumKort lbl={harVurdering ? 'Belåningsgrad (LTV)' : 'Belåning av kjøpsverdi'} verdi={markedsverdi > 0 ? `${ltv.toFixed(0)} %` : '–'} farge={ltv > 85 ? FARGER.feil : ltv > 70 ? '#B05E0A' : '#2D7D46'} />
+        </div>
+        <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 10, lineHeight: 1.55 }}>
+          Markedsverdi lagt til grunn: <strong>{peng(markedsverdi)}</strong>{' '}
+          {harVurdering
+            ? `(siste verdivurdering ${fmtDato(sisteVurdering?.dato)}${sisteVurdering?.kilde ? ` · ${VURDERING_KILDE_ETIKETT[sisteVurdering.kilde] || sisteVurdering.kilde}` : ''})`
+            : '(kjøpsverdi — legg inn e-takst/verdivurdering under Verdi-fanen for oppdatert markedsverdi)'}
         </div>
       </Seksjon>
+
+      {/* 2) FORVENTET VED SALG (urealisert) */}
+      {arv > 0 && (
+        <Seksjon tittel="Forventet ved salg" undertittel="Prognose — urealisert til boligen faktisk er solgt">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <SumKort lbl="Forventet salgssum" verdi={peng(arv)} />
+            <SumKort lbl="− Salgskostnader" verdi={peng(salgskostForventet)} farge={FARGER.feil} />
+            <SumKort lbl="− Total investert" verdi={peng(totalInvestert)} farge={FARGER.feil} />
+            <SumKort lbl="Forventet gevinst (før skatt)" verdi={peng(forventetGevinst)} farge={forventetGevinst >= 0 ? '#2D7D46' : FARGER.feil} />
+          </div>
+          <div style={{ fontSize: 12, color: '#B05E0A', marginTop: 10, lineHeight: 1.55 }}>
+            ⚠️ Urealisert — realiseres først ved salg, og teller ikke som egenkapital nå.
+          </div>
+        </Seksjon>
+      )}
 
       {/* 2) CASHFLOW / LIKVIDITET */}
       <Seksjon tittel="Cashflow / likviditet" undertittel="Løpende, basert på registrert leie, kostnader og lån">
