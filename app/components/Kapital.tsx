@@ -11,7 +11,7 @@ type SelskapKapital = {
   konsern_fordring: number; konsern_gjeld: number; paalopte_renter_fordring: number
   kjopekraft: number
 }
-type Konsolidert = { valuta: string; bundet_ek: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }
+type Konsolidert = { valuta: string; bundet_ek: number; frigjorbar_refi: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }
 
 const fmt = (n: number, valuta: string) => {
   const v = Math.round(n || 0).toLocaleString('nb-NO')
@@ -75,8 +75,8 @@ export function Kapital() {
             <div style={{ fontSize: 11, letterSpacing: '0.2em', fontWeight: 700, color: FARGER.gull, marginBottom: 8 }}>KJØPEKRAFT · {k.valuta}</div>
             <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em' }}>{fmt(k.kjopekraft, k.valuta)}</div>
             <div style={{ fontSize: 12, color: 'rgba(253,252,247,0.7)', marginTop: 8, lineHeight: 1.6 }}>
-              Fri likviditet {fmt(k.fri_likviditet, k.valuta)} + ramme {fmt(k.laanekapasitet, k.valuta)}<br />
-              Bundet EK i portefølje: {fmt(k.bundet_ek, k.valuta)}
+              Fri likviditet {fmt(k.fri_likviditet, k.valuta)} + refi {fmt(k.frigjorbar_refi, k.valuta)} + ramme {fmt(k.laanekapasitet, k.valuta)}<br />
+              Bundet EK i portefølje: {fmt(k.bundet_ek, k.valuta)} (frigjørbar ved salg)
             </div>
           </div>
         ))}

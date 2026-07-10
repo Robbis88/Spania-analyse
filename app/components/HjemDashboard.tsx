@@ -136,7 +136,7 @@ export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
     const flaggTekst = varsler.length ? varsler.map(f => `${f.farge === 'rod' ? 'RØD' : 'GUL'} ${f.navn}: ${f.tekst}`).join('; ') : 'ingen flagg'
     return [
       `Konsern (omregnet til NOK, kurs 1 € = ${kurs.toFixed(2)} kr):`,
-      `Porteføljeverdi ${fmtNok(k.verdi)}, gjeld ${fmtNok(k.gjeld)}, egenkapital ${fmtNok(k.ek)} (låst ${fmtNok(k.bundet)}, fri likviditet ${fmtNok(k.fri)}), resultat/mnd ${fmtNok(k.resultat)}, kjøpekraft ${fmtNok(k.kjopekraft)}.`,
+      `Porteføljeverdi ${fmtNok(k.verdi)}, gjeld ${fmtNok(k.gjeld)}, egenkapital ${fmtNok(k.ek + k.fri)} (i eiendom ${fmtNok(k.ek)}, fri likviditet ${fmtNok(k.fri)}), frigjørbar ved salg ${fmtNok(k.bundet)}, resultat/mnd ${fmtNok(k.resultat)}, kjøpekraft ${fmtNok(k.kjopekraft)}.`,
       `${antall} eiendommer (${k.antNorge} Norge / ${k.antSpania} Spania).`,
       `Flagg: ${flaggTekst}.`,
       'Skriv en kort investeringsbrief (3-4 setninger): hva er status, hva bør følges, og hva er neste beste handling. Ingen sikkerhetsprosenter.',
@@ -193,9 +193,9 @@ export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
 
       {/* ═══ 2. TRE PRIMÆRE KPI-ER ═══ */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 26 }}>
-        <StorKpi lbl="Egenkapital" verdi={fmtMill(k.ek)} sub={`låst ${fmtMill(k.bundet)} · fri ${fmtMill(k.fri)}`} />
+        <StorKpi lbl="Egenkapital" verdi={fmtMill(k.ek + k.fri)} sub={`i eiendom ${fmtMill(k.ek)} · fri ${fmtMill(k.fri)}`} />
         <StorKpi lbl="Fri kapital" verdi={fmtMill(k.fri)} sub="klar til bruk nå" />
-        <StorKpi lbl="Kjøpekraft" verdi={fmtMill(k.kjopekraft)} sub="neste runde" aksent />
+        <StorKpi lbl="Kjøpekraft" verdi={fmtMill(k.kjopekraft)} sub="fri + refi + ramme" aksent />
       </div>
 
       {/* ═══ 3. STOR KONTANTSTRØM-GRAF ═══ */}

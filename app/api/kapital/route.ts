@@ -91,7 +91,10 @@ export async function GET(req: NextRequest) {
 
       const friLikviditet = s.fri_likviditet || 0
       const laanekapasitet = s.laanekapasitet || 0
-      const kjopekraft = friLikviditet + laanekapasitet
+      // Kjøpekraft = kapital du kan deployere UTEN å selge: fri likviditet +
+      // refinansieringspotensial (opp til maks LTV) + bankramme. Salgseffekt
+      // holdes utenfor (betinget av salgsbeslutning) og vises som egen løftestang.
+      const kjopekraft = friLikviditet + laanekapasitet + frigjorbarRefi
 
       return {
         id: s.id, navn: s.navn, land: s.land, valuta: s.valuta,
@@ -112,15 +115,16 @@ export async function GET(req: NextRequest) {
     })
 
     // Konsolidert per valuta (kan ikke summere NOK og EUR uten kurs)
-    const perValuta: Record<string, { valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number; resultat_mnd: number; antall: number; bundet_ek: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }> = {}
+    const perValuta: Record<string, { valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number; resultat_mnd: number; antall: number; bundet_ek: number; frigjorbar_refi: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }> = {}
     for (const r of perSelskap) {
-      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, samlet_verdi: 0, restgjeld: 0, egenkapital: 0, resultat_mnd: 0, antall: 0, bundet_ek: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0 })
+      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, samlet_verdi: 0, restgjeld: 0, egenkapital: 0, resultat_mnd: 0, antall: 0, bundet_ek: 0, frigjorbar_refi: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0 })
       v.samlet_verdi += r.samlet_verdi
       v.restgjeld += r.restgjeld
       v.egenkapital += r.egenkapital
       v.resultat_mnd += r.resultat_mnd
       v.antall += r.antall_eiendommer
       v.bundet_ek += r.bundet_ek
+      v.frigjorbar_refi += r.frigjorbar_refi
       v.fri_likviditet += r.fri_likviditet
       v.laanekapasitet += r.laanekapasitet
       v.kjopekraft += r.kjopekraft
