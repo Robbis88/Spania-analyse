@@ -21,12 +21,14 @@ import { EiendomOppussing } from './faner/EiendomOppussing'
 import { EiendomTilbud } from './faner/EiendomTilbud'
 import { EiendomTidslinje } from './faner/EiendomTidslinje'
 import { EiendomAi } from './faner/EiendomAi'
+import { EiendomRegnskap } from './faner/EiendomRegnskap'
 import { TilbudHistorikk } from '../TilbudHistorikk'
 
-type Fane = 'oversikt' | 'beslutning' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'tilbud' | 'forespørsler' | 'tidslinje' | 'ai'
+type Fane = 'oversikt' | 'regnskap' | 'beslutning' | 'laan' | 'inntekter' | 'leietakere' | 'kostnader' | 'verdi' | 'cashflow' | 'dokumenter' | 'bilder' | 'kvitteringer' | 'oppussing' | 'tilbud' | 'forespørsler' | 'tidslinje' | 'ai'
 
 const FANER: Array<{ id: Fane; lbl: string; ikon: string }> = [
   { id: 'oversikt',     lbl: 'Oversikt',     ikon: '📊' },
+  { id: 'regnskap',     lbl: 'Regnskap',     ikon: '💼' },
   { id: 'beslutning',   lbl: 'Beslutning',   ikon: '💡' },
   { id: 'laan',         lbl: 'Lån',          ikon: '🏦' },
   { id: 'inntekter',    lbl: 'Inntekter',    ikon: '💰' },
@@ -147,6 +149,7 @@ export function EiendomDetalj({ prosjektId, onTilbake, onSeOffmarket }: Props) {
 
       {/* Fane-innhold */}
       {aktivFane === 'oversikt'   && <EiendomOversikt data={data} />}
+      {aktivFane === 'regnskap'   && <EiendomRegnskap data={data} />}
       {aktivFane === 'beslutning' && <EiendomBeslutning data={data} />}
       {aktivFane === 'laan'       && <EiendomLaan data={data} onEndret={refresh} />}
       {aktivFane === 'inntekter'  && <EiendomInntekter data={data} onEndret={refresh} />}
