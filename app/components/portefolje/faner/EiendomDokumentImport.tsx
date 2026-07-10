@@ -46,16 +46,46 @@ export function EiendomDokumentImport({ data, onEndret }: { data: EiendomData; o
   const ekInnskudd = Math.max(0, totalKjop - lanBelop)
   const harNytt = kontrakt !== null || laan !== null
 
+  // Felles opplasting med eksplisitt feilhåndtering, så ingenting svelges stille.
+  async function lesDokument(url: string, fil: File, navn: string): Promise<Record<string, unknown> | null> {
+    // Vercel-serverless avviser body > ~4,5 MB før ruten kjører — fang det tydelig.
+    if (fil.size > 4_400_000) {
+      visToast(`${navn} er ${(fil.size / 1_048_576).toFixed(1)} MB — komprimer til under 4 MB (eller ta et bilde av siden med tallene)`, 'feil', 8000)
+      return null
+    }
+    const fd = new FormData(); fd.append('fil', fil)
+    let r: Response
+    try {
+      r = await fetch(url, { method: 'POST', body: fd })
+    } catch (e) {
+      visToast(`${navn}: nettverksfeil — ${e instanceof Error ? e.message : 'ukjent'}`, 'feil', 6000)
+      return null
+    }
+    let d: { suksess?: boolean; feil?: string; felt?: Record<string, unknown> } | null = null
+    try { d = await r.json() } catch { /* ikke-JSON = plattformfeil */ }
+    if (!r.ok) {
+      visToast(`${navn}: serverfeil ${r.status}${d?.feil ? ' — ' + d.feil : (r.status === 413 ? ' (filen er for stor)' : '')}`, 'feil', 7000)
+      return null
+    }
+    if (!d?.suksess || !d.felt) {
+      visToast(d?.feil || `${navn}: uventet svar fra serveren`, 'feil', 6000)
+      return null
+    }
+    const antall = Object.values(d.felt).filter(v => v !== null && v !== undefined).length
+    if (antall === 0) {
+      visToast(`${navn}: AI fant ingen tall i dokumentet — prøv en tydeligere PDF eller et skarpt bilde av siden`, 'feil', 7000)
+      return null
+    }
+    visToast(`${navn} lest — ${antall} felt funnet, sjekk og lagre`, 'suksess', 3500)
+    return d.felt
+  }
+
   async function lastKontrakt(fil: File) {
     setJobber('kontrakt')
     try {
-      const fd = new FormData(); fd.append('fil', fil)
-      const r = await fetch('/api/kjopekontrakt/analyser', { method: 'POST', body: fd })
-      const d = await r.json()
-      if (!r.ok || !d.suksess) { visToast(d.feil || 'Kunne ikke lese kontrakten', 'feil', 4000); return }
-      setKontrakt(d.felt as KontraktFelt)
-      visToast('Kjøpekontrakt lest — sjekk og lagre', 'suksess', 2500)
-    } catch { visToast('Kunne ikke lese kontrakten', 'feil', 4000) } finally {
+      const felt = await lesDokument('/api/kjopekontrakt/analyser', fil, 'Kjøpekontrakt')
+      if (felt) setKontrakt(felt as KontraktFelt)
+    } finally {
       setJobber(null); if (kontraktInput.current) kontraktInput.current.value = ''
     }
   }
@@ -63,13 +93,9 @@ export function EiendomDokumentImport({ data, onEndret }: { data: EiendomData; o
   async function lastLaan(fil: File) {
     setJobber('laan')
     try {
-      const fd = new FormData(); fd.append('fil', fil)
-      const r = await fetch('/api/laan/analyser', { method: 'POST', body: fd })
-      const d = await r.json()
-      if (!r.ok || !d.suksess) { visToast(d.feil || 'Kunne ikke lese lånedokumentet', 'feil', 4000); return }
-      setLaan(d.felt as LaanFelt)
-      visToast('Lånevilkår lest — sjekk og lagre', 'suksess', 2500)
-    } catch { visToast('Kunne ikke lese lånedokumentet', 'feil', 4000) } finally {
+      const felt = await lesDokument('/api/laan/analyser', fil, 'Lånedokument')
+      if (felt) setLaan(felt as LaanFelt)
+    } finally {
       setJobber(null); if (laanInput.current) laanInput.current.value = ''
     }
   }
