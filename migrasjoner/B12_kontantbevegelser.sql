@@ -11,7 +11,7 @@ begin;
 create table if not exists kontantbevegelser (
   id uuid primary key default gen_random_uuid(),
   selskap_id uuid not null references selskaper(id) on delete cascade,
-  prosjekt_id uuid references prosjekter(id) on delete set null,  -- kobling til eiendom, valgfri
+  prosjekt_id text references prosjekter(id) on delete set null,  -- prosjekter.id er text
   dato date not null,
   type text not null check (type in (
     'innskudd', 'laaneopptak', 'kjop', 'omkostninger', 'oppussing',
@@ -20,7 +20,7 @@ create table if not exists kontantbevegelser (
   belop numeric not null,          -- FORTEGNSSATT: + øker kontanter, − reduserer
   valuta text not null check (valuta in ('NOK','EUR')),
   kilde text not null default 'manuell',
-  kilde_id uuid,                   -- referanse til prosjekt/laan/bilag for idempotens
+  kilde_id text,                   -- referanse til prosjekt(text)/selskap/laan for idempotens
   notat text,
   opprettet timestamptz default now()
 );
