@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle, selectStyle } from '../lib/styles'
 import { KortFortalt } from './KortFortalt'
-import type { Konsernlaan } from '../types'
+import type { Konsernlaan, Kontantbevegelse, KontantbevegelseType } from '../types'
 
 type SelskapKapital = {
   id: string; navn: string; land: 'norge' | 'spania'; valuta: 'NOK' | 'EUR'
@@ -18,32 +18,44 @@ const fmt = (n: number, valuta: string) => {
   return valuta === 'EUR' ? `€${v}` : `${v} kr`
 }
 
+const BEVEGELSE_ETIKETT: Record<KontantbevegelseType, string> = {
+  innskudd: 'Innskudd', laaneopptak: 'Låneopptak', kjop: 'Kjøp', omkostninger: 'Omkostninger',
+  oppussing: 'Oppussing', driftskostnad: 'Driftskostnad', renter: 'Renter', avdrag: 'Avdrag',
+  leieinntekt: 'Leieinntekt', uttak: 'Uttak', annet: 'Annet',
+}
+// Typer som gir mening å legge inn manuelt (auto-typene kommer fra seed/cashflow).
+const MANUELLE_TYPER: KontantbevegelseType[] = ['innskudd', 'uttak', 'driftskostnad', 'oppussing', 'renter', 'avdrag', 'annet']
+
 export function Kapital() {
   const [selskaper, setSelskaper] = useState<SelskapKapital[]>([])
   const [konsolidert, setKonsolidert] = useState<Konsolidert[]>([])
   const [konsernlaan, setKonsernlaan] = useState<Konsernlaan[]>([])
+  const [bevegelser, setBevegelser] = useState<Kontantbevegelse[]>([])
+  const [saldo, setSaldo] = useState<Record<string, number>>({})
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
 
   const hent = useCallback(async () => {
     setLaster(true); setFeil(null)
     try {
-      const r = await fetch('/api/kapital')
-      const d = await r.json()
-      if (!r.ok || d.feil) { setFeil(d.feil || 'Kunne ikke hente'); return }
+      const [rk, rb] = await Promise.all([fetch('/api/kapital'), fetch('/api/kontantkonto')])
+      const d = await rk.json()
+      if (!rk.ok || d.feil) { setFeil(d.feil || 'Kunne ikke hente'); return }
       setSelskaper(d.selskaper || [])
       setKonsolidert(d.konsolidert || [])
       setKonsernlaan(d.konsernlaan || [])
+      const db = await rb.json()
+      if (rb.ok && !db.feil) { setBevegelser(db.bevegelser || []); setSaldo(db.saldo || {}) }
     } catch { setFeil('Kunne ikke hente kapitaloversikt') } finally { setLaster(false) }
   }, [])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void hent() }, [hent])
 
-  async function lagreManuelt(id: string, fri_likviditet: number, laanekapasitet: number) {
+  async function lagreRamme(id: string, laanekapasitet: number) {
     await fetch('/api/selskaper', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, fri_likviditet, laanekapasitet }),
+      body: JSON.stringify({ id, laanekapasitet }),
     })
     await hent()
   }
@@ -85,19 +97,23 @@ export function Kapital() {
       {/* Per selskap */}
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.2em', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>Per selskap</div>
       <div style={{ display: 'grid', gap: 16, marginBottom: 32 }}>
-        {selskaper.map(s => <SelskapKort key={s.id} s={s} onLagre={lagreManuelt} />)}
+        {selskaper.map(s => <SelskapKort key={s.id} s={s} saldo={saldo[s.id]} onLagreRamme={lagreRamme} />)}
       </div>
+
+      <KontantkontoSeksjon selskaper={selskaper} bevegelser={bevegelser} saldo={saldo} onEndret={hent} />
 
       <KonsernlaanSeksjon selskaper={selskaper} konsernlaan={konsernlaan} onEndret={hent} />
     </div>
   )
 }
 
-function SelskapKort({ s, onLagre }: { s: SelskapKapital; onLagre: (id: string, fri: number, ramme: number) => Promise<void> }) {
-  const [fri, setFri] = useState(String(s.fri_likviditet || 0))
+function SelskapKort({ s, saldo, onLagreRamme }: { s: SelskapKapital; saldo: number | undefined; onLagreRamme: (id: string, ramme: number) => Promise<void> }) {
   const [ramme, setRamme] = useState(String(s.laanekapasitet || 0))
   const [lagrer, setLagrer] = useState(false)
-  const endret = Number(fri) !== s.fri_likviditet || Number(ramme) !== s.laanekapasitet
+  const endret = Number(ramme) !== s.laanekapasitet
+  // Kontantsaldo kommer fra kontantkontoen (beregnet). API-et faller tilbake til
+  // fri_likviditet-feltet før seeding, så vis det tallet inntil saldo finnes.
+  const kontant = saldo ?? s.fri_likviditet
 
   const tall = (lbl: string, v: number, farge?: string) => (
     <div>
@@ -115,6 +131,7 @@ function SelskapKort({ s, onLagre }: { s: SelskapKapital; onLagre: (id: string, 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14, marginBottom: 18 }}>
+        {tall('Kontantsaldo', kontant, kontant < 0 ? FARGER.feil : FARGER.mork)}
         {tall('Bundet egenkapital', s.bundet_ek, FARGER.gull)}
         {tall('Samlet verdi', s.samlet_verdi)}
         {tall('Frigjørbar (refi 75 %)', s.frigjorbar_refi)}
@@ -126,23 +143,181 @@ function SelskapKort({ s, onLagre }: { s: SelskapKapital; onLagre: (id: string, 
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', borderTop: `1px solid ${FARGER.kantUltralys}`, paddingTop: 16 }}>
         <div>
-          <label style={labelStyle}>Fri likviditet ({s.valuta})</label>
-          <input type="number" value={fri} onChange={e => setFri(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
-        </div>
-        <div>
           <label style={labelStyle}>Lånekapasitet / ramme ({s.valuta})</label>
           <input type="number" value={ramme} onChange={e => setRamme(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
         </div>
         <button
-          onClick={async () => { setLagrer(true); await onLagre(s.id, Number(fri) || 0, Number(ramme) || 0); setLagrer(false) }}
+          onClick={async () => { setLagrer(true); await onLagreRamme(s.id, Number(ramme) || 0); setLagrer(false) }}
           disabled={!endret || lagrer}
           style={{
             background: endret ? FARGER.mork : FARGER.flateMid, color: endret ? FARGER.creamLys : FARGER.tekstLys,
             border: 'none', padding: '10px 20px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill,
             cursor: endret && !lagrer ? 'pointer' : 'default',
           }}>
-          {lagrer ? 'Lagrer…' : 'Lagre'}
+          {lagrer ? 'Lagrer…' : 'Lagre ramme'}
         </button>
+        <span style={{ fontSize: 11.5, color: FARGER.tekstLys, alignSelf: 'center' }}>Kontantsaldo styres i kontantkontoen under ↓</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Kontantkonto (B12): beregnet saldo + hovedbok + manuell føring ──────────
+function KontantkontoSeksjon({ selskaper, bevegelser, saldo, onEndret }: {
+  selskaper: SelskapKapital[]; bevegelser: Kontantbevegelse[]; saldo: Record<string, number>; onEndret: () => Promise<void>
+}) {
+  const [forhand, setForhand] = useState<{ rader: Array<{ selskap_id: string; type: KontantbevegelseType; belop: number; notat: string; dato: string }>; saldoPerSelskap: Record<string, number> } | null>(null)
+  const [seeder, setSeeder] = useState(false)
+  const [apentSkjema, setApentSkjema] = useState<string | null>(null)
+  const valutaFor = (id: string) => selskaper.find(s => s.id === id)?.valuta || 'NOK'
+  const navnFor = (id: string) => selskaper.find(s => s.id === id)?.navn || '—'
+
+  async function forhandsvis() {
+    const r = await fetch('/api/kontantkonto/seed')
+    const d = await r.json()
+    if (r.ok && !d.feil) setForhand({ rader: d.rader || [], saldoPerSelskap: d.saldoPerSelskap || {} })
+  }
+  async function commitSeed() {
+    setSeeder(true)
+    await fetch('/api/kontantkonto/seed', { method: 'POST' })
+    setSeeder(false); setForhand(null)
+    await onEndret()
+  }
+  async function slett(id: string) {
+    if (!confirm('Slette denne bevegelsen?')) return
+    await fetch(`/api/kontantkonto?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    await onEndret()
+  }
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.2em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Kontantkonto</div>
+      <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', maxWidth: 640, lineHeight: 1.6 }}>
+        Kontantsaldoen beregnes fra bevegelsene under + realisert cashflow — den tastes ikke lenger.
+        «Forhåndsvis åpningsbalanse» bygger startbevegelser fra kjøp, lån og innskutt kapital.
+      </p>
+
+      {/* Seed-forhåndsvisning */}
+      <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 18 }}>
+        {!forhand ? (
+          <button onClick={forhandsvis} style={{ background: FARGER.mork, color: FARGER.creamLys, border: 'none', padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>
+            Forhåndsvis åpningsbalanse
+          </button>
+        ) : (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, marginBottom: 10 }}>{forhand.rader.length} bevegelser · resulterende saldo:</div>
+            <div style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
+              {Object.entries(forhand.saldoPerSelskap).map(([sid, v]) => (
+                <div key={sid} style={{ fontSize: 13, color: FARGER.mork }}><strong>{navnFor(sid)}:</strong> {fmt(v, valutaFor(sid))}</div>
+              ))}
+            </div>
+            <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 12, display: 'grid', gap: 2 }}>
+              {forhand.rader.map((r, i) => (
+                <div key={i} style={{ fontSize: 11.5, color: FARGER.tekstMid, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <span>{r.dato} · {BEVEGELSE_ETIKETT[r.type]} · {r.notat}</span>
+                  <span style={{ color: r.belop < 0 ? FARGER.feil : FARGER.suksess, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(r.belop, valutaFor(r.selskap_id))}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={commitSeed} disabled={seeder} style={{ background: FARGER.suksess, color: '#fff', border: 'none', padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer', opacity: seeder ? 0.6 : 1 }}>
+                {seeder ? 'Skriver…' : 'Bekreft og skriv'}
+              </button>
+              <button onClick={() => setForhand(null)} style={{ background: 'none', color: FARGER.tekstMid, border: `1px solid ${FARGER.kantLys}`, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>Avbryt</button>
+            </div>
+            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Trygt å kjøre flere ganger — duplikater hindres automatisk.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Per selskap: saldo + bevegelser + manuell føring */}
+      <div style={{ display: 'grid', gap: 16 }}>
+        {selskaper.map(s => {
+          const rader = bevegelser.filter(b => b.selskap_id === s.id)
+          return (
+            <div key={s.id} style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.sm, padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: FARGER.mork }}>{s.land === 'norge' ? '🇳🇴' : '🇪🇸'} {s.navn}</span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: (saldo[s.id] ?? 0) < 0 ? FARGER.feil : FARGER.mork }}>
+                  Saldo {fmt(saldo[s.id] ?? s.fri_likviditet, s.valuta)}
+                </span>
+              </div>
+
+              {rader.length > 0 && (
+                <div style={{ display: 'grid', gap: 2, marginBottom: 12 }}>
+                  {rader.slice(0, 12).map(b => (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: FARGER.tekstMid, borderBottom: `1px solid ${FARGER.kantUltralys}`, padding: '5px 0' }}>
+                      <span style={{ color: FARGER.tekstLys, width: 78, flexShrink: 0 }}>{b.dato}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>{BEVEGELSE_ETIKETT[b.type]}{b.notat ? ` · ${b.notat}` : ''}{b.kilde !== 'manuell' ? '' : ' ✎'}</span>
+                      <span style={{ color: b.belop < 0 ? FARGER.feil : FARGER.suksess, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(b.belop, s.valuta)}</span>
+                      {b.kilde === 'manuell' && <button onClick={() => slett(b.id)} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14, padding: '0 2px' }} title="Slett">×</button>}
+                    </div>
+                  ))}
+                  {rader.length > 12 && <div style={{ fontSize: 11, color: FARGER.tekstLys, paddingTop: 4 }}>+ {rader.length - 12} eldre bevegelser</div>}
+                </div>
+              )}
+
+              {apentSkjema === s.id
+                ? <LeggTilBevegelse selskapId={s.id} valuta={s.valuta} onLagret={async () => { setApentSkjema(null); await onEndret() }} onAvbryt={() => setApentSkjema(null)} />
+                : <button onClick={() => setApentSkjema(s.id)} style={{ background: 'none', border: `1px dashed ${FARGER.gullSvak}`, color: FARGER.gull, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>+ Registrer bevegelse (innskudd / uttak / justering)</button>
+              }
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function LeggTilBevegelse({ selskapId, valuta, onLagret, onAvbryt }: {
+  selskapId: string; valuta: 'NOK' | 'EUR'; onLagret: () => Promise<void>; onAvbryt: () => void
+}) {
+  const iDag = new Date().toISOString().slice(0, 10)
+  const [type, setType] = useState<KontantbevegelseType>('innskudd')
+  const [belop, setBelop] = useState('')
+  const [dato, setDato] = useState(iDag)
+  const [notat, setNotat] = useState('')
+  const [lagrer, setLagrer] = useState(false)
+
+  async function lagre() {
+    if (!Number(belop)) return
+    setLagrer(true)
+    await fetch('/api/kontantkonto', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selskap_id: selskapId, type, belop: Number(belop), dato, valuta, notat }),
+    })
+    setLagrer(false)
+    await onLagret()
+  }
+
+  return (
+    <div style={{ background: FARGER.creamLys, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.md, padding: 14, marginTop: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 10 }}>
+        <div>
+          <label style={labelStyle}>Type</label>
+          <select value={type} onChange={e => setType(e.target.value as KontantbevegelseType)} style={selectStyle}>
+            {MANUELLE_TYPER.map(t => <option key={t} value={t}>{BEVEGELSE_ETIKETT[t]}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Beløp ({valuta})</label>
+          <input type="number" value={belop} onChange={e => setBelop(e.target.value)} placeholder="Positivt tall" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Dato</label>
+          <input type="date" value={dato} onChange={e => setDato(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Notat</label>
+          <input value={notat} onChange={e => setNotat(e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button onClick={lagre} disabled={lagrer || !Number(belop)} style={{ background: FARGER.mork, color: FARGER.creamLys, border: 'none', padding: '8px 16px', fontSize: 12.5, fontWeight: 600, borderRadius: RADIUS.pill, cursor: Number(belop) && !lagrer ? 'pointer' : 'default', opacity: Number(belop) ? 1 : 0.5 }}>
+          {lagrer ? 'Lagrer…' : 'Lagre bevegelse'}
+        </button>
+        <button onClick={onAvbryt} style={{ background: 'none', border: 'none', color: FARGER.tekstMid, fontSize: 12.5, cursor: 'pointer' }}>Avbryt</button>
+        <span style={{ fontSize: 11, color: FARGER.tekstLys }}>Skriv positivt tall — fortegn settes av type (uttak/kostnad trekker fra).</span>
       </div>
     </div>
   )

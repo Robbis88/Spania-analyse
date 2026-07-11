@@ -128,6 +128,24 @@ export type Tilbud = {
   opprettet?: string
 }
 
+export type KontantbevegelseType =
+  | 'innskudd' | 'laaneopptak' | 'kjop' | 'omkostninger' | 'oppussing'
+  | 'driftskostnad' | 'renter' | 'avdrag' | 'leieinntekt' | 'uttak' | 'annet'
+
+export type Kontantbevegelse = {
+  id: string
+  selskap_id: string
+  prosjekt_id: string | null
+  dato: string
+  type: KontantbevegelseType
+  belop: number            // fortegnssatt: + øker kontanter, − reduserer
+  valuta: 'NOK' | 'EUR'
+  kilde: string
+  kilde_id: string | null
+  notat: string | null
+  opprettet?: string
+}
+
 export type Konsernlaan = {
   id: string
   fra_selskap: string | null

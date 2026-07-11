@@ -28,15 +28,22 @@ export async function GET(req: NextRequest) {
     const admin = hentSupabaseAdmin()
     const naa = Date.now()
 
-    const [selskaperRes, prosjekterRes, konsernRes] = await Promise.all([
+    const [selskaperRes, prosjekterRes, konsernRes, bevegelserRes] = await Promise.all([
       admin.from('selskaper').select('*').order('opprettet', { ascending: true }),
       admin.from('prosjekter').select('*').eq('er_portefolje', true),
       admin.from('konsernlaan').select('*'),
+      admin.from('kontantbevegelser').select('selskap_id, belop'),
     ])
 
     const selskaper = (selskaperRes.data || []) as Selskap[]
     const prosjekter = (prosjekterRes.data || []) as Prosjekt[]
     const konsernlaan = (konsernRes.data || []) as Konsernlaan[]
+    const bevegelser = (bevegelserRes.data || []) as Array<{ selskap_id: string; belop: number }>
+
+    // Kontantsaldo per selskap = hovedbok (kapitalhendelser) + realisert cashflow-netto.
+    // Fallback til det manuelle fri_likviditet-feltet så lenge selskapet ikke er seedet (B12).
+    const ledgerPerSelskap = new Map<string, number>()
+    for (const b of bevegelser) ledgerPerSelskap.set(b.selskap_id, (ledgerPerSelskap.get(b.selskap_id) || 0) + (b.belop || 0))
 
     // Hent lån + verdivurderinger for alle porteføljeeiendommer i bulk
     const ider = prosjekter.map(p => p.id)
@@ -44,17 +51,20 @@ export async function GET(req: NextRequest) {
     let vurdAlle: EiendomVerdivurdering[] = []
     let inntekterAlle: EiendomInntekt[] = []
     let kostnaderAlle: EiendomKostnad[] = []
+    let cashflowAlle: Array<{ prosjekt_id: string; inntekt: number; kostnad: number }> = []
     if (ider.length > 0) {
-      const [laanRes, vurdRes, innRes, kostRes] = await Promise.all([
+      const [laanRes, vurdRes, innRes, kostRes, cashRes] = await Promise.all([
         admin.from('eiendom_laan').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_verdivurderinger').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_inntekter').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_kostnader').select('*').in('prosjekt_id', ider),
+        admin.from('eiendom_cashflow').select('prosjekt_id, inntekt, kostnad').in('prosjekt_id', ider),
       ])
       laanAlle = (laanRes.data || []) as EiendomLaan[]
       vurdAlle = (vurdRes.data || []) as EiendomVerdivurdering[]
       inntekterAlle = (innRes.data || []) as EiendomInntekt[]
       kostnaderAlle = (kostRes.data || []) as EiendomKostnad[]
+      cashflowAlle = (cashRes.data || []) as Array<{ prosjekt_id: string; inntekt: number; kostnad: number }>
     }
 
     const perSelskap = selskaper.map(s => {
@@ -89,7 +99,13 @@ export async function GET(req: NextRequest) {
       const konsernGjeld = gjeldKonsern.reduce((sum, l) => sum + utestaaende(l), 0)
       const paalopteFordring = fordringer.reduce((sum, l) => sum + paalopteRenter(l, naa), 0)
 
-      const friLikviditet = s.fri_likviditet || 0
+      // Kontantsaldo: seedet selskap → hovedbok + realisert cashflow-netto; ellers gammelt felt.
+      const cashflowNet = eiendommer.reduce((sum, e) => {
+        const cf = cashflowAlle.filter(c => c.prosjekt_id === e.id)
+        return sum + cf.reduce((a, c) => a + ((c.inntekt || 0) - (c.kostnad || 0)), 0)
+      }, 0)
+      const harLedger = ledgerPerSelskap.has(s.id)
+      const friLikviditet = harLedger ? (ledgerPerSelskap.get(s.id)! + cashflowNet) : (s.fri_likviditet || 0)
       const laanekapasitet = s.laanekapasitet || 0
       // Kjøpekraft = kapital du kan deployere UTEN å selge: fri likviditet +
       // refinansieringspotensial (opp til maks LTV) + bankramme. Salgseffekt
