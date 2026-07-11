@@ -126,6 +126,22 @@ export function totalLaanKostnadMnd(laan: EiendomLaan[]): number {
   return laan.reduce((s, l) => s + renterMndEn(l) + avdragMndEn(l), 0)
 }
 
+// Antall hele måneder fra en startdato til nå (>= 0). Gjennomsnittsmåned.
+export function maanederSiden(startISO: string | null, naaMs: number): number {
+  if (!startISO) return 0
+  const start = new Date(startISO).getTime()
+  if (Number.isNaN(start) || start >= naaMs) return 0
+  return Math.floor((naaMs - start) / (1000 * 60 * 60 * 24 * 30.4375))
+}
+
+// Akkumulert lånebetjening (renter + avdrag) fra hvert låns startdato til nå (B12).
+// Kontant-effekt: penger ut av konto. Avdrag-delen motsvares av lavere restgjeld
+// (holdes oppdatert manuelt, som LTV), så egenkapital blir nøytral for avdrag og
+// negativ for renter. Beregnes live — ingen postering, ingen bakgrunnsjobb.
+export function laanBetjeningHittil(laan: EiendomLaan[], naaMs: number): number {
+  return laan.reduce((s, l) => s + (renterMndEn(l) + avdragMndEn(l)) * maanederSiden(l.startdato, naaMs), 0)
+}
+
 // Siste verdivurdering (etter dato). Faller tilbake til 0.
 export function sisteVerdi(vurderinger: EiendomVerdivurdering[]): number {
   if (vurderinger.length === 0) return 0

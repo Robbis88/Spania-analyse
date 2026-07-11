@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import type { EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, Konsernlaan, Prosjekt, Selskap } from '../../types'
-import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd } from '../../lib/portefolje'
+import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd, laanBetjeningHittil } from '../../lib/portefolje'
 import { beregnBundetEk, MAKS_LTV_PST } from '../../lib/beslutning'
 import { gevinstSatsPst, medDefaults } from '../../lib/skatteprofil'
 
@@ -99,13 +99,16 @@ export async function GET(req: NextRequest) {
       const konsernGjeld = gjeldKonsern.reduce((sum, l) => sum + utestaaende(l), 0)
       const paalopteFordring = fordringer.reduce((sum, l) => sum + paalopteRenter(l, naa), 0)
 
-      // Kontantsaldo: seedet selskap → hovedbok + realisert cashflow-netto; ellers gammelt felt.
+      // Kontantsaldo: seedet selskap → hovedbok + realisert cashflow − lånebetjening hittil;
+      // ellers gammelt felt (fallback inntil seeding).
       const cashflowNet = eiendommer.reduce((sum, e) => {
         const cf = cashflowAlle.filter(c => c.prosjekt_id === e.id)
         return sum + cf.reduce((a, c) => a + ((c.inntekt || 0) - (c.kostnad || 0)), 0)
       }, 0)
+      const selskapLaan = laanAlle.filter(l => eiendommer.some(e => e.id === (l as { prosjekt_id?: string }).prosjekt_id))
+      const laanebetjening = laanBetjeningHittil(selskapLaan, naa)
       const harLedger = ledgerPerSelskap.has(s.id)
-      const friLikviditet = harLedger ? (ledgerPerSelskap.get(s.id)! + cashflowNet) : (s.fri_likviditet || 0)
+      const friLikviditet = harLedger ? (ledgerPerSelskap.get(s.id)! + cashflowNet - laanebetjening) : (s.fri_likviditet || 0)
       const laanekapasitet = s.laanekapasitet || 0
       // Kjøpekraft = kapital du kan deployere UTEN å selge: fri likviditet +
       // refinansieringspotensial (opp til maks LTV) + bankramme. Salgseffekt

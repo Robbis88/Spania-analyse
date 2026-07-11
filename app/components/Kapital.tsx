@@ -32,6 +32,7 @@ export function Kapital() {
   const [konsernlaan, setKonsernlaan] = useState<Konsernlaan[]>([])
   const [bevegelser, setBevegelser] = useState<Kontantbevegelse[]>([])
   const [saldo, setSaldo] = useState<Record<string, number>>({})
+  const [laanebetjening, setLaanebetjening] = useState<Record<string, number>>({})
   const [laster, setLaster] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
 
@@ -45,7 +46,7 @@ export function Kapital() {
       setKonsolidert(d.konsolidert || [])
       setKonsernlaan(d.konsernlaan || [])
       const db = await rb.json()
-      if (rb.ok && !db.feil) { setBevegelser(db.bevegelser || []); setSaldo(db.saldo || {}) }
+      if (rb.ok && !db.feil) { setBevegelser(db.bevegelser || []); setSaldo(db.saldo || {}); setLaanebetjening(db.laanebetjening || {}) }
     } catch { setFeil('Kunne ikke hente kapitaloversikt') } finally { setLaster(false) }
   }, [])
 
@@ -100,7 +101,7 @@ export function Kapital() {
         {selskaper.map(s => <SelskapKort key={s.id} s={s} saldo={saldo[s.id]} onLagreRamme={lagreRamme} />)}
       </div>
 
-      <KontantkontoSeksjon selskaper={selskaper} bevegelser={bevegelser} saldo={saldo} onEndret={hent} />
+      <KontantkontoSeksjon selskaper={selskaper} bevegelser={bevegelser} saldo={saldo} laanebetjening={laanebetjening} onEndret={hent} />
 
       <KonsernlaanSeksjon selskaper={selskaper} konsernlaan={konsernlaan} onEndret={hent} />
     </div>
@@ -163,8 +164,8 @@ function SelskapKort({ s, saldo, onLagreRamme }: { s: SelskapKapital; saldo: num
 }
 
 // ─── Kontantkonto (B12): beregnet saldo + hovedbok + manuell føring ──────────
-function KontantkontoSeksjon({ selskaper, bevegelser, saldo, onEndret }: {
-  selskaper: SelskapKapital[]; bevegelser: Kontantbevegelse[]; saldo: Record<string, number>; onEndret: () => Promise<void>
+function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onEndret }: {
+  selskaper: SelskapKapital[]; bevegelser: Kontantbevegelse[]; saldo: Record<string, number>; laanebetjening: Record<string, number>; onEndret: () => Promise<void>
 }) {
   const [forhand, setForhand] = useState<{ rader: Array<{ selskap_id: string; type: KontantbevegelseType; belop: number; notat: string; dato: string }>; saldoPerSelskap: Record<string, number> } | null>(null)
   const [seeder, setSeeder] = useState(false)
@@ -254,6 +255,14 @@ function KontantkontoSeksjon({ selskaper, bevegelser, saldo, onEndret }: {
                     </div>
                   ))}
                   {rader.length > 12 && <div style={{ fontSize: 11, color: FARGER.tekstLys, paddingTop: 4 }}>+ {rader.length - 12} eldre bevegelser</div>}
+                </div>
+              )}
+
+              {(laanebetjening[s.id] || 0) > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: FARGER.tekstMid, borderBottom: `1px solid ${FARGER.kantUltralys}`, padding: '5px 0', marginBottom: 12 }}>
+                  <span style={{ color: FARGER.tekstLys, width: 78, flexShrink: 0 }}>hittil</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>Lånebetjening (renter + avdrag) · beregnet automatisk 🔄</span>
+                  <span style={{ color: FARGER.feil, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(-(laanebetjening[s.id] || 0), s.valuta)}</span>
                 </div>
               )}
 

@@ -90,17 +90,18 @@ Hver bevegelse bærer `kilde` + `kilde_id` med `unique(kilde, kilde_id)`, så re
 | Lån knyttet til eiendom (`eiendom_laan.hovedstol`) | `laaneopptak` (kjop_registrering) | + |
 | Manuell justering (eier skyter inn / tar ut, korreksjon) | `innskudd`/`uttak`/… (manuell) | ± |
 | **Realisert drift/leie** (`eiendom_cashflow`) | **leses live i saldo — posteres IKKE** | ± |
-| Godkjent **bilag** (drift/oppussing) — senere økt | `driftskostnad`/`oppussing` (bilag) | − |
-| Lånetermin betalt (`avdrag_belop`/`rente_belop`) — senere | `avdrag` + `renter` (laan_termin) | − |
+| **Lånebetjening** (renter + avdrag, `eiendom_laan`) | **leses live i saldo — posteres IKKE** | − |
+| Godkjent **bilag** (drift/oppussing) — senere utvidelse | `driftskostnad`/`oppussing` (bilag) | − |
 
-> **Implementert v1:** operativ drift/leie posteres IKKE til hovedboken. I stedet regnes
-> **saldo = Σ(kontantbevegelser) + Σ(eiendom_cashflow netto)** ved lesing. Da oppdaterer saldoen
-> seg automatisk hver gang en realisert måned logges — uten skrive-hooks og uten dobbelttelling.
-> Hovedboken holder kun kapitalhendelser (seed + manuelle). Bilag-/lånetermin-postering er en
-> senere utvidelse; når den skrus på, må cashflow-kilden avgrenses for samme periode.
+> **Implementert:** verken operativ drift/leie eller lånebetjening posteres til hovedboken.
+> **Saldo = Σ(kontantbevegelser) + Σ(eiendom_cashflow netto) − akkumulert lånebetjening hittil.**
+> Lånebetjening = `(renter + avdrag)/mnd × måneder siden lånets startdato` (`laanBetjeningHittil`
+> i `portefolje.ts`). Alt oppdaterer seg automatisk — ingen skrive-hooks, ingen bakgrunnsjobb.
+> Hovedboken holder kun kapitalhendelser (seed + manuelle).
 >
-> ⚠️ Kjent begrensning v1: lånets kontant-effekt (renter+avdrag betalt) ligger verken i
-> `eiendom_cashflow` eller seed → føres manuelt (type `renter`/`avdrag`) inntil lånetermin-postering bygges.
+> Avhengighet: avdrag-delen motsvares av lavere `restgjeld` (vedlikeholdes manuelt, som LTV),
+> så egenkapital er nøytral for avdrag og negativ for renter. `eiendom_cashflow.kostnad` skal
+> være DRIFT (uten finans) for å unngå dobbelttelling med lånebetjeningen.
 
 ---
 

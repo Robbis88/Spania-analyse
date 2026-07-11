@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import { loggAktivitet } from '../../lib/logg'
-import type { Kontantbevegelse, KontantbevegelseType } from '../../types'
+import { laanBetjeningHittil } from '../../lib/portefolje'
+import type { Kontantbevegelse, KontantbevegelseType, EiendomLaan } from '../../types'
 
 // Innganger (+) vs utganger (−). 'annet' signeres eksplisitt av kaller.
 const INNGANG: KontantbevegelseType[] = ['innskudd', 'laaneopptak', 'leieinntekt']
@@ -35,10 +36,12 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ feil: 'Kunne ikke hente bevegelser: ' + error.message }, { status: 500 })
     const bevegelser = (data || []) as Kontantbevegelse[]
 
-    // Operativ kontant fra realisert cashflow (netto per selskap via prosjekt-kobling).
-    const [prosjekterRes, cashflowRes] = await Promise.all([
+    // Operativ kontant fra realisert cashflow + lånebetjening (per selskap via prosjekt-kobling).
+    const naa = Date.now()
+    const [prosjekterRes, cashflowRes, laanRes] = await Promise.all([
       admin.from('prosjekter').select('id, selskap_id').eq('er_portefolje', true),
       admin.from('eiendom_cashflow').select('prosjekt_id, inntekt, kostnad'),
+      admin.from('eiendom_laan').select('*'),
     ])
     const prosjektTilSelskap = new Map<string, string>()
     for (const p of (prosjekterRes.data || []) as Array<{ id: string; selskap_id: string | null }>) {
@@ -50,15 +53,25 @@ export async function GET(req: NextRequest) {
       if (!sid) continue
       cashflowNettoPerSelskap.set(sid, (cashflowNettoPerSelskap.get(sid) || 0) + ((c.inntekt || 0) - (c.kostnad || 0)))
     }
+    // Akkumulert lånebetjening (renter + avdrag) hittil, per selskap.
+    const laanPerSelskap = new Map<string, EiendomLaan[]>()
+    for (const l of (laanRes.data || []) as EiendomLaan[]) {
+      const sid = prosjektTilSelskap.get(l.prosjekt_id)
+      if (!sid) continue
+      const arr = laanPerSelskap.get(sid) || []
+      arr.push(l); laanPerSelskap.set(sid, arr)
+    }
+    const laanebetjening: Record<string, number> = {}
+    for (const [sid, ls] of laanPerSelskap) laanebetjening[sid] = laanBetjeningHittil(ls, naa)
 
-    // Saldo per selskap = ledger + realisert cashflow-netto.
+    // Saldo per selskap = ledger + realisert cashflow-netto − lånebetjening hittil.
     const ledgerPerSelskap = new Map<string, number>()
     for (const b of bevegelser) ledgerPerSelskap.set(b.selskap_id, (ledgerPerSelskap.get(b.selskap_id) || 0) + (b.belop || 0))
     const saldo: Record<string, number> = {}
-    const alle = new Set<string>([...ledgerPerSelskap.keys(), ...cashflowNettoPerSelskap.keys()])
-    for (const sid of alle) saldo[sid] = (ledgerPerSelskap.get(sid) || 0) + (cashflowNettoPerSelskap.get(sid) || 0)
+    const alle = new Set<string>([...ledgerPerSelskap.keys(), ...cashflowNettoPerSelskap.keys(), ...Object.keys(laanebetjening)])
+    for (const sid of alle) saldo[sid] = (ledgerPerSelskap.get(sid) || 0) + (cashflowNettoPerSelskap.get(sid) || 0) - (laanebetjening[sid] || 0)
 
-    return NextResponse.json({ bevegelser, saldo })
+    return NextResponse.json({ bevegelser, saldo, laanebetjening })
   } catch (e) {
     console.error('Kontantkonto GET feil:', e instanceof Error ? e.message : String(e))
     return NextResponse.json({ feil: 'Kunne ikke hente kontantkonto' }, { status: 500 })
