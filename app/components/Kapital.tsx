@@ -167,7 +167,9 @@ function SelskapKort({ s, saldo, onLagreRamme }: { s: SelskapKapital; saldo: num
 function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onEndret }: {
   selskaper: SelskapKapital[]; bevegelser: Kontantbevegelse[]; saldo: Record<string, number>; laanebetjening: Record<string, number>; onEndret: () => Promise<void>
 }) {
-  const [forhand, setForhand] = useState<{ rader: Array<{ selskap_id: string; type: KontantbevegelseType; belop: number; notat: string; dato: string }>; saldoPerSelskap: Record<string, number> } | null>(null)
+  type SeedRad = { selskap_id: string; type: KontantbevegelseType; belop: number; notat: string; dato: string }
+  const [forhand, setForhand] = useState<{ rader: SeedRad[]; saldoPerSelskap: Record<string, number> } | null>(null)
+  const [startkap, setStartkap] = useState<Record<string, number>>({})
   const [seeder, setSeeder] = useState(false)
   const [apentSkjema, setApentSkjema] = useState<string | null>(null)
   const valutaFor = (id: string) => selskaper.find(s => s.id === id)?.valuta || 'NOK'
@@ -176,11 +178,17 @@ function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onE
   async function forhandsvis() {
     const r = await fetch('/api/kontantkonto/seed')
     const d = await r.json()
-    if (r.ok && !d.feil) setForhand({ rader: d.rader || [], saldoPerSelskap: d.saldoPerSelskap || {} })
+    if (r.ok && !d.feil) {
+      const rader: SeedRad[] = d.rader || []
+      setForhand({ rader, saldoPerSelskap: d.saldoPerSelskap || {} })
+      const sk: Record<string, number> = {}
+      for (const rad of rader) if (rad.type === 'innskudd') sk[rad.selskap_id] = rad.belop
+      setStartkap(sk)
+    }
   }
   async function commitSeed() {
     setSeeder(true)
-    await fetch('/api/kontantkonto/seed', { method: 'POST' })
+    await fetch('/api/kontantkonto/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startkapital: startkap }) })
     setSeeder(false); setForhand(null)
     await onEndret()
   }
@@ -206,27 +214,38 @@ function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onE
           </button>
         ) : (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, marginBottom: 10 }}>{forhand.rader.length} bevegelser · resulterende saldo:</div>
-            <div style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
-              {Object.entries(forhand.saldoPerSelskap).map(([sid, v]) => (
-                <div key={sid} style={{ fontSize: 13, color: FARGER.mork }}><strong>{navnFor(sid)}:</strong> {fmt(v, valutaFor(sid))}</div>
-              ))}
-            </div>
-            <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 12, display: 'grid', gap: 2 }}>
-              {forhand.rader.map((r, i) => (
-                <div key={i} style={{ fontSize: 11.5, color: FARGER.tekstMid, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span>{r.dato} · {BEVEGELSE_ETIKETT[r.type]} · {r.notat}</span>
-                  <span style={{ color: r.belop < 0 ? FARGER.feil : FARGER.suksess, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(r.belop, valutaFor(r.selskap_id))}</span>
+            <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, marginBottom: 12 }}>Åpningsbalanse — sett startkapital og bekreft</div>
+            {[...new Set(forhand.rader.map(r => r.selskap_id))].map(sid => {
+              const val = valutaFor(sid)
+              const andre = forhand.rader.filter(r => r.selskap_id === sid && r.type !== 'innskudd')
+              const saldo = (startkap[sid] || 0) + andre.reduce((a, r) => a + r.belop, 0)
+              const rad = (lbl: string, v: number, sterk?: boolean) => (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, color: sterk ? FARGER.mork : FARGER.tekstMid, fontWeight: sterk ? 700 : 400 }}>
+                  <span>{lbl}</span><span style={{ color: v < 0 ? FARGER.feil : (sterk ? FARGER.mork : FARGER.suksess), whiteSpace: 'nowrap' }}>{fmt(v, val)}</span>
                 </div>
-              ))}
-            </div>
+              )
+              return (
+                <div key={sid} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${FARGER.kantUltralys}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork, marginBottom: 8 }}>{navnFor(sid)}</div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={labelStyle}>Startkapital / innskutt EK ({val})</label>
+                    <input type="number" value={startkap[sid] ?? 0} onChange={e => setStartkap(p => ({ ...p, [sid]: Number(e.target.value) || 0 }))} style={{ ...inputStyle, maxWidth: 200 }} />
+                  </div>
+                  <div style={{ display: 'grid', gap: 3 }}>
+                    {rad('Startkapital (innskudd)', startkap[sid] || 0)}
+                    {andre.map((r, i) => <div key={i}>{rad(`${BEVEGELSE_ETIKETT[r.type]} · ${r.notat}`, r.belop)}</div>)}
+                    <div style={{ borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 4, marginTop: 2 }}>{rad('= Kontantsaldo (før lånebetjening)', saldo, true)}</div>
+                  </div>
+                </div>
+              )
+            })}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={commitSeed} disabled={seeder} style={{ background: FARGER.suksess, color: '#fff', border: 'none', padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer', opacity: seeder ? 0.6 : 1 }}>
                 {seeder ? 'Skriver…' : 'Bekreft og skriv'}
               </button>
               <button onClick={() => setForhand(null)} style={{ background: 'none', color: FARGER.tekstMid, border: `1px solid ${FARGER.kantLys}`, padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>Avbryt</button>
             </div>
-            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Trygt å kjøre flere ganger — duplikater hindres automatisk.</p>
+            <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '10px 0 0' }}>Oppussing tas ikke med (budsjett). Lånebetjening (renter) trekkes automatisk fra saldoen etter lånets startdato. Trygt å kjøre flere ganger — skriver ferskt.</p>
           </div>
         )}
       </div>

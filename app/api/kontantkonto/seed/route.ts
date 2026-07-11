@@ -17,9 +17,10 @@ type SeedRad = {
 }
 
 // Bygger åpningsbevegelser fra dagens kjente fakta (selskaper + prosjekter + lån).
-// Startkapital = dagens (stale) fri_likviditet-felt, som nettopp ER den innskutte
-// egenkapitalen. Alt annet (lån, kjøp, omkostninger, oppussing) trekkes fra den.
-async function byggSeed(): Promise<{ rader: SeedRad[]; saldoPerSelskap: Record<string, number> }> {
+// Startkapital (innskutt EK) kan overstyres per selskap (fri_likviditet-feltet er
+// upålitelig som startkapital). Oppussing tas IKKE med — det er budsjett, ikke brukt
+// kontant; faktisk oppussing kommer som egne bevegelser når den betales.
+async function byggSeed(overstyr: Record<string, number> = {}): Promise<{ rader: SeedRad[]; saldoPerSelskap: Record<string, number> }> {
   const admin = hentSupabaseAdmin()
   const [selskaperRes, prosjekterRes, laanRes] = await Promise.all([
     admin.from('selskaper').select('*'),
@@ -35,11 +36,12 @@ async function byggSeed(): Promise<{ rader: SeedRad[]; saldoPerSelskap: Record<s
     const val = (s.valuta === 'EUR' ? 'EUR' : 'NOK') as 'NOK' | 'EUR'
     const startdato = (s.opprettet || new Date().toISOString()).slice(0, 10)
 
-    // 1) Startkapital (innskutt egenkapital)
-    if ((s.fri_likviditet || 0) > 0) {
+    // 1) Startkapital (innskutt egenkapital) — overstyrbar per selskap
+    const startkapital = overstyr[s.id] ?? (s.fri_likviditet || 0)
+    if (startkapital > 0) {
       rader.push({
         selskap_id: s.id, prosjekt_id: null, dato: startdato, type: 'innskudd',
-        belop: s.fri_likviditet || 0, valuta: val, kilde: 'seed', kilde_id: s.id,
+        belop: startkapital, valuta: val, kilde: 'seed', kilde_id: s.id,
         notat: 'Startkapital (åpningsbalanse)',
       })
     }
@@ -64,9 +66,8 @@ async function byggSeed(): Promise<{ rader: SeedRad[]; saldoPerSelskap: Record<s
       if ((e.kjøpskostnader || 0) > 0) {
         rader.push({ selskap_id: s.id, prosjekt_id: e.id, dato: kjopsdato, type: 'omkostninger', belop: -(e.kjøpskostnader || 0), valuta: val, kilde: 'kjop_registrering', kilde_id: e.id, notat: `Omkostninger ${e.navn}` })
       }
-      if ((e.oppussing_faktisk || 0) > 0) {
-        rader.push({ selskap_id: s.id, prosjekt_id: e.id, dato: kjopsdato, type: 'oppussing', belop: -(e.oppussing_faktisk || 0), valuta: val, kilde: 'kjop_registrering', kilde_id: e.id, notat: `Oppussing (faktisk hittil) ${e.navn}` })
-      }
+      // Oppussing tas IKKE med i seed — oppussing_faktisk er ofte budsjett, ikke brukt kontant.
+      // Faktiske oppussingsbetalinger føres som egne bevegelser når de skjer.
     }
   }
 
@@ -88,17 +89,22 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: commit idempotent (unique(kilde, kilde_id, type) hindrer duplikater ved re-kjøring).
+// POST: commit. Skriver ferskt — fjerner tidligere auto-seedede rader og legger inn
+// på nytt (manuelle bevegelser bevares), så re-seed med korrigert startkapital blir riktig.
+// Body: { startkapital?: { [selskap_id]: number } } overstyrer innskutt EK per selskap.
 export async function POST(req: NextRequest) {
   const auth = requireAuth(req)
   if (!auth.ok) return auth.respons
   try {
-    const { rader } = await byggSeed()
-    if (rader.length === 0) return NextResponse.json({ suksess: true, skrevet: 0, notat: 'Ingen bevegelser å seede' })
+    const body = await req.json().catch(() => ({}))
+    const overstyr = body && typeof body.startkapital === 'object' && body.startkapital ? body.startkapital as Record<string, number> : {}
+    const { rader } = await byggSeed(overstyr)
     const admin = hentSupabaseAdmin()
-    const { error } = await admin
-      .from('kontantbevegelser')
-      .upsert(rader, { onConflict: 'kilde,kilde_id,type', ignoreDuplicates: true })
+    // Fjern tidligere auto-seedede rader (behold manuelle bevegelser).
+    const { error: delErr } = await admin.from('kontantbevegelser').delete().neq('kilde', 'manuell')
+    if (delErr) return NextResponse.json({ feil: 'Seed feilet (opprydding): ' + delErr.message }, { status: 500 })
+    if (rader.length === 0) return NextResponse.json({ suksess: true, skrevet: 0, notat: 'Ingen bevegelser å seede' })
+    const { error } = await admin.from('kontantbevegelser').insert(rader)
     if (error) return NextResponse.json({ feil: 'Seed feilet: ' + error.message }, { status: 500 })
     await loggAktivitet({ handling: 'seedet kontantkonto (åpningsbalanse)', tabell: 'kontantbevegelser', detaljer: { antall: rader.length } })
     return NextResponse.json({ suksess: true, skrevet: rader.length })

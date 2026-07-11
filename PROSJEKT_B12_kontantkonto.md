@@ -118,16 +118,18 @@ Hver bevegelse bærer `kilde` + `kilde_id` med `unique(kilde, kilde_id)`, så re
 
 Engangs-script per selskap, som gjør dagens kjente fakta om til åpningsbevegelser:
 
-1. `innskudd` = startkapital (for Loeiendom: 943 000 × 2 = 1 886 000) på selskapets startdato.
+1. `innskudd` = startkapital (redigerbart i forhåndsvisningen, ikke hentet fra `fri_likviditet`
+   som er upålitelig; for Loeiendom: 943 000 × 2 = 1 886 000) på selskapets startdato.
 2. `laaneopptak` = `eiendom_laan.hovedstol` per eksisterende lån, datert `startdato`.
 3. `kjop` = `prosjekter.kjøpesum` (−), datert `dato_kjopt`.
 4. `omkostninger` = `prosjekter.kjøpskostnader` (−).
-5. `oppussing` = `prosjekter.oppussing_faktisk` (−) hittil.
-6. Realiserte `eiendom_cashflow`-rader → `leieinntekt`/`driftskostnad`.
+5. `oppussing` tas IKKE med — `oppussing_faktisk` er ofte budsjett, ikke brukt kontant.
+   Faktiske oppussingsbetalinger føres som egne bevegelser når de skjer; et eget oppussingslån
+   føres som ny `laaneopptak` når det utbetales.
 
-Beregnet saldo faller da ut korrekt (Loeiendom: 1 886 000 + 2 030 000 − 2 900 000 − omkostninger −
-oppussing ≈ **~1,0 mill**, ikke 1,886 mill). Det gamle `fri_likviditet`-tallet **ignoreres/slettes** —
-det var stale startkapital og skal ikke migreres direkte.
+Beregnet saldo faller da ut korrekt (Loeiendom: 1 886 000 + 2 030 000 − 2 900 000 − 73 590 kjøpskost
+= **942 410**, minus akkumulert lånebetjening). Det gamle `fri_likviditet`-tallet **ignoreres** —
+det var endret til dagens kontanter og skal ikke brukes som startkapital.
 
 > Script skal være idempotent (kan kjøres på nytt) via `unique(kilde, kilde_id)`, og skrive en
 > CSV-forhåndsvisning av bevegelsene før commit, så Robert kan verifisere åpningsbalansen.
