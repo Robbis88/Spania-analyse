@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import type { EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering, Konsernlaan, Prosjekt, Selskap } from '../../types'
-import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd, laanBetjeningHittil } from '../../lib/portefolje'
+import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd, laanBetjeningHittil, renterHittil } from '../../lib/portefolje'
 import { beregnBundetEk, MAKS_LTV_PST } from '../../lib/beslutning'
 import { gevinstSatsPst, medDefaults } from '../../lib/skatteprofil'
 import { fakturaKostnader } from '../../lib/kontant'
@@ -33,14 +33,14 @@ export async function GET(req: NextRequest) {
       admin.from('selskaper').select('*').order('opprettet', { ascending: true }),
       admin.from('prosjekter').select('*').eq('er_portefolje', true),
       admin.from('konsernlaan').select('*'),
-      admin.from('kontantbevegelser').select('selskap_id, belop'),
+      admin.from('kontantbevegelser').select('selskap_id, type, belop'),
       admin.from('bilag').select('id, prosjekt_id, selskap_id, status, belop, faktura_dato, leverandor, kategori, valuta'),
     ])
 
     const selskaper = (selskaperRes.data || []) as Selskap[]
     const prosjekter = (prosjekterRes.data || []) as Prosjekt[]
     const konsernlaan = (konsernRes.data || []) as Konsernlaan[]
-    const bevegelser = (bevegelserRes.data || []) as Array<{ selskap_id: string; belop: number }>
+    const bevegelser = (bevegelserRes.data || []) as Array<{ selskap_id: string; type: string; belop: number }>
 
     // Kobling prosjekt→selskap + valuta, brukt til fakturakostnader.
     const prosjektTilSelskap = new Map<string, string>()
@@ -78,8 +78,9 @@ export async function GET(req: NextRequest) {
       kvitteringAlle = (kvitteringRes.data || []) as typeof kvitteringAlle
     }
 
-    // Fakturakostnader (kvitteringer + bilag) per selskap — trekkes fra kontantsaldoen.
-    const fakturaPerSelskap = fakturaKostnader(kvitteringAlle, bilagRes.data || [], prosjektTilSelskap, selskapValuta).perSelskap
+    // Fakturakostnader (kvitteringer + bilag) — trekkes fra kontantsaldoen.
+    const faktura = fakturaKostnader(kvitteringAlle, bilagRes.data || [], prosjektTilSelskap, selskapValuta)
+    const fakturaPerSelskap = faktura.perSelskap
 
     const perSelskap = selskaper.map(s => {
       const profil = medDefaults(s.land, s.skatteprofil)
@@ -130,6 +131,19 @@ export async function GET(req: NextRequest) {
       // holdes utenfor (betinget av salgsbeslutning) og vises som egen løftestang.
       const kjopekraft = friLikviditet + laanekapasitet + frigjorbarRefi
 
+      // Egenkapital-bro: hva løfter/tærer EK fra startkapital til i dag.
+      const bevSelskap = bevegelser.filter(b => b.selskap_id === s.id)
+      const sumType = (t: string) => bevSelskap.filter(b => b.type === t).reduce((a, b) => a + (b.belop || 0), 0)
+      const fakturaType = (t: string) => -faktura.rader.filter(r => r.selskap_id === s.id && r.type === t).reduce((a, r) => a + r.belop, 0)
+      const kjopTotal = eiendommer.reduce((a, e) => a + (e.kjøpesum || 0), 0)
+      const ek_innskutt = sumType('innskudd') + sumType('uttak')             // netto (uttak negativ)
+      const ek_verdiendring = samletVerdi - kjopTotal                        // dagens verdi vs kjøpesum
+      const ek_omkostninger = -sumType('omkostninger')                       // magnitude
+      const ek_oppussing = -sumType('oppussing') + fakturaType('oppussing')  // ledger + faktura
+      const ek_drift = -sumType('driftskostnad') + fakturaType('driftskostnad')
+      const ek_renter = renterHittil(selskapLaan, naa)
+      const ek_leie = cashflowInntekt
+
       return {
         id: s.id, navn: s.navn, land: s.land, valuta: s.valuta,
         antall_eiendommer: eiendommer.length,
@@ -145,13 +159,14 @@ export async function GET(req: NextRequest) {
         konsern_gjeld: konsernGjeld,
         paalopte_renter_fordring: paalopteFordring,
         kjopekraft,
+        ek_innskutt, ek_verdiendring, ek_omkostninger, ek_oppussing, ek_drift, ek_renter, ek_leie,
       }
     })
 
     // Konsolidert per valuta (kan ikke summere NOK og EUR uten kurs)
-    const perValuta: Record<string, { valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number; resultat_mnd: number; antall: number; bundet_ek: number; frigjorbar_refi: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number }> = {}
+    const perValuta: Record<string, { valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number; resultat_mnd: number; antall: number; bundet_ek: number; frigjorbar_refi: number; fri_likviditet: number; laanekapasitet: number; kjopekraft: number; ek_innskutt: number; ek_verdiendring: number; ek_omkostninger: number; ek_oppussing: number; ek_drift: number; ek_renter: number; ek_leie: number }> = {}
     for (const r of perSelskap) {
-      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, samlet_verdi: 0, restgjeld: 0, egenkapital: 0, resultat_mnd: 0, antall: 0, bundet_ek: 0, frigjorbar_refi: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0 })
+      const v = perValuta[r.valuta] || (perValuta[r.valuta] = { valuta: r.valuta, samlet_verdi: 0, restgjeld: 0, egenkapital: 0, resultat_mnd: 0, antall: 0, bundet_ek: 0, frigjorbar_refi: 0, fri_likviditet: 0, laanekapasitet: 0, kjopekraft: 0, ek_innskutt: 0, ek_verdiendring: 0, ek_omkostninger: 0, ek_oppussing: 0, ek_drift: 0, ek_renter: 0, ek_leie: 0 })
       v.samlet_verdi += r.samlet_verdi
       v.restgjeld += r.restgjeld
       v.egenkapital += r.egenkapital
@@ -162,6 +177,13 @@ export async function GET(req: NextRequest) {
       v.fri_likviditet += r.fri_likviditet
       v.laanekapasitet += r.laanekapasitet
       v.kjopekraft += r.kjopekraft
+      v.ek_innskutt += r.ek_innskutt
+      v.ek_verdiendring += r.ek_verdiendring
+      v.ek_omkostninger += r.ek_omkostninger
+      v.ek_oppussing += r.ek_oppussing
+      v.ek_drift += r.ek_drift
+      v.ek_renter += r.ek_renter
+      v.ek_leie += r.ek_leie
     }
 
     return NextResponse.json({

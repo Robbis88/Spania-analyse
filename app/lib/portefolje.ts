@@ -142,6 +142,11 @@ export function laanBetjeningHittil(laan: EiendomLaan[], naaMs: number): number 
   return laan.reduce((s, l) => s + (renterMndEn(l) + avdragMndEn(l)) * maanederSiden(l.startdato, naaMs), 0)
 }
 
+// Akkumulerte renter hittil (kun rentedelen — den ekte kostnaden som tærer egenkapital).
+export function renterHittil(laan: EiendomLaan[], naaMs: number): number {
+  return laan.reduce((s, l) => s + renterMndEn(l) * maanederSiden(l.startdato, naaMs), 0)
+}
+
 // Siste verdivurdering (etter dato). Faller tilbake til 0.
 export function sisteVerdi(vurderinger: EiendomVerdivurdering[]): number {
   if (vurderinger.length === 0) return 0

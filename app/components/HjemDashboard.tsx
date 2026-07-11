@@ -9,6 +9,8 @@ import { MaalSeksjon } from './MaalSeksjon'
 type KonsRad = {
   valuta: string; samlet_verdi: number; restgjeld: number; egenkapital: number
   resultat_mnd: number; antall: number; bundet_ek: number; fri_likviditet: number; kjopekraft: number
+  ek_innskutt: number; ek_verdiendring: number; ek_omkostninger: number
+  ek_oppussing: number; ek_drift: number; ek_renter: number; ek_leie: number
 }
 type SelskRad = { id: string; navn: string; valuta: string; antall_eiendommer: number; bundet_ek: number }
 type RangRad = {
@@ -82,7 +84,8 @@ export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
   // Konsolider til NOK (kan ikke summere NOK + EUR uten kurs).
   const k = useMemo(() => {
     const nok = (verdi: number, valuta: string) => (valuta === 'EUR' ? verdi * kurs : verdi)
-    const sum = { verdi: 0, gjeld: 0, ek: 0, resultat: 0, fri: 0, kjopekraft: 0, bundet: 0, antNorge: 0, antSpania: 0 }
+    const sum = { verdi: 0, gjeld: 0, ek: 0, resultat: 0, fri: 0, kjopekraft: 0, bundet: 0, antNorge: 0, antSpania: 0,
+      ekInnskutt: 0, ekVerdiendring: 0, ekOmkost: 0, ekOppussing: 0, ekDrift: 0, ekRenter: 0, ekLeie: 0 }
     for (const r of kons) {
       sum.verdi += nok(r.samlet_verdi, r.valuta)
       sum.gjeld += nok(r.restgjeld, r.valuta)
@@ -91,6 +94,13 @@ export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
       sum.fri += nok(r.fri_likviditet, r.valuta)
       sum.kjopekraft += nok(r.kjopekraft, r.valuta)
       sum.bundet += nok(r.bundet_ek, r.valuta)
+      sum.ekInnskutt += nok(r.ek_innskutt, r.valuta)
+      sum.ekVerdiendring += nok(r.ek_verdiendring, r.valuta)
+      sum.ekOmkost += nok(r.ek_omkostninger, r.valuta)
+      sum.ekOppussing += nok(r.ek_oppussing, r.valuta)
+      sum.ekDrift += nok(r.ek_drift, r.valuta)
+      sum.ekRenter += nok(r.ek_renter, r.valuta)
+      sum.ekLeie += nok(r.ek_leie, r.valuta)
       if (r.valuta === 'EUR') sum.antSpania += r.antall; else sum.antNorge += r.antall
     }
     return sum
@@ -192,11 +202,18 @@ export function HjemDashboard({ bruker, onÅpneEiendom, onÅpneVarsler }: {
       </section>
 
       {/* ═══ 2. TRE PRIMÆRE KPI-ER ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 26 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 16 }}>
         <StorKpi lbl="Egenkapital" verdi={fmtMill(k.ek + k.fri)} sub={`i eiendom ${fmtMill(k.ek)} · fri ${fmtMill(k.fri)}`} />
         <StorKpi lbl="Fri kapital" verdi={fmtMill(k.fri)} sub="klar til bruk nå" />
         <StorKpi lbl="Kjøpekraft" verdi={fmtMill(k.kjopekraft)} sub="fri + refi + ramme" aksent />
       </div>
+
+      {/* Egenkapital-bro — hva løfter/tærer EK */}
+      <EgenkapitalBro
+        innskutt={k.ekInnskutt} verdiendring={k.ekVerdiendring} omkost={k.ekOmkost}
+        oppussing={k.ekOppussing} drift={k.ekDrift} renter={k.ekRenter} leie={k.ekLeie}
+        total={k.ek + k.fri}
+      />
 
       {/* ═══ 3. STOR KONTANTSTRØM-GRAF ═══ */}
       <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, padding: 22, marginBottom: 26, boxShadow: SHADOW.xs }}>
@@ -288,6 +305,57 @@ function StorKpi({ lbl, verdi, sub, aksent }: { lbl: string; verdi: string; sub:
       <div style={{ fontSize: 11, color: FARGER.tekstMid, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 12 }}>{lbl}</div>
       <div style={{ fontSize: 'clamp(28px, 3.4vw, 38px)', fontWeight: 700, color: aksent ? FARGER.gull : FARGER.mork, letterSpacing: '-0.025em', lineHeight: 1 }}>{verdi}</div>
       <div style={{ fontSize: 12, color: FARGER.tekstLys, marginTop: 8 }}>{sub}</div>
+    </div>
+  )
+}
+
+// ─── Egenkapital-bro (hva løfter/tærer EK, fra startkapital til i dag) ────────
+function EgenkapitalBro({ innskutt, verdiendring, omkost, oppussing, drift, renter, leie, total }: {
+  innskutt: number; verdiendring: number; omkost: number; oppussing: number; drift: number; renter: number; leie: number; total: number
+}) {
+  const [åpen, setÅpen] = useState(true)
+  const nok = (n: number) => (n >= 0 ? '+' : '−') + Math.round(Math.abs(n)).toLocaleString('nb-NO') + ' kr'
+  const linjer: Array<{ lbl: string; v: number; grunn?: boolean }> = [
+    { lbl: 'Startkapital (innskutt EK)', v: innskutt, grunn: true },
+    { lbl: 'Verdiendring på eiendom', v: verdiendring },
+    { lbl: 'Leieinntekt hittil', v: leie },
+    { lbl: 'Kjøpsomkostninger', v: -omkost },
+    { lbl: 'Oppussing betalt', v: -oppussing },
+    { lbl: 'Driftskostnader hittil', v: -drift },
+    { lbl: 'Lånerenter hittil', v: -renter },
+  ]
+  const annet = total - linjer.reduce((a, l) => a + l.v, 0)
+  if (Math.abs(annet) > 1) linjer.push({ lbl: 'Annet / avrunding', v: annet })
+  const vis = linjer.filter(l => l.grunn || Math.abs(l.v) >= 1)
+  // Ingenting å vise før porteføljen har tall
+  if (total === 0 && innskutt === 0) return null
+
+  return (
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantLys}`, borderRadius: RADIUS.lg, boxShadow: SHADOW.xs, marginBottom: 26, overflow: 'hidden' }}>
+      <button onClick={() => setÅpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: FARGER.mork }}>Hva påvirker egenkapitalen?</span>
+        <span style={{ fontSize: 12, color: FARGER.tekstLys }}>{åpen ? 'skjul ▲' : 'vis ▾'}</span>
+      </button>
+      {åpen && (
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ display: 'grid', gap: 1 }}>
+            {vis.map((l, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: `1px solid ${FARGER.kantUltralys}`, fontSize: 13 }}>
+                <span style={{ color: l.grunn ? FARGER.mork : FARGER.tekstMid, fontWeight: l.grunn ? 600 : 400 }}>{l.lbl}</span>
+                <span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: l.grunn ? FARGER.mork : l.v >= 0 ? '#4ea373' : FARGER.feil }}>{nok(l.v)}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0 2px', fontSize: 14 }}>
+              <span style={{ fontWeight: 700, color: FARGER.mork }}>= Egenkapital i dag</span>
+              <span style={{ fontWeight: 700, color: FARGER.mork, whiteSpace: 'nowrap' }}>{Math.round(total).toLocaleString('nb-NO')} kr</span>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '12px 0 0', lineHeight: 1.5 }}>
+            Kjøp og lån endrer ikke egenkapitalen (bytte kontanter ↔ eiendom/gjeld). Bare ekte utgifter — omkostninger, renter, drift — tærer den. Verdiøkning og leie løfter den.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
