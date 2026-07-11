@@ -5,6 +5,7 @@ import type { EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering
 import { sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd, totalRenterMnd, laanBetjeningHittil } from '../../lib/portefolje'
 import { beregnBundetEk, MAKS_LTV_PST } from '../../lib/beslutning'
 import { gevinstSatsPst, medDefaults } from '../../lib/skatteprofil'
+import { fakturaKostnader } from '../../lib/kontant'
 
 // Utestående på et konsernlån = hovedstol minus nedbetalinger.
 function utestaaende(l: Konsernlaan): number {
@@ -28,17 +29,24 @@ export async function GET(req: NextRequest) {
     const admin = hentSupabaseAdmin()
     const naa = Date.now()
 
-    const [selskaperRes, prosjekterRes, konsernRes, bevegelserRes] = await Promise.all([
+    const [selskaperRes, prosjekterRes, konsernRes, bevegelserRes, bilagRes] = await Promise.all([
       admin.from('selskaper').select('*').order('opprettet', { ascending: true }),
       admin.from('prosjekter').select('*').eq('er_portefolje', true),
       admin.from('konsernlaan').select('*'),
       admin.from('kontantbevegelser').select('selskap_id, belop'),
+      admin.from('bilag').select('id, prosjekt_id, selskap_id, status, belop, faktura_dato, leverandor, kategori, valuta'),
     ])
 
     const selskaper = (selskaperRes.data || []) as Selskap[]
     const prosjekter = (prosjekterRes.data || []) as Prosjekt[]
     const konsernlaan = (konsernRes.data || []) as Konsernlaan[]
     const bevegelser = (bevegelserRes.data || []) as Array<{ selskap_id: string; belop: number }>
+
+    // Kobling prosjekt→selskap + valuta, brukt til fakturakostnader.
+    const prosjektTilSelskap = new Map<string, string>()
+    for (const p of prosjekter) if (p.selskap_id) prosjektTilSelskap.set(p.id, p.selskap_id)
+    const selskapValuta = new Map<string, 'NOK' | 'EUR'>()
+    for (const s of selskaper) selskapValuta.set(s.id, s.valuta)
 
     // Kontantsaldo per selskap = hovedbok (kapitalhendelser) + realisert cashflow-netto.
     // Fallback til det manuelle fri_likviditet-feltet så lenge selskapet ikke er seedet (B12).
@@ -51,21 +59,27 @@ export async function GET(req: NextRequest) {
     let vurdAlle: EiendomVerdivurdering[] = []
     let inntekterAlle: EiendomInntekt[] = []
     let kostnaderAlle: EiendomKostnad[] = []
-    let cashflowAlle: Array<{ prosjekt_id: string; inntekt: number; kostnad: number }> = []
+    let cashflowAlle: Array<{ prosjekt_id: string; inntekt: number }> = []
+    let kvitteringAlle: Array<{ id: string; prosjekt_id: string; ocr_status: string; belop_inkl_mva: number | null; dato: string | null; leverandor: string | null; oppussing_post_id: string | null }> = []
     if (ider.length > 0) {
-      const [laanRes, vurdRes, innRes, kostRes, cashRes] = await Promise.all([
+      const [laanRes, vurdRes, innRes, kostRes, cashRes, kvitteringRes] = await Promise.all([
         admin.from('eiendom_laan').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_verdivurderinger').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_inntekter').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_kostnader').select('*').in('prosjekt_id', ider),
-        admin.from('eiendom_cashflow').select('prosjekt_id, inntekt, kostnad').in('prosjekt_id', ider),
+        admin.from('eiendom_cashflow').select('prosjekt_id, inntekt').in('prosjekt_id', ider),
+        admin.from('kvitteringer').select('id, prosjekt_id, ocr_status, belop_inkl_mva, dato, leverandor, oppussing_post_id').in('prosjekt_id', ider),
       ])
       laanAlle = (laanRes.data || []) as EiendomLaan[]
       vurdAlle = (vurdRes.data || []) as EiendomVerdivurdering[]
       inntekterAlle = (innRes.data || []) as EiendomInntekt[]
       kostnaderAlle = (kostRes.data || []) as EiendomKostnad[]
-      cashflowAlle = (cashRes.data || []) as Array<{ prosjekt_id: string; inntekt: number; kostnad: number }>
+      cashflowAlle = (cashRes.data || []) as Array<{ prosjekt_id: string; inntekt: number }>
+      kvitteringAlle = (kvitteringRes.data || []) as typeof kvitteringAlle
     }
+
+    // Fakturakostnader (kvitteringer + bilag) per selskap — trekkes fra kontantsaldoen.
+    const fakturaPerSelskap = fakturaKostnader(kvitteringAlle, bilagRes.data || [], prosjektTilSelskap, selskapValuta).perSelskap
 
     const perSelskap = selskaper.map(s => {
       const profil = medDefaults(s.land, s.skatteprofil)
@@ -99,16 +113,17 @@ export async function GET(req: NextRequest) {
       const konsernGjeld = gjeldKonsern.reduce((sum, l) => sum + utestaaende(l), 0)
       const paalopteFordring = fordringer.reduce((sum, l) => sum + paalopteRenter(l, naa), 0)
 
-      // Kontantsaldo: seedet selskap → hovedbok + realisert cashflow − lånebetjening hittil;
+      // Kontantsaldo: seedet selskap → hovedbok + leieinntekt − lånebetjening + fakturakostnader;
       // ellers gammelt felt (fallback inntil seeding).
-      const cashflowNet = eiendommer.reduce((sum, e) => {
+      const cashflowInntekt = eiendommer.reduce((sum, e) => {
         const cf = cashflowAlle.filter(c => c.prosjekt_id === e.id)
-        return sum + cf.reduce((a, c) => a + ((c.inntekt || 0) - (c.kostnad || 0)), 0)
+        return sum + cf.reduce((a, c) => a + (c.inntekt || 0), 0)
       }, 0)
       const selskapLaan = laanAlle.filter(l => eiendommer.some(e => e.id === (l as { prosjekt_id?: string }).prosjekt_id))
       const laanebetjening = laanBetjeningHittil(selskapLaan, naa)
+      const fakturaKost = fakturaPerSelskap.get(s.id) || 0   // negativ sum av opplastede fakturaer
       const harLedger = ledgerPerSelskap.has(s.id)
-      const friLikviditet = harLedger ? (ledgerPerSelskap.get(s.id)! + cashflowNet - laanebetjening) : (s.fri_likviditet || 0)
+      const friLikviditet = harLedger ? (ledgerPerSelskap.get(s.id)! + cashflowInntekt - laanebetjening + fakturaKost) : (s.fri_likviditet || 0)
       const laanekapasitet = s.laanekapasitet || 0
       // Kjøpekraft = kapital du kan deployere UTEN å selge: fri likviditet +
       // refinansieringspotensial (opp til maks LTV) + bankramme. Salgseffekt

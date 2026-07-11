@@ -202,8 +202,8 @@ function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onE
     <div style={{ marginBottom: 32 }}>
       <div style={{ fontSize: 11, color: FARGER.gull, letterSpacing: '0.2em', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Kontantkonto</div>
       <p style={{ fontSize: 13, color: FARGER.tekstMid, margin: '0 0 16px', maxWidth: 640, lineHeight: 1.6 }}>
-        Kontantsaldoen beregnes fra bevegelsene under + realisert cashflow — den tastes ikke lenger.
-        «Forhåndsvis åpningsbalanse» bygger startbevegelser fra kjøp, lån og innskutt kapital.
+        Kontantsaldoen beregnes — den tastes ikke. Åpningsbalanse (innskudd, lån, kjøp) seedes én gang;
+        deretter trekkes opplastede fakturaer (📄, brutto inkl. mva), lånerenter og leieinntekt automatisk.
       </p>
 
       {/* Seed-forhåndsvisning */}
@@ -268,7 +268,7 @@ function KontantkontoSeksjon({ selskaper, bevegelser, saldo, laanebetjening, onE
                   {rader.slice(0, 12).map(b => (
                     <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: FARGER.tekstMid, borderBottom: `1px solid ${FARGER.kantUltralys}`, padding: '5px 0' }}>
                       <span style={{ color: FARGER.tekstLys, width: 78, flexShrink: 0 }}>{b.dato}</span>
-                      <span style={{ flex: 1, minWidth: 0 }}>{BEVEGELSE_ETIKETT[b.type]}{b.notat ? ` · ${b.notat}` : ''}{b.kilde !== 'manuell' ? '' : ' ✎'}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>{(b.kilde === 'kvittering' || b.kilde === 'bilag') ? '📄 ' : ''}{BEVEGELSE_ETIKETT[b.type]}{b.notat ? ` · ${b.notat}` : ''}</span>
                       <span style={{ color: b.belop < 0 ? FARGER.feil : FARGER.suksess, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(b.belop, s.valuta)}</span>
                       {b.kilde === 'manuell' && <button onClick={() => slett(b.id)} style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 14, padding: '0 2px' }} title="Slett">×</button>}
                     </div>

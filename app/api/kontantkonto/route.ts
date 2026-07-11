@@ -3,6 +3,7 @@ import { hentSupabaseAdmin } from '../../lib/supabaseAdmin'
 import { requireAuth } from '../../lib/requireAuth'
 import { loggAktivitet } from '../../lib/logg'
 import { laanBetjeningHittil } from '../../lib/portefolje'
+import { fakturaKostnader } from '../../lib/kontant'
 import type { Kontantbevegelse, KontantbevegelseType, EiendomLaan } from '../../types'
 
 // Innganger (+) vs utganger (−). 'annet' signeres eksplisitt av kaller.
@@ -36,22 +37,28 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ feil: 'Kunne ikke hente bevegelser: ' + error.message }, { status: 500 })
     const bevegelser = (data || []) as Kontantbevegelse[]
 
-    // Operativ kontant fra realisert cashflow + lånebetjening (per selskap via prosjekt-kobling).
+    // Operativ kontant: realisert leieinntekt (cashflow), lånebetjening, og fakturakostnader.
     const naa = Date.now()
-    const [prosjekterRes, cashflowRes, laanRes] = await Promise.all([
+    const [selskaperRes, prosjekterRes, cashflowRes, laanRes, kvitteringRes, bilagRes] = await Promise.all([
+      admin.from('selskaper').select('id, valuta'),
       admin.from('prosjekter').select('id, selskap_id').eq('er_portefolje', true),
-      admin.from('eiendom_cashflow').select('prosjekt_id, inntekt, kostnad'),
+      admin.from('eiendom_cashflow').select('prosjekt_id, inntekt'),
       admin.from('eiendom_laan').select('*'),
+      admin.from('kvitteringer').select('id, prosjekt_id, ocr_status, belop_inkl_mva, dato, leverandor, oppussing_post_id'),
+      admin.from('bilag').select('id, prosjekt_id, selskap_id, status, belop, faktura_dato, leverandor, kategori, valuta'),
     ])
     const prosjektTilSelskap = new Map<string, string>()
     for (const p of (prosjekterRes.data || []) as Array<{ id: string; selskap_id: string | null }>) {
       if (p.selskap_id) prosjektTilSelskap.set(p.id, p.selskap_id)
     }
-    const cashflowNettoPerSelskap = new Map<string, number>()
-    for (const c of (cashflowRes.data || []) as Array<{ prosjekt_id: string; inntekt: number; kostnad: number }>) {
+    const selskapValuta = new Map<string, 'NOK' | 'EUR'>()
+    for (const s of (selskaperRes.data || []) as Array<{ id: string; valuta: 'NOK' | 'EUR' }>) selskapValuta.set(s.id, s.valuta)
+
+    // Leieinntekt fra realisert cashflow (kostnader kommer nå fra opplastede fakturaer).
+    const inntektPerSelskap = new Map<string, number>()
+    for (const c of (cashflowRes.data || []) as Array<{ prosjekt_id: string; inntekt: number }>) {
       const sid = prosjektTilSelskap.get(c.prosjekt_id)
-      if (!sid) continue
-      cashflowNettoPerSelskap.set(sid, (cashflowNettoPerSelskap.get(sid) || 0) + ((c.inntekt || 0) - (c.kostnad || 0)))
+      if (sid) inntektPerSelskap.set(sid, (inntektPerSelskap.get(sid) || 0) + (c.inntekt || 0))
     }
     // Akkumulert lånebetjening (renter + avdrag) hittil, per selskap.
     const laanPerSelskap = new Map<string, EiendomLaan[]>()
@@ -64,14 +71,20 @@ export async function GET(req: NextRequest) {
     const laanebetjening: Record<string, number> = {}
     for (const [sid, ls] of laanPerSelskap) laanebetjening[sid] = laanBetjeningHittil(ls, naa)
 
-    // Saldo per selskap = ledger + realisert cashflow-netto − lånebetjening hittil.
+    // Fakturakostnader (kvitteringer + bilag) — leses live, vises som egne linjer.
+    const faktura = fakturaKostnader(kvitteringRes.data || [], bilagRes.data || [], prosjektTilSelskap, selskapValuta)
+
+    // Saldo = hovedbok + leieinntekt − lånebetjening + fakturakostnader (negative).
     const ledgerPerSelskap = new Map<string, number>()
     for (const b of bevegelser) ledgerPerSelskap.set(b.selskap_id, (ledgerPerSelskap.get(b.selskap_id) || 0) + (b.belop || 0))
     const saldo: Record<string, number> = {}
-    const alle = new Set<string>([...ledgerPerSelskap.keys(), ...cashflowNettoPerSelskap.keys(), ...Object.keys(laanebetjening)])
-    for (const sid of alle) saldo[sid] = (ledgerPerSelskap.get(sid) || 0) + (cashflowNettoPerSelskap.get(sid) || 0) - (laanebetjening[sid] || 0)
+    const alle = new Set<string>([...ledgerPerSelskap.keys(), ...inntektPerSelskap.keys(), ...Object.keys(laanebetjening), ...faktura.perSelskap.keys()])
+    for (const sid of alle) saldo[sid] = (ledgerPerSelskap.get(sid) || 0) + (inntektPerSelskap.get(sid) || 0) - (laanebetjening[sid] || 0) + (faktura.perSelskap.get(sid) || 0)
 
-    return NextResponse.json({ bevegelser, saldo, laanebetjening })
+    // Slå sammen ekte bevegelser + synteti­ske fakturalinjer, nyeste først.
+    const alleBevegelser = [...bevegelser, ...faktura.rader].sort((a, b) => (b.dato || '').localeCompare(a.dato || ''))
+
+    return NextResponse.json({ bevegelser: alleBevegelser, saldo, laanebetjening })
   } catch (e) {
     console.error('Kontantkonto GET feil:', e instanceof Error ? e.message : String(e))
     return NextResponse.json({ feil: 'Kunne ikke hente kontantkonto' }, { status: 500 })

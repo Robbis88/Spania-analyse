@@ -89,19 +89,20 @@ Hver bevegelse bærer `kilde` + `kilde_id` med `unique(kilde, kilde_id)`, så re
 | Registrer ny eiendom (kjøpesum, omkostninger) | `kjop` + `omkostninger` (kjop_registrering) | − |
 | Lån knyttet til eiendom (`eiendom_laan.hovedstol`) | `laaneopptak` (kjop_registrering) | + |
 | Manuell justering (eier skyter inn / tar ut, korreksjon) | `innskudd`/`uttak`/… (manuell) | ± |
-| **Realisert drift/leie** (`eiendom_cashflow`) | **leses live i saldo — posteres IKKE** | ± |
-| **Lånebetjening** (renter + avdrag, `eiendom_laan`) | **leses live i saldo — posteres IKKE** | − |
-| Godkjent **bilag** (drift/oppussing) — senere utvidelse | `driftskostnad`/`oppussing` (bilag) | − |
+| **Opplastet kvittering** (analysert) | **leses live, brutto inkl. mva — `oppussing`/`driftskostnad`** | − |
+| **Godkjent bilag** (`godkjent`/`laast`) | **leses live, brutto inkl. mva** | − |
+| **Realisert leieinntekt** (`eiendom_cashflow.inntekt`) | **leses live i saldo** | + |
+| **Lånebetjening** (renter + avdrag, `eiendom_laan`) | **leses live i saldo** | − |
 
-> **Implementert:** verken operativ drift/leie eller lånebetjening posteres til hovedboken.
-> **Saldo = Σ(kontantbevegelser) + Σ(eiendom_cashflow netto) − akkumulert lånebetjening hittil.**
-> Lånebetjening = `(renter + avdrag)/mnd × måneder siden lånets startdato` (`laanBetjeningHittil`
-> i `portefolje.ts`). Alt oppdaterer seg automatisk — ingen skrive-hooks, ingen bakgrunnsjobb.
-> Hovedboken holder kun kapitalhendelser (seed + manuelle).
+> **Implementert:** kostnader kommer fra **opplastede fakturaer** (kvittering + bilag), lest live og
+> trukket brutto (inkl. mva — boligselskap uten mva-fradrag bærer mva-en som kostnad). Ingenting av
+> dette posteres til hovedboken; alt beregnes ved lesing (`app/lib/kontant.ts`), så saldoen oppdaterer
+> seg når en faktura lastes opp og analyseres. Fakturalinjene vises i kontantkontoen med 📄-merke.
 >
-> Avhengighet: avdrag-delen motsvares av lavere `restgjeld` (vedlikeholdes manuelt, som LTV),
-> så egenkapital er nøytral for avdrag og negativ for renter. `eiendom_cashflow.kostnad` skal
-> være DRIFT (uten finans) for å unngå dobbelttelling med lånebetjeningen.
+> **Saldo = Σ(kontantbevegelser) + Σ(leieinntekt) − lånebetjening hittil − Σ(fakturaer brutto).**
+> Kostnads-sannheten er fakturaene; `eiendom_cashflow` bidrar nå kun med **inntekt** (leie), så drift
+> aldri dobbelttelles. Avdrag motsvares av lavere `restgjeld` (vedlikeholdes manuelt, som LTV), så
+> egenkapital er nøytral for avdrag og negativ for renter.
 
 ---
 
