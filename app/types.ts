@@ -128,6 +128,9 @@ export type Tilbud = {
   opprettet?: string
 }
 
+// Enhet i en fler-enhets utleiebolig (B4b) — seksjonering til flere leiligheter.
+export type Enhet = { navn?: string | null; leie_mnd: number; drift_mnd: number }
+
 export type KontantbevegelseType =
   | 'innskudd' | 'laaneopptak' | 'kjop' | 'omkostninger' | 'oppussing'
   | 'driftskostnad' | 'renter' | 'avdrag' | 'leieinntekt' | 'uttak' | 'annet'
@@ -218,6 +221,7 @@ export type Prosjekt = {
   // Tidsstyrt motor (B4): planforutsetninger. ARV = forventet_salgsverdi (over).
   oppussing_varighet_mnd?: number | null   // hvor lenge oppussingen tar (mnd)
   forventet_leie_mnd?: number | null        // planleie før faktiske inntekter finnes
+  enheter?: Enhet[] | null                  // fler-enhets utleie (B4b): seksjonering til N leiligheter
   strategi?: 'flipp' | 'langtid' | 'korttid' | 'uavklart'
   vft_status?: 'har' | 'sokt' | 'mangler' | null
   eierform?: string | null

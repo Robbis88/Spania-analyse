@@ -13,7 +13,7 @@
 
 import type {
   Prosjekt, EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering,
-  AirbnbData, Skatteprofil,
+  AirbnbData, Skatteprofil, Enhet,
 } from '../types'
 import {
   sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd,
@@ -29,7 +29,7 @@ export const MAKS_LTV_PST = 75                 // refinansiering opp til denne L
 export const REFI_RENTE_PST = 5.5              // antatt rente ved refinansiering
 export const REFI_NEDBETALING_AAR = 25
 
-export type ScenarioType = 'flipp' | 'langtid' | 'korttid' | 'refinansier'
+export type ScenarioType = 'flipp' | 'langtid' | 'korttid' | 'refinansier' | 'utvikle_behold' | 'utvikle_refi'
 
 export type ScenarioResultat = {
   type: ScenarioType
@@ -64,6 +64,7 @@ export type BeslutningInput = {
   oppussingVarighetMnd?: number | null   // hvor lenge oppussingen tar (mnd)
   forventetSalgssum?: number | null      // ARV — forventet salgssum etter oppussing
   forventetLeieMnd?: number | null       // planleie før faktiske inntekter finnes
+  enheter?: Enhet[] | null               // fler-enhets utleie (B4b) — overstyrer prosjekt.enheter
 }
 
 export type Beslutning = {
@@ -226,7 +227,68 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     ],
   }
 
-  const scenarier = [flipp, langtid, korttid, refinansier]
+  // 5) Utvikle og lei ut (B4b) — seksjonér til N enheter, ny verdi (ARV), lei ut.
+  //    To varianter: behold dagens lån, eller refinansier på utviklet verdi.
+  //    Gjenbruker beregnBundetEk + annuitetMnd; ingen nye formler.
+  const enheter = input.enheter ?? prosjekt.enheter ?? []
+  const enhetLeie = enheter.reduce((s, e) => s + (e.leie_mnd || 0), 0)
+  const enhetDrift = enheter.reduce((s, e) => s + (e.drift_mnd || 0), 0)
+  const harUtvikling = enheter.length > 0 || arv > 0
+  const utvikletVerdi = arv > 0 ? arv : verdi
+  const utLeie = enhetLeie > 0 ? enhetLeie : effektivLeie
+  const utDrift = enheter.length > 0 ? enhetDrift : kostnaderMnd
+  const utAarNettoForSkatt = (utLeie - utDrift) * 12
+  const utSkatt = Math.max(0, utAarNettoForSkatt) * (utleie_pst / 100)
+  const utAarNetto = utAarNettoForSkatt - utSkatt
+  const enhetTekst = enheter.length > 0 ? `${enheter.length} enheter` : 'utleie'
+
+  const utvikleScenarier: ScenarioResultat[] = []
+  if (harUtvikling && utLeie > 0 && utvikletVerdi > 0) {
+    // a) Behold dagens lån
+    const beholdBundet = beregnBundetEk(utvikletVerdi, restgjeld, anskaffelse, gevinst_pst).bundet_ek
+    const beholdCashflow = utLeie - utDrift - laanMnd
+    utvikleScenarier.push({
+      type: 'utvikle_behold', tittel: `Utvikle + lei ut (behold lån)`, tilgjengelig: true,
+      yield_bundet_ek_pst: beholdBundet > 0 ? (utAarNetto / beholdBundet) * 100 : 0,
+      cashflow_mnd: beholdCashflow,
+      varighet_mnd: varighet > 0 ? varighet : undefined,
+      skatt_linje: { lbl: `Utleieskatt (${utleie_pst} %)`, verdi: -utSkatt },
+      detaljer: [
+        { lbl: `Leie/mnd (${enhetTekst})`, verdi: utLeie },
+        { lbl: 'Driftskostnad/mnd', verdi: -utDrift },
+        { lbl: 'Lån/mnd (dagens)', verdi: -laanMnd },
+        { lbl: 'Cashflow/mnd', verdi: beholdCashflow },
+        ...(varighet > 0 ? [{ lbl: `Leiestart om ${varighet} mnd — bæring`, verdi: -holdekostnadOppussing }] : []),
+        { lbl: 'Utviklet verdi (ARV)', verdi: utvikletVerdi },
+        { lbl: 'Yield på bundet EK', verdi: beholdBundet > 0 ? (utAarNetto / beholdBundet) * 100 : 0, pst: true },
+      ],
+    })
+    // b) Refinansier på utviklet verdi — hent ut kapital og behold utleie
+    const maksLaanU = utvikletVerdi * (MAKS_LTV_PST / 100)
+    const frigjortU = Math.max(0, maksLaanU - restgjeld)
+    const nyttLaanMndU = annuitetMnd(maksLaanU, REFI_RENTE_PST, REFI_NEDBETALING_AAR)
+    const refiBundet = beregnBundetEk(utvikletVerdi, maksLaanU, anskaffelse, gevinst_pst).bundet_ek
+    const refiCashflowU = utLeie - utDrift - nyttLaanMndU
+    utvikleScenarier.push({
+      type: 'utvikle_refi', tittel: `Utvikle + refinansier + lei`, tilgjengelig: true,
+      yield_bundet_ek_pst: refiBundet > 0 ? (utAarNetto / refiBundet) * 100 : 0,
+      cashflow_mnd: refiCashflowU, frigjort_kapital: frigjortU, ny_ltv_pst: MAKS_LTV_PST,
+      varighet_mnd: varighet > 0 ? varighet : undefined,
+      skatt_linje: { lbl: 'Refinansiering', tekst: 'Ingen skatt ved opplåning' },
+      detaljer: [
+        { lbl: `Nytt lån (${MAKS_LTV_PST} % av utviklet verdi)`, verdi: maksLaanU },
+        { lbl: 'Innfri eksisterende gjeld', verdi: -restgjeld },
+        { lbl: 'Frigjort kapital', verdi: frigjortU },
+        { lbl: `Leie/mnd (${enhetTekst})`, verdi: utLeie },
+        { lbl: 'Driftskostnad/mnd', verdi: -utDrift },
+        { lbl: `Ny lånekostnad/mnd (${REFI_RENTE_PST} %)`, verdi: -nyttLaanMndU },
+        { lbl: 'Cashflow/mnd', verdi: refiCashflowU },
+        { lbl: 'Yield på bundet EK (etter refi)', verdi: refiBundet > 0 ? (utAarNetto / refiBundet) * 100 : 0, pst: true },
+      ],
+    })
+  }
+
+  const scenarier = [flipp, langtid, korttid, refinansier, ...utvikleScenarier]
 
   // Beste = høyest yield på bundet EK blant tilgjengelige leie-scenarier;
   // flipp/refi sammenlignes ikke på yield (de er kapital-hendelser), men motoren
