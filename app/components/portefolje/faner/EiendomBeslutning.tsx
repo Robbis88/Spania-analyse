@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle } from '../../../lib/styles'
 import { fmtNok, SumKort } from './faneUi'
-import { beregnBeslutning, type ScenarioResultat } from '../../../lib/beslutning'
+import { beregnBeslutning, type ScenarioResultat, type Beslutning } from '../../../lib/beslutning'
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
 import { supabase } from '../../../lib/supabase'
 import { VFT_STATUS, VFT_ETIKETT, type VftStatus } from '../../../lib/strategi'
@@ -114,6 +114,9 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
 
   return (
     <div>
+      {/* Beslutnings-hero — svaret først (answer-first) */}
+      <BeslutningHero beslutning={beslutning} />
+
       {/* Kapitalgrunnlag */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         <SumKort lbl="Markedsverdi" verdi={fmtNok(beslutning.verdi)} />
@@ -212,6 +215,53 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         salgskostnad {beslutning.salgskostnad > 0 ? '2 %' : '2 %'}, refinansiering opp til 75 % LTV. Terskel for svak leie: {beslutning.terskel_yield_pst} %.
         Skattesatser hentes fra selskapets skatteprofil.
       </p>
+    </div>
+  )
+}
+
+// ─── Beslutnings-hero (answer-first: anbefalt bruk øverst) ───────────────────
+function BeslutningHero({ beslutning }: { beslutning: Beslutning }) {
+  const tilgj = beslutning.scenarier.filter(s => s.tilgjengelig)
+  const beste = tilgj.find(s => s.type === beslutning.beste)
+  const flip = tilgj.find(s => s.type === 'flipp')
+  const refi = tilgj.find(s => s.type === 'utvikle_refi') || tilgj.find(s => s.type === 'refinansier')
+  const hoved = beste || flip
+
+  const chip = (lbl: string, val: string, farge: string) => (
+    <div>
+      <div style={{ fontSize: 11, color: 'rgba(253,252,247,0.55)' }}>{lbl}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: farge, marginTop: 3 }}>{val}</div>
+    </div>
+  )
+
+  if (!hoved) {
+    return (
+      <div style={{ background: FARGER.mork, borderRadius: RADIUS.lg, padding: 22, marginBottom: 22, color: FARGER.creamLys, boxShadow: SHADOW.md }}>
+        <div style={{ fontSize: 10.5, color: FARGER.gull, letterSpacing: '0.22em', fontWeight: 700 }}>BESLUTNING</div>
+        <div style={{ fontSize: 18, fontWeight: 600, marginTop: 10 }}>Fyll inn verdi, lån og plan — så regner motoren beste bruk.</div>
+        <div style={{ fontSize: 12.5, color: 'rgba(253,252,247,0.6)', marginTop: 6 }}>Sett forventet salgssum (ARV), oppussingsvarighet og evt. leiligheter under, så vises anbefalingen her.</div>
+      </div>
+    )
+  }
+
+  const yieldTxt = typeof hoved.yield_bundet_ek_pst === 'number' ? pst(hoved.yield_bundet_ek_pst) : null
+
+  return (
+    <div style={{ background: FARGER.mork, borderRadius: RADIUS.lg, padding: 'clamp(20px, 3vw, 28px)', marginBottom: 22, color: FARGER.creamLys, boxShadow: SHADOW.md }}>
+      <div style={{ fontSize: 10.5, color: FARGER.gull, letterSpacing: '0.22em', fontWeight: 700, marginBottom: 10 }}>ANBEFALT BRUK NÅ</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ width: 11, height: 11, borderRadius: RADIUS.pill, background: '#67c298', boxShadow: '0 0 0 5px rgba(103,194,152,0.15)', flexShrink: 0 }} />
+        <h2 style={{ fontSize: 'clamp(20px, 2.6vw, 26px)', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0 }}>{hoved.tittel}</h2>
+      </div>
+      <div style={{ display: 'flex', gap: 'clamp(20px, 4vw, 44px)', flexWrap: 'wrap', marginTop: 18 }}>
+        {yieldTxt && chip('Yield på bundet EK', yieldTxt, '#67c298')}
+        {typeof hoved.cashflow_mnd === 'number' && chip('Cashflow/mnd', fmtNok(hoved.cashflow_mnd), hoved.cashflow_mnd >= 0 ? '#67c298' : '#ff8a8a')}
+        {typeof hoved.frigjort_kapital === 'number' && chip('Frigjort kapital', fmtNok(hoved.frigjort_kapital), FARGER.gull)}
+        {flip && flip !== hoved && typeof flip.gevinst_etter_skatt === 'number' && chip('Ved salg: gevinst e. skatt', fmtNok(flip.gevinst_etter_skatt), 'rgba(253,252,247,0.9)')}
+      </div>
+      <div style={{ fontSize: 12.5, color: 'rgba(253,252,247,0.6)', marginTop: 16, lineHeight: 1.6, maxWidth: 640 }}>
+        Beregnet deterministisk fra tallene under.{refi && typeof refi.frigjort_kapital === 'number' && refi.frigjort_kapital > 0 ? ` Refinansiering kan frigjøre ${fmtNok(refi.frigjort_kapital)} og beholde utleie.` : ''} Full begrunnelse i klartekst med «Be om anbefaling» lenger ned.
+      </div>
     </div>
   )
 }
