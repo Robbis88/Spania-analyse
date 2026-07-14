@@ -6,7 +6,7 @@ import { beregnBeslutning, type ScenarioResultat } from '../../../lib/beslutning
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
 import { supabase } from '../../../lib/supabase'
 import { VFT_STATUS, VFT_ETIKETT, type VftStatus } from '../../../lib/strategi'
-import type { AirbnbData, Selskap, Skatteprofil, Tilbud } from '../../../types'
+import type { AirbnbData, Enhet, Selskap, Skatteprofil, Tilbud } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
 
 const pst = (n: number | undefined) => (n === undefined || !Number.isFinite(n)) ? '–' : n.toFixed(1) + ' %'
@@ -24,10 +24,16 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [varighet, setVarighet] = useState<string>(p.oppussing_varighet_mnd != null ? String(p.oppussing_varighet_mnd) : '')
   const [arv, setArv] = useState<string>(p.forventet_salgsverdi ? String(p.forventet_salgsverdi) : '')
   const [forventetLeie, setForventetLeie] = useState<string>(p.forventet_leie_mnd ? String(p.forventet_leie_mnd) : '')
+  const [enheter, setEnheter] = useState<Enhet[]>(Array.isArray(p.enheter) ? p.enheter : [])
 
   async function lagrePlan(felt: 'oppussing_varighet_mnd' | 'forventet_salgsverdi' | 'forventet_leie_mnd', v: string) {
     const tall = v.trim() === '' ? null : Number(v)
     await supabase.from('prosjekter').update({ [felt]: tall }).eq('id', p.id)
+  }
+
+  async function lagreEnheter(nye: Enhet[]) {
+    setEnheter(nye)
+    await supabase.from('prosjekter').update({ enheter: nye }).eq('id', p.id)
   }
 
   async function settVft(v: VftStatus | '') {
@@ -73,7 +79,8 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
     oppussingVarighetMnd: varighet.trim() !== '' ? Number(varighet) : null,
     forventetSalgssum: arv.trim() !== '' ? Number(arv) : null,
     forventetLeieMnd: forventetLeie.trim() !== '' ? Number(forventetLeie) : null,
-  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno, varighet, arv, forventetLeie])
+    enheter: enheter.length > 0 ? enheter : null,
+  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno, varighet, arv, forventetLeie, enheter])
 
   async function lagreMinReno() {
     if (minReno.trim() === '') return
@@ -166,6 +173,9 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         </div>
       )}
 
+      {/* Leiligheter — fler-enhets utvikling (B4b) */}
+      <LeilighetEditor enheter={enheter} onLagre={lagreEnheter} />
+
       {/* AI-anbefaling */}
       <div style={{ background: FARGER.mork, borderRadius: RADIUS.lg, padding: 22, marginBottom: 22, color: FARGER.creamLys, boxShadow: SHADOW.md }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -190,7 +200,7 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         )}
       </div>
 
-      {/* Fire scenarier */}
+      {/* Scenarier (flipp, langtid, korttid, refinansier + evt. utvikle-og-lei) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         {beslutning.scenarier.map(s => (
           <ScenarioKort key={s.type} s={s} erBeste={beslutning.beste === s.type} terskel={beslutning.terskel_yield_pst} />
@@ -202,6 +212,49 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         salgskostnad {beslutning.salgskostnad > 0 ? '2 %' : '2 %'}, refinansiering opp til 75 % LTV. Terskel for svak leie: {beslutning.terskel_yield_pst} %.
         Skattesatser hentes fra selskapets skatteprofil.
       </p>
+    </div>
+  )
+}
+
+// ─── Leilighet-editor (fler-enhets utvikling, B4b) ───────────────────────────
+function LeilighetEditor({ enheter, onLagre }: { enheter: Enhet[]; onLagre: (e: Enhet[]) => void }) {
+  const [rader, setRader] = useState<Enhet[]>(enheter)
+  const oppdater = (i: number, felt: keyof Enhet, verdi: string | number) =>
+    setRader(r => r.map((x, j) => j === i ? { ...x, [felt]: verdi } : x))
+  const leggTil = () => { const nye = [...rader, { navn: '', leie_mnd: 0, drift_mnd: 0 }]; setRader(nye); onLagre(nye) }
+  const fjern = (i: number) => { const nye = rader.filter((_, j) => j !== i); setRader(nye); onLagre(nye) }
+  const sumLeie = rader.reduce((s, e) => s + (Number(e.leie_mnd) || 0), 0)
+  const sumDrift = rader.reduce((s, e) => s + (Number(e.drift_mnd) || 0), 0)
+
+  return (
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>🏘️ Leiligheter — utvikle og lei ut</div>
+      <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 14, maxWidth: 560, lineHeight: 1.5 }}>
+        Seksjonér boligen til flere enheter, sett leie og drift per enhet. Da regner motoren «utvikle + lei ut» (behold lån) og «refinansier + lei» mot utviklet verdi (ARV over).
+      </div>
+
+      {rader.length > 0 && (
+        <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: FARGER.tekstLys, fontWeight: 600, padding: '0 2px' }}>
+            <span>Enhet</span><span>Leie/mnd</span><span>Drift/mnd</span><span></span>
+          </div>
+          {rader.map((e, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, alignItems: 'center' }}>
+              <input value={e.navn || ''} placeholder={`Enhet ${i + 1}`} onChange={ev => oppdater(i, 'navn', ev.target.value)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              <input type="number" value={e.leie_mnd || ''} placeholder="0" onChange={ev => oppdater(i, 'leie_mnd', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              <input type="number" value={e.drift_mnd || ''} placeholder="0" onChange={ev => oppdater(i, 'drift_mnd', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              <button onClick={() => fjern(i)} title="Fjern" style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 17, padding: 0 }}>×</button>
+            </div>
+          ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, fontSize: 13, fontWeight: 700, color: FARGER.mork }}>
+            <span>{rader.length} enheter</span><span>{fmtNok(sumLeie)}</span><span>{fmtNok(sumDrift)}</span><span></span>
+          </div>
+        </div>
+      )}
+
+      <button onClick={leggTil} style={{ background: 'none', border: `1px dashed ${FARGER.gullSvak}`, color: FARGER.gull, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>
+        + Legg til leilighet
+      </button>
     </div>
   )
 }
