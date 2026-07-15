@@ -137,7 +137,8 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
       { lbl: `Salgskostnad (${SALGSKOST_PST} %)`, verdi: -salgskostnadF },
       ...(holdekostFlipp > 0 ? [{ lbl: `Holdekostnad (${varighet} mnd oppussing)`, verdi: -holdekostFlipp }] : []),
       { lbl: `Gevinstskatt (${gevinst_pst} %)`, verdi: -gevinstskattF },
-      { lbl: planlagtFlipp ? 'Frigjort kapital etter salg' : 'Frigjort kapital', verdi: nettoFlipp },
+      { lbl: 'Fortjeneste (etter skatt og holdekost)', verdi: (gevinstF - gevinstskattF) - holdekostFlipp },
+      { lbl: planlagtFlipp ? 'Penger i hånda etter salg' : 'Frigjort kapital', verdi: nettoFlipp },
     ],
   }
 
@@ -230,7 +231,8 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   // 5) Utvikle og lei ut (B4b) — seksjonér til N enheter, ny verdi (ARV), lei ut.
   //    To varianter: behold dagens lån, eller refinansier på utviklet verdi.
   //    Gjenbruker beregnBundetEk + annuitetMnd; ingen nye formler.
-  const enheter = input.enheter ?? prosjekt.enheter ?? []
+  // Kun enheter med faktisk leie teller — tomme rader (leie 0) ignoreres.
+  const enheter = (input.enheter ?? prosjekt.enheter ?? []).filter(e => (e.leie_mnd || 0) > 0)
   const enhetLeie = enheter.reduce((s, e) => s + (e.leie_mnd || 0), 0)
   const enhetDrift = enheter.reduce((s, e) => s + (e.drift_mnd || 0), 0)
   const harUtvikling = enheter.length > 0 || arv > 0
@@ -288,7 +290,12 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     })
   }
 
-  const scenarier = [flipp, langtid, korttid, refinansier, ...utvikleScenarier]
+  // Når utvikling er planlagt (ARV/enheter satt) erstatter «utvikle»-scenariene
+  // vanlig langtidsleie og refinansiering — de sistnevnte måler yield mot
+  // FØR-oppussing-egenkapital og gir kunstig høy, ikke-sammenlignbar yield.
+  const scenarier = utvikleScenarier.length > 0
+    ? [flipp, korttid, ...utvikleScenarier]
+    : [flipp, langtid, korttid, refinansier]
 
   // Beste = høyest yield på bundet EK blant tilgjengelige leie-scenarier;
   // flipp/refi sammenlignes ikke på yield (de er kapital-hendelser), men motoren

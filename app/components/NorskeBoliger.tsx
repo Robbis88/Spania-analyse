@@ -1118,39 +1118,7 @@ export function NorskeBoliger({ onTilbake, initialInput, autoRun }: { onTilbake:
         <Dashboard marked="norge" onApneProsjekt={(id) => { void lastInn(id) }} />
       </div>
 
-      <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 18, marginBottom: 22, boxShadow: SHADOW.sm }}>
-        <div style={{ fontSize: 11, color: FARGER.tekstMid, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 14 }}>Modus</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-          <button onClick={() => setModus('ren')} className="kort-loft"
-            style={{
-              background: modus === 'ren' ? FARGER.mork : FARGER.hvit,
-              color: modus === 'ren' ? FARGER.creamLys : FARGER.mork,
-              border: `1px solid ${modus === 'ren' ? FARGER.mork : FARGER.kantUltralys}`,
-              padding: '14px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              letterSpacing: '-0.005em', textAlign: 'left',
-              borderRadius: RADIUS.md,
-              boxShadow: modus === 'ren' ? SHADOW.sm : 'none',
-              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
-            }}>
-            <div>🏘️ Ren flipp</div>
-            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.75, marginTop: 4 }}>Kjøp, puss opp, selg</div>
-          </button>
-          <button onClick={() => setModus('bo')} className="kort-loft"
-            style={{
-              background: modus === 'bo' ? FARGER.mork : FARGER.hvit,
-              color: modus === 'bo' ? FARGER.creamLys : FARGER.mork,
-              border: `1px solid ${modus === 'bo' ? FARGER.mork : FARGER.kantUltralys}`,
-              padding: '14px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              letterSpacing: '-0.005em', textAlign: 'left',
-              borderRadius: RADIUS.md,
-              boxShadow: modus === 'bo' ? SHADOW.sm : 'none',
-              transition: `transform ${MOTION.rask}, box-shadow ${MOTION.rask}`,
-            }}>
-            <div>🏡 Bo og flipp</div>
-            <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.75, marginTop: 4 }}>Selg eget hjem → kjøp ny → bo og puss → selg</div>
-          </button>
-        </div>
-      </div>
+      {/* Modus-toggle fjernet — firma driver kun ren flipp/utleie (bo-og-flipp var privat). */}
 
       {lagrede.length > 0 && (
         <LagredeProsjekter
