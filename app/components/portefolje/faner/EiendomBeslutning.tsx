@@ -6,7 +6,7 @@ import { beregnBeslutning, type ScenarioResultat, type Beslutning } from '../../
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
 import { supabase } from '../../../lib/supabase'
 import { VFT_STATUS, VFT_ETIKETT, type VftStatus } from '../../../lib/strategi'
-import type { AirbnbData, Enhet, Selskap, Skatteprofil, Tilbud } from '../../../types'
+import type { AirbnbData, Enhet, Oppussingspost, Selskap, Skatteprofil, Tilbud } from '../../../types'
 import type { EiendomData } from '../useEiendomData'
 
 const pst = (n: number | undefined) => (n === undefined || !Number.isFinite(n)) ? '–' : n.toFixed(1) + ' %'
@@ -25,8 +25,11 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   const [arv, setArv] = useState<string>(p.forventet_salgsverdi ? String(p.forventet_salgsverdi) : '')
   const [forventetLeie, setForventetLeie] = useState<string>(p.forventet_leie_mnd ? String(p.forventet_leie_mnd) : '')
   const [enheter, setEnheter] = useState<Enhet[]>(Array.isArray(p.enheter) ? p.enheter : [])
+  const [poster, setPoster] = useState<Oppussingspost[]>(Array.isArray(p.oppussing_poster) ? p.oppussing_poster : [])
+  const [oppussingUtleie, setOppussingUtleie] = useState<string>(p.oppussing_utleie ? String(p.oppussing_utleie) : '')
+  const [verdiUtleie, setVerdiUtleie] = useState<string>(p.verdi_utleie ? String(p.verdi_utleie) : '')
 
-  async function lagrePlan(felt: 'oppussing_varighet_mnd' | 'forventet_salgsverdi' | 'forventet_leie_mnd', v: string) {
+  async function lagrePlan(felt: 'oppussing_varighet_mnd' | 'forventet_salgsverdi' | 'forventet_leie_mnd' | 'oppussing_utleie' | 'verdi_utleie', v: string) {
     const tall = v.trim() === '' ? null : Number(v)
     await supabase.from('prosjekter').update({ [felt]: tall }).eq('id', p.id)
   }
@@ -34,6 +37,11 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
   async function lagreEnheter(nye: Enhet[]) {
     setEnheter(nye)
     await supabase.from('prosjekter').update({ enheter: nye }).eq('id', p.id)
+  }
+
+  async function lagrePoster(nye: Oppussingspost[]) {
+    setPoster(nye)
+    await supabase.from('prosjekter').update({ oppussing_poster: nye }).eq('id', p.id)
   }
 
   async function settVft(v: VftStatus | '') {
@@ -80,7 +88,10 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
     forventetSalgssum: arv.trim() !== '' ? Number(arv) : null,
     forventetLeieMnd: forventetLeie.trim() !== '' ? Number(forventetLeie) : null,
     enheter: enheter.length > 0 ? enheter : null,
-  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno, varighet, arv, forventetLeie, enheter])
+    oppussingPoster: poster.length > 0 ? poster : null,
+    oppussingUtleie: oppussingUtleie.trim() !== '' ? Number(oppussingUtleie) : null,
+    verdiUtleie: verdiUtleie.trim() !== '' ? Number(verdiUtleie) : null,
+  }), [p, data.laan, data.inntekter, data.kostnader, data.verdivurderinger, skatteprofil, effektivReno, varighet, arv, forventetLeie, enheter, poster, oppussingUtleie, verdiUtleie])
 
   async function lagreMinReno() {
     if (minReno.trim() === '') return
@@ -176,6 +187,13 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         </div>
       )}
 
+      {/* Oppussingskostnader (flipp) + lett oppussing for utleie (B4c) */}
+      <OppussingEditor
+        poster={poster} onLagre={lagrePoster}
+        oppussingUtleie={oppussingUtleie} setOppussingUtleie={setOppussingUtleie}
+        verdiUtleie={verdiUtleie} setVerdiUtleie={setVerdiUtleie} lagrePlan={lagrePlan}
+      />
+
       {/* Leiligheter — fler-enhets utvikling (B4b) */}
       <LeilighetEditor enheter={enheter} onLagre={lagreEnheter} />
 
@@ -261,6 +279,70 @@ function BeslutningHero({ beslutning }: { beslutning: Beslutning }) {
       </div>
       <div style={{ fontSize: 12.5, color: 'rgba(253,252,247,0.6)', marginTop: 16, lineHeight: 1.6, maxWidth: 640 }}>
         Beregnet deterministisk fra tallene under.{refi && typeof refi.frigjort_kapital === 'number' && refi.frigjort_kapital > 0 ? ` Refinansiering kan frigjøre ${fmtNok(refi.frigjort_kapital)} og beholde utleie.` : ''} Full begrunnelse i klartekst med «Be om anbefaling» lenger ned.
+      </div>
+    </div>
+  )
+}
+
+// ─── Oppussings-editor (poster + to nivåer: flipp vs lett utleie, B4c) ────────
+function OppussingEditor({ poster, onLagre, oppussingUtleie, setOppussingUtleie, verdiUtleie, setVerdiUtleie, lagrePlan }: {
+  poster: Oppussingspost[]; onLagre: (p: Oppussingspost[]) => void
+  oppussingUtleie: string; setOppussingUtleie: (v: string) => void
+  verdiUtleie: string; setVerdiUtleie: (v: string) => void
+  lagrePlan: (felt: 'oppussing_utleie' | 'verdi_utleie', v: string) => Promise<void>
+}) {
+  const [rader, setRader] = useState<Oppussingspost[]>(poster)
+  const oppdater = (i: number, felt: keyof Oppussingspost, verdi: string | number) =>
+    setRader(r => r.map((x, j) => j === i ? { ...x, [felt]: verdi } : x))
+  const leggTil = () => { const nye = [...rader, { navn: '', kost: 0 }]; setRader(nye); onLagre(nye) }
+  const fjern = (i: number) => { const nye = rader.filter((_, j) => j !== i); setRader(nye); onLagre(nye) }
+  const sum = rader.reduce((s, p) => s + (Number(p.kost) || 0), 0)
+
+  return (
+    <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>🔨 Oppussingskostnader (flipp)</div>
+      <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 14, maxWidth: 560, lineHeight: 1.5 }}>
+        Legg inn alle postene i oppussingen. Summen brukes som renoveringskost i flipp-regnestykket. (Overstyres av «min vurdering» over hvis den er fylt ut.)
+      </div>
+
+      {rader.length > 0 && (
+        <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 28px', gap: 8, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: FARGER.tekstLys, fontWeight: 600, padding: '0 2px' }}>
+            <span>Post</span><span>Kostnad</span><span></span>
+          </div>
+          {rader.map((p, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 28px', gap: 8, alignItems: 'center' }}>
+              <input value={p.navn || ''} placeholder={`Post ${i + 1} (f.eks. Bad)`} onChange={ev => oppdater(i, 'navn', ev.target.value)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              <input type="number" value={p.kost || ''} placeholder="0" onChange={ev => oppdater(i, 'kost', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              <button onClick={() => fjern(i)} title="Fjern" style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 17, padding: 0 }}>×</button>
+            </div>
+          ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 28px', gap: 8, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, fontSize: 13, fontWeight: 700, color: FARGER.mork }}>
+            <span>Sum oppussing</span><span>{fmtNok(sum)}</span><span></span>
+          </div>
+        </div>
+      )}
+
+      <button onClick={leggTil} style={{ background: 'none', border: `1px dashed ${FARGER.gullSvak}`, color: FARGER.gull, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>
+        + Legg til oppussingspost
+      </button>
+
+      {/* Lett oppussing for utleie-veien */}
+      <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${FARGER.kantUltralys}` }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>🏘️ Lett oppussing for utleie <span style={{ fontWeight: 400, color: FARGER.tekstLys }}>(valgfritt)</span></div>
+        <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 12, maxWidth: 560, lineHeight: 1.5 }}>
+          Skal boligen pusses lettere opp for å øke verdi, refinansiere og leie ut — sett egen kostnad og verdi her. Tomt = samme som flipp-nivået over.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Oppussing (lett) — kostnad</label>
+            <input type="number" value={oppussingUtleie} onChange={e => setOppussingUtleie(e.target.value)} onBlur={() => lagrePlan('oppussing_utleie', oppussingUtleie)} placeholder="som flipp" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Verdi etter lett oppussing</label>
+            <input type="number" value={verdiUtleie} onChange={e => setVerdiUtleie(e.target.value)} onBlur={() => lagrePlan('verdi_utleie', verdiUtleie)} placeholder="som ARV" style={inputStyle} />
+          </div>
+        </div>
       </div>
     </div>
   )

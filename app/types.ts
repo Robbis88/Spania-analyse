@@ -131,6 +131,9 @@ export type Tilbud = {
 // Enhet i en fler-enhets utleiebolig (B4b) — seksjonering til flere leiligheter.
 export type Enhet = { navn?: string | null; leie_mnd: number; drift_mnd: number }
 
+// Oppussingspost (B4c) — én kostnadslinje i flipp-oppussingen.
+export type Oppussingspost = { navn?: string | null; kost: number }
+
 export type KontantbevegelseType =
   | 'innskudd' | 'laaneopptak' | 'kjop' | 'omkostninger' | 'oppussing'
   | 'driftskostnad' | 'renter' | 'avdrag' | 'leieinntekt' | 'uttak' | 'annet'
@@ -222,6 +225,9 @@ export type Prosjekt = {
   oppussing_varighet_mnd?: number | null   // hvor lenge oppussingen tar (mnd)
   forventet_leie_mnd?: number | null        // planleie før faktiske inntekter finnes
   enheter?: Enhet[] | null                  // fler-enhets utleie (B4b): seksjonering til N leiligheter
+  oppussing_poster?: Oppussingspost[] | null // flipp-oppussing linje for linje (B4c)
+  oppussing_utleie?: number | null           // lett oppussing for utleie-veien (B4c)
+  verdi_utleie?: number | null               // verdi etter lett oppussing, for refi (B4c)
   strategi?: 'flipp' | 'langtid' | 'korttid' | 'uavklart'
   vft_status?: 'har' | 'sokt' | 'mangler' | null
   eierform?: string | null

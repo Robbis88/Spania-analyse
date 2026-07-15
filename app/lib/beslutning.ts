@@ -13,7 +13,7 @@
 
 import type {
   Prosjekt, EiendomLaan, EiendomInntekt, EiendomKostnad, EiendomVerdivurdering,
-  AirbnbData, Skatteprofil, Enhet,
+  AirbnbData, Skatteprofil, Enhet, Oppussingspost,
 } from '../types'
 import {
   sisteVerdi, totalRestgjeld, gjeldendeLeieMnd, sumKostnaderPerMnd,
@@ -65,6 +65,9 @@ export type BeslutningInput = {
   forventetSalgssum?: number | null      // ARV — forventet salgssum etter oppussing
   forventetLeieMnd?: number | null       // planleie før faktiske inntekter finnes
   enheter?: Enhet[] | null               // fler-enhets utleie (B4b) — overstyrer prosjekt.enheter
+  oppussingPoster?: Oppussingspost[] | null // flipp-oppussing linje for linje (B4c)
+  oppussingUtleie?: number | null        // lett oppussing for utleie-veien (B4c) — tomt = som flipp
+  verdiUtleie?: number | null            // verdi etter lett oppussing, for refi (B4c) — tomt = ARV
 }
 
 export type Beslutning = {
@@ -107,9 +110,17 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const holdekostMnd = laanMnd + kostnaderMnd
   const holdekostnadOppussing = holdekostMnd * varighet
 
-  // Salg / bundet EK (delt formel med B3)
-  const oppussing = (renoveringskost !== null && renoveringskost !== undefined) ? renoveringskost : (prosjekt.oppussing_faktisk || 0)
-  const anskaffelse = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0) + oppussing
+  // Oppussing — to nivåer (B4c). Flipp: poster-sum > renoveringskost > oppussing_faktisk.
+  // Utleie: eget (lettere) tall hvis satt, ellers samme som flipp.
+  const poster = input.oppussingPoster ?? prosjekt.oppussing_poster ?? []
+  const posterSum = poster.reduce((s, p) => s + (p.kost || 0), 0)
+  const flipReno = posterSum > 0
+    ? posterSum
+    : ((renoveringskost !== null && renoveringskost !== undefined) ? renoveringskost : (prosjekt.oppussing_faktisk || 0))
+  const utleieReno = (input.oppussingUtleie ?? prosjekt.oppussing_utleie) ?? flipReno
+  const kjopBasis = (prosjekt.kjøpesum || 0) + (prosjekt.kjøpskostnader || 0)
+  const anskaffelse = kjopBasis + flipReno            // flipp-nivå (også «selg nå»/bundet EK)
+  const anskaffelseUtleie = kjopBasis + utleieReno    // lett-oppussing-nivå (utleie-veien)
   const { salgskostnad, gevinstskatt, bundet_ek } = beregnBundetEk(verdi, restgjeld, anskaffelse, gevinst_pst)
 
   const yieldPaaEk = (aarligNetto: number) => bundet_ek > 0 ? (aarligNetto / bundet_ek) * 100 : 0
@@ -236,7 +247,8 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const enhetLeie = enheter.reduce((s, e) => s + (e.leie_mnd || 0), 0)
   const enhetDrift = enheter.reduce((s, e) => s + (e.drift_mnd || 0), 0)
   const harUtvikling = enheter.length > 0 || arv > 0
-  const utvikletVerdi = arv > 0 ? arv : verdi
+  // Utleie-veien bruker verdi etter LETT oppussing hvis satt, ellers ARV / dagens verdi.
+  const utvikletVerdi = (input.verdiUtleie ?? prosjekt.verdi_utleie) || (arv > 0 ? arv : verdi)
   const utLeie = enhetLeie > 0 ? enhetLeie : effektivLeie
   const utDrift = enheter.length > 0 ? enhetDrift : kostnaderMnd
   const utAarNettoForSkatt = (utLeie - utDrift) * 12
@@ -247,7 +259,7 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const utvikleScenarier: ScenarioResultat[] = []
   if (harUtvikling && utLeie > 0 && utvikletVerdi > 0) {
     // a) Behold dagens lån
-    const beholdBundet = beregnBundetEk(utvikletVerdi, restgjeld, anskaffelse, gevinst_pst).bundet_ek
+    const beholdBundet = beregnBundetEk(utvikletVerdi, restgjeld, anskaffelseUtleie, gevinst_pst).bundet_ek
     const beholdCashflow = utLeie - utDrift - laanMnd
     utvikleScenarier.push({
       type: 'utvikle_behold', tittel: `Utvikle + lei ut (behold lån)`, tilgjengelig: true,
@@ -269,7 +281,7 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
     const maksLaanU = utvikletVerdi * (MAKS_LTV_PST / 100)
     const frigjortU = Math.max(0, maksLaanU - restgjeld)
     const nyttLaanMndU = annuitetMnd(maksLaanU, REFI_RENTE_PST, REFI_NEDBETALING_AAR)
-    const refiBundet = beregnBundetEk(utvikletVerdi, maksLaanU, anskaffelse, gevinst_pst).bundet_ek
+    const refiBundet = beregnBundetEk(utvikletVerdi, maksLaanU, anskaffelseUtleie, gevinst_pst).bundet_ek
     const refiCashflowU = utLeie - utDrift - nyttLaanMndU
     utvikleScenarier.push({
       type: 'utvikle_refi', tittel: `Utvikle + refinansier + lei`, tilgjengelig: true,
