@@ -242,9 +242,14 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   // 5) Utvikle og lei ut (B4b) — seksjonér til N enheter, ny verdi (ARV), lei ut.
   //    To varianter: behold dagens lån, eller refinansier på utviklet verdi.
   //    Gjenbruker beregnBundetEk + annuitetMnd; ingen nye formler.
-  // Kun enheter med faktisk leie teller — tomme rader (leie 0) ignoreres.
-  const enheter = (input.enheter ?? prosjekt.enheter ?? []).filter(e => (e.leie_mnd || 0) > 0)
-  const enhetLeie = enheter.reduce((s, e) => s + (e.leie_mnd || 0), 0)
+  // Enheter med faktisk inntekt (langtid eller Airbnb) — tomme rader ignoreres.
+  const enheter = (input.enheter ?? prosjekt.enheter ?? []).filter(e => (e.leie_mnd || 0) > 0 || (e.korttid_inntekt_mnd || 0) > 0)
+  // Hybrid (B4d): blandet snittleie/mnd = (langtid × mnd langtid + Airbnb × mnd sesong) / 12.
+  const snittLeieEn = (e: Enhet) => {
+    const k = Math.min(12, Math.max(0, e.korttid_mnd || 0))
+    return ((e.leie_mnd || 0) * (12 - k) + (e.korttid_inntekt_mnd || 0) * k) / 12
+  }
+  const enhetLeie = enheter.reduce((s, e) => s + snittLeieEn(e), 0)
   const enhetDrift = enheter.reduce((s, e) => s + (e.drift_mnd || 0), 0)
   const harUtvikling = enheter.length > 0 || arv > 0
   // Utleie-veien bruker verdi etter LETT oppussing hvis satt, ellers ARV / dagens verdi.

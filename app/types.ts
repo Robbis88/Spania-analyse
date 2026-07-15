@@ -129,7 +129,14 @@ export type Tilbud = {
 }
 
 // Enhet i en fler-enhets utleiebolig (B4b) — seksjonering til flere leiligheter.
-export type Enhet = { navn?: string | null; leie_mnd: number; drift_mnd: number }
+// Hybrid (B4d): kan kombinere langtidsleie + Airbnb i sesong (student vinter, Airbnb sommer).
+export type Enhet = {
+  navn?: string | null
+  leie_mnd: number
+  drift_mnd: number
+  korttid_mnd?: number | null        // antall mnd/år på Airbnb (0 = kun langtid)
+  korttid_inntekt_mnd?: number | null // Airbnb-inntekt/mnd i sesong (etter renhold/kommisjon)
+}
 
 // Oppussingspost (B4c) — én kostnadslinje i flipp-oppussingen.
 export type Oppussingspost = { navn?: string | null; kost: number }

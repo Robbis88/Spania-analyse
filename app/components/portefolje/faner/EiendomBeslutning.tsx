@@ -351,35 +351,52 @@ function OppussingEditor({ poster, onLagre, oppussingUtleie, setOppussingUtleie,
 // ─── Leilighet-editor (fler-enhets utvikling, B4b) ───────────────────────────
 function LeilighetEditor({ enheter, onLagre }: { enheter: Enhet[]; onLagre: (e: Enhet[]) => void }) {
   const [rader, setRader] = useState<Enhet[]>(enheter)
+  const [visAirbnb, setVisAirbnb] = useState<boolean>(enheter.some(e => (e.korttid_mnd || 0) > 0 || (e.korttid_inntekt_mnd || 0) > 0))
   const oppdater = (i: number, felt: keyof Enhet, verdi: string | number) =>
     setRader(r => r.map((x, j) => j === i ? { ...x, [felt]: verdi } : x))
   const leggTil = () => { const nye = [...rader, { navn: '', leie_mnd: 0, drift_mnd: 0 }]; setRader(nye); onLagre(nye) }
   const fjern = (i: number) => { const nye = rader.filter((_, j) => j !== i); setRader(nye); onLagre(nye) }
-  const sumLeie = rader.reduce((s, e) => s + (Number(e.leie_mnd) || 0), 0)
+  // Blandet snittleie/mnd: langtid × mnd langtid + Airbnb × mnd sesong, delt på 12.
+  const snittEn = (e: Enhet) => { const k = Math.min(12, Math.max(0, Number(e.korttid_mnd) || 0)); return ((Number(e.leie_mnd) || 0) * (12 - k) + (Number(e.korttid_inntekt_mnd) || 0) * k) / 12 }
+  const sumSnitt = rader.reduce((s, e) => s + snittEn(e), 0)
   const sumDrift = rader.reduce((s, e) => s + (Number(e.drift_mnd) || 0), 0)
+  const kol = visAirbnb ? '1.3fr 0.9fr 0.9fr 0.7fr 0.9fr 28px' : '1.4fr 1fr 1fr 28px'
 
   return (
     <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork, marginBottom: 4 }}>🏘️ Leiligheter — utvikle og lei ut</div>
-      <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 14, maxWidth: 560, lineHeight: 1.5 }}>
-        Seksjonér boligen til flere enheter, sett leie og drift per enhet. Da regner motoren «utvikle + lei ut» (behold lån) og «refinansier + lei» mot utviklet verdi (ARV over).
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: FARGER.mork }}>🏘️ Leiligheter — utvikle og lei ut</div>
+        <button onClick={() => setVisAirbnb(v => !v)} style={{ background: 'none', border: `1px dashed ${FARGER.gullSvak}`, color: FARGER.gull, padding: '5px 12px', fontSize: 11.5, fontWeight: 600, borderRadius: RADIUS.pill, cursor: 'pointer' }}>
+          {visAirbnb ? 'Skjul Airbnb-sesong' : '+ Airbnb i sesong (hybrid)'}
+        </button>
+      </div>
+      <div style={{ fontSize: 11.5, color: FARGER.tekstLys, marginBottom: 14, maxWidth: 600, lineHeight: 1.5 }}>
+        Sett leie og drift per enhet. {visAirbnb ? 'Airbnb-kolonnene lar deg leie ut korttid deler av året (f.eks. student på kontrakt om vinteren, Airbnb om sommeren) — motoren regner blandet snittinntekt.' : 'Motoren regner «utvikle + lei ut» og «refinansier + lei» mot verdi etter oppussing.'}
       </div>
 
       {rader.length > 0 && (
         <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: FARGER.tekstLys, fontWeight: 600, padding: '0 2px' }}>
-            <span>Enhet</span><span>Leie/mnd</span><span>Drift/mnd</span><span></span>
+          <div style={{ display: 'grid', gridTemplateColumns: kol, gap: 8, fontSize: 10.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: FARGER.tekstLys, fontWeight: 600, padding: '0 2px' }}>
+            <span>Enhet</span><span>Leie/mnd</span><span>Drift/mnd</span>
+            {visAirbnb && <><span>Airbnb mnd/år</span><span>Airbnb/mnd</span></>}
+            <span></span>
           </div>
           {rader.map((e, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, alignItems: 'center' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: kol, gap: 8, alignItems: 'center' }}>
               <input value={e.navn || ''} placeholder={`Enhet ${i + 1}`} onChange={ev => oppdater(i, 'navn', ev.target.value)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
               <input type="number" value={e.leie_mnd || ''} placeholder="0" onChange={ev => oppdater(i, 'leie_mnd', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
               <input type="number" value={e.drift_mnd || ''} placeholder="0" onChange={ev => oppdater(i, 'drift_mnd', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              {visAirbnb && <>
+                <input type="number" value={e.korttid_mnd || ''} placeholder="0" title="Antall mnd/år på Airbnb" onChange={ev => oppdater(i, 'korttid_mnd', Math.min(12, Math.max(0, Number(ev.target.value) || 0)))} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+                <input type="number" value={e.korttid_inntekt_mnd || ''} placeholder="0" title="Airbnb-inntekt/mnd i sesong (etter renhold/kommisjon)" onChange={ev => oppdater(i, 'korttid_inntekt_mnd', Number(ev.target.value) || 0)} onBlur={() => onLagre(rader)} style={{ ...inputStyle, padding: '8px 10px' }} />
+              </>}
               <button onClick={() => fjern(i)} title="Fjern" style={{ background: 'none', border: 'none', color: FARGER.tekstLys, cursor: 'pointer', fontSize: 17, padding: 0 }}>×</button>
             </div>
           ))}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 28px', gap: 8, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, fontSize: 13, fontWeight: 700, color: FARGER.mork }}>
-            <span>{rader.length} enheter</span><span>{fmtNok(sumLeie)}</span><span>{fmtNok(sumDrift)}</span><span></span>
+          <div style={{ display: 'grid', gridTemplateColumns: kol, gap: 8, borderTop: `1px solid ${FARGER.kantLys}`, paddingTop: 8, fontSize: 13, fontWeight: 700, color: FARGER.mork }}>
+            <span>{rader.length} enheter</span><span>{visAirbnb ? `snitt ${fmtNok(sumSnitt)}` : fmtNok(sumSnitt)}</span><span>{fmtNok(sumDrift)}</span>
+            {visAirbnb && <><span></span><span></span></>}
+            <span></span>
           </div>
         </div>
       )}
