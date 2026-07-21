@@ -325,7 +325,9 @@ function EgenkapitalBro({ innskutt, verdiendring, omkost, oppussing, drift, rent
     { lbl: 'Lånerenter hittil', v: -renter },
   ]
   const annet = total - linjer.reduce((a, l) => a + l.v, 0)
-  if (Math.abs(annet) > 1) linjer.push({ lbl: 'Annet / avrunding', v: annet })
+  // Stor «Annet» tyder på utdatert restgjeld eller uklassifiserte føringer — flagg det.
+  const annetStor = Math.abs(annet) > Math.max(25000, Math.abs(total) * 0.02)
+  if (Math.abs(annet) > 1) linjer.push({ lbl: annetStor ? '⚠️ Annet — sjekk restgjeld/føringer' : 'Annet / avrunding', v: annet })
   const vis = linjer.filter(l => l.grunn || Math.abs(l.v) >= 1)
   // Ingenting å vise før porteføljen har tall
   if (total === 0 && innskutt === 0) return null
@@ -351,6 +353,11 @@ function EgenkapitalBro({ innskutt, verdiendring, omkost, oppussing, drift, rent
               <span style={{ fontWeight: 700, color: FARGER.mork, whiteSpace: 'nowrap' }}>{Math.round(total).toLocaleString('nb-NO')} kr</span>
             </div>
           </div>
+          {annetStor && (
+            <p style={{ fontSize: 11.5, color: FARGER.feil, margin: '12px 0 0', lineHeight: 1.5, fontWeight: 600 }}>
+              ⚠️ «Annet» er stor — sjekk at restgjeld er oppdatert mot betalte avdrag, og at ingen føringer mangler klassifisering.
+            </p>
+          )}
           <p style={{ fontSize: 11, color: FARGER.tekstLys, margin: '12px 0 0', lineHeight: 1.5 }}>
             Kjøp og lån endrer ikke egenkapitalen (bytte kontanter ↔ eiendom/gjeld). Bare ekte utgifter — omkostninger, renter, drift — tærer den. Verdiøkning og leie løfter den.
           </p>

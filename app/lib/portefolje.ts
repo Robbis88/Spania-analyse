@@ -147,6 +147,18 @@ export function renterHittil(laan: EiendomLaan[], naaMs: number): number {
   return laan.reduce((s, l) => s + renterMndEn(l) * maanederSiden(l.startdato, naaMs), 0)
 }
 
+// Ser lagret restgjeld ut til å ikke være oppdatert? (B12-avhengighet: avdrag
+// forutsetter at restgjeld holdes i sync, ellers blir egenkapital feil.)
+// Heuristikk: for et avdragslån bør restgjeld ha falt med avdrag × måneder;
+// er den vesentlig høyere (>5 % av hovedstol) ser den utdatert ut.
+export function restgjeldVirkerUtdatert(l: EiendomLaan, naaMs: number): boolean {
+  if (l.avdragsfritt || !l.startdato || !l.hovedstol || l.restgjeld == null) return false
+  const forventetAvdrag = avdragMndEn(l) * maanederSiden(l.startdato, naaMs)
+  if (forventetAvdrag <= 0) return false
+  const forventetRestgjeld = l.hovedstol - forventetAvdrag
+  return l.restgjeld > forventetRestgjeld + l.hovedstol * 0.05
+}
+
 // Siste verdivurdering (etter dato). Faller tilbake til 0.
 export function sisteVerdi(vurderinger: EiendomVerdivurdering[]): number {
   if (vurderinger.length === 0) return 0

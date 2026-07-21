@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FARGER, RADIUS, SHADOW, inputStyle, labelStyle } from '../../../lib/styles'
 import { fmtNok, SumKort } from './faneUi'
 import { beregnBeslutning, type ScenarioResultat, type Beslutning } from '../../../lib/beslutning'
+import { restgjeldVirkerUtdatert } from '../../../lib/portefolje'
 import { defaultSkatteprofil, medDefaults } from '../../../lib/skatteprofil'
 import { supabase } from '../../../lib/supabase'
 import { VFT_STATUS, VFT_ETIKETT, type VftStatus } from '../../../lib/strategi'
@@ -134,6 +135,12 @@ export function EiendomBeslutning({ data }: { data: EiendomData }) {
         <SumKort lbl="Restgjeld" verdi={fmtNok(beslutning.restgjeld)} />
         <SumKort lbl="Bundet egenkapital" verdi={fmtNok(beslutning.bundet_ek)} farge={FARGER.gull} />
       </div>
+
+      {data.laan.some(l => restgjeldVirkerUtdatert(l, Date.now())) && (
+        <div style={{ background: FARGER.advarselBg, border: `1px solid ${FARGER.advarsel}`, borderRadius: RADIUS.md, padding: '10px 14px', marginBottom: 20, fontSize: 12.5, color: '#7a5a12', lineHeight: 1.5 }}>
+          ⚠️ Restgjelden ser ikke oppdatert ut mot betalte avdrag. Oppdater restgjeld på Lån-fanen — ellers blir egenkapital og bundet EK for høye.
+        </div>
+      )}
 
       {/* Renoveringskost — dine tall vinner (B5) */}
       <div style={{ background: FARGER.hvit, border: `1px solid ${FARGER.kantUltralys}`, borderRadius: RADIUS.lg, padding: 16, marginBottom: 22, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>

@@ -67,6 +67,9 @@ export async function GET(req: NextRequest) {
         admin.from('eiendom_verdivurderinger').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_inntekter').select('*').in('prosjekt_id', ider),
         admin.from('eiendom_kostnader').select('*').in('prosjekt_id', ider),
+        // Bevisst kun `inntekt`: driftskostnader kommer fra opplastede fakturaer (én kilde),
+        // så cashflow.kostnad telles IKKE i kontantsaldoen — last opp faktura for at en
+        // kostnad skal redusere saldo/kjøpekraft. (Revisjonsfunn #1, avklart med Robert.)
         admin.from('eiendom_cashflow').select('prosjekt_id, inntekt').in('prosjekt_id', ider),
         admin.from('kvitteringer').select('id, prosjekt_id, ocr_status, belop_inkl_mva, dato, leverandor, oppussing_post_id').in('prosjekt_id', ider),
       ])
@@ -142,7 +145,7 @@ export async function GET(req: NextRequest) {
       const ek_oppussing = -sumType('oppussing') + fakturaType('oppussing')  // ledger + faktura
       const ek_drift = -sumType('driftskostnad') + fakturaType('driftskostnad')
       const ek_renter = renterHittil(selskapLaan, naa)
-      const ek_leie = cashflowInntekt
+      const ek_leie = cashflowInntekt + sumType('leieinntekt')   // realisert + manuell leie
 
       return {
         id: s.id, navn: s.navn, land: s.land, valuta: s.valuta,
