@@ -8,7 +8,7 @@ import { FARGER, RADIUS, SHADOW, MOTION } from '../lib/styles'
 import { visToast } from '../lib/toast'
 import { byggNorskFlippePdf } from '../lib/pdfNorsk'
 import { ProsjektBilder } from './ProsjektBilder'
-import { regnBankScore, regnLivsopphold, regnTotalScore } from '../lib/norskBankScore'
+import { regnBankScore, regnTotalScore } from '../lib/norskBankScore'
 import { Kvitteringer } from './Kvitteringer'
 import { Dokumenter } from './Dokumenter'
 import { Salgspakke } from './Salgspakke'
@@ -20,7 +20,7 @@ import { OffmarketDetalj } from './OffmarketDetalj'
 import { LagredeProsjekter } from './norsk/LagredeProsjekter'
 import { SalgEgenBolig } from './norsk/SalgEgenBolig'
 import { HusholdningPanel } from './norsk/HusholdningPanel'
-import type { EksisterendeBolig, Paakostning, Sammenligning, Modus, Husholdning } from './norsk/types'
+import type { EksisterendeBolig, Modus, Husholdning } from './norsk/types'
 
 // Cache analyser per Finn-URL/tekst i localStorage så samme bolig
 // alltid gir samme analyse (Claude er ikke 100% deterministisk selv på temp 0).

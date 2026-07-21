@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     // Operativ kontant: realisert leieinntekt (cashflow), lånebetjening, og fakturakostnader.
     const naa = Date.now()
     const [selskaperRes, prosjekterRes, cashflowRes, laanRes, kvitteringRes, bilagRes] = await Promise.all([
-      admin.from('selskaper').select('id, valuta'),
+      admin.from('selskaper').select('id, valuta, fri_likviditet'),
       admin.from('prosjekter').select('id, selskap_id').eq('er_portefolje', true),
       admin.from('eiendom_cashflow').select('prosjekt_id, inntekt'),
       admin.from('eiendom_laan').select('*'),
@@ -52,7 +52,10 @@ export async function GET(req: NextRequest) {
       if (p.selskap_id) prosjektTilSelskap.set(p.id, p.selskap_id)
     }
     const selskapValuta = new Map<string, 'NOK' | 'EUR'>()
-    for (const s of (selskaperRes.data || []) as Array<{ id: string; valuta: 'NOK' | 'EUR' }>) selskapValuta.set(s.id, s.valuta)
+    const friPerSelskap = new Map<string, number>()
+    for (const s of (selskaperRes.data || []) as Array<{ id: string; valuta: 'NOK' | 'EUR'; fri_likviditet: number | null }>) {
+      selskapValuta.set(s.id, s.valuta); friPerSelskap.set(s.id, s.fri_likviditet || 0)
+    }
 
     // Leieinntekt fra realisert cashflow (kostnader kommer nå fra opplastede fakturaer).
     const inntektPerSelskap = new Map<string, number>()
@@ -79,7 +82,10 @@ export async function GET(req: NextRequest) {
     for (const b of bevegelser) ledgerPerSelskap.set(b.selskap_id, (ledgerPerSelskap.get(b.selskap_id) || 0) + (b.belop || 0))
     const saldo: Record<string, number> = {}
     const alle = new Set<string>([...ledgerPerSelskap.keys(), ...inntektPerSelskap.keys(), ...Object.keys(laanebetjening), ...faktura.perSelskap.keys()])
-    for (const sid of alle) saldo[sid] = (ledgerPerSelskap.get(sid) || 0) + (inntektPerSelskap.get(sid) || 0) - (laanebetjening[sid] || 0) + (faktura.perSelskap.get(sid) || 0)
+    // Samme gate som /api/kapital: useedet selskap (ingen hovedbok) faller tilbake på fri_likviditet.
+    for (const sid of alle) saldo[sid] = ledgerPerSelskap.has(sid)
+      ? (ledgerPerSelskap.get(sid) || 0) + (inntektPerSelskap.get(sid) || 0) - (laanebetjening[sid] || 0) + (faktura.perSelskap.get(sid) || 0)
+      : (friPerSelskap.get(sid) || 0)
 
     // Slå sammen ekte bevegelser + synteti­ske fakturalinjer, nyeste først.
     const alleBevegelser = [...bevegelser, ...faktura.rader].sort((a, b) => (b.dato || '').localeCompare(a.dato || ''))
@@ -100,6 +106,9 @@ export async function POST(req: NextRequest) {
     const type = b.type as KontantbevegelseType
     if (!b.selskap_id || typeof b.selskap_id !== 'string') return NextResponse.json({ feil: 'selskap_id mangler' }, { status: 400 })
     if (!GYLDIGE.includes(type)) return NextResponse.json({ feil: 'ugyldig type' }, { status: 400 })
+    // Renter og avdrag beregnes automatisk fra lånene (laanBetjeningHittil) — manuell
+    // føring ville dobbelttelt i saldoen. Blokkeres.
+    if (type === 'renter' || type === 'avdrag') return NextResponse.json({ feil: 'Renter og avdrag beregnes automatisk fra lånene — ikke før dem manuelt' }, { status: 400 })
     if (!b.dato) return NextResponse.json({ feil: 'dato mangler' }, { status: 400 })
     const raatall = Number(b.belop)
     if (!Number.isFinite(raatall) || raatall === 0) return NextResponse.json({ feil: 'beløp mangler' }, { status: 400 })

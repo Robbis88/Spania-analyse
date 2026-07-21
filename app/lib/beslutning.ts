@@ -222,7 +222,7 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const maksLaan = verdi * (MAKS_LTV_PST / 100)
   const frigjortRefi = Math.max(0, maksLaan - restgjeld)
   const nyttLaanMnd = annuitetMnd(maksLaan, REFI_RENTE_PST, REFI_NEDBETALING_AAR)
-  const refiCashflowMnd = leieMnd - kostnaderMnd - nyttLaanMnd
+  const refiCashflowMnd = effektivLeie - kostnaderMnd - nyttLaanMnd
   const refinansier: ScenarioResultat = {
     type: 'refinansier', tittel: 'Behold + refinansier', tilgjengelig: verdi > 0,
     utilgjengeligGrunn: verdi > 0 ? undefined : 'Mangler verdivurdering',
@@ -246,7 +246,9 @@ export function beregnBeslutning(input: BeslutningInput): Beslutning {
   const enheter = (input.enheter ?? prosjekt.enheter ?? []).filter(e => (e.leie_mnd || 0) > 0 || (e.korttid_inntekt_mnd || 0) > 0)
   // Hybrid (B4d): blandet snittleie/mnd = (langtid × mnd langtid + Airbnb × mnd sesong) / 12.
   const snittLeieEn = (e: Enhet) => {
-    const k = Math.min(12, Math.max(0, e.korttid_mnd || 0))
+    let k = Math.min(12, Math.max(0, e.korttid_mnd || 0))
+    // Ren Airbnb: inntekt satt, men ingen langtidsleie og ingen mnd → anta hele året.
+    if (k === 0 && (e.korttid_inntekt_mnd || 0) > 0 && (e.leie_mnd || 0) === 0) k = 12
     return ((e.leie_mnd || 0) * (12 - k) + (e.korttid_inntekt_mnd || 0) * k) / 12
   }
   const enhetLeie = enheter.reduce((s, e) => s + snittLeieEn(e), 0)

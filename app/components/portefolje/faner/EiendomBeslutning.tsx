@@ -357,7 +357,7 @@ function LeilighetEditor({ enheter, onLagre }: { enheter: Enhet[]; onLagre: (e: 
   const leggTil = () => { const nye = [...rader, { navn: '', leie_mnd: 0, drift_mnd: 0 }]; setRader(nye); onLagre(nye) }
   const fjern = (i: number) => { const nye = rader.filter((_, j) => j !== i); setRader(nye); onLagre(nye) }
   // Blandet snittleie/mnd: langtid × mnd langtid + Airbnb × mnd sesong, delt på 12.
-  const snittEn = (e: Enhet) => { const k = Math.min(12, Math.max(0, Number(e.korttid_mnd) || 0)); return ((Number(e.leie_mnd) || 0) * (12 - k) + (Number(e.korttid_inntekt_mnd) || 0) * k) / 12 }
+  const snittEn = (e: Enhet) => { let k = Math.min(12, Math.max(0, Number(e.korttid_mnd) || 0)); if (k === 0 && (Number(e.korttid_inntekt_mnd) || 0) > 0 && (Number(e.leie_mnd) || 0) === 0) k = 12; return ((Number(e.leie_mnd) || 0) * (12 - k) + (Number(e.korttid_inntekt_mnd) || 0) * k) / 12 }
   const sumSnitt = rader.reduce((s, e) => s + snittEn(e), 0)
   const sumDrift = rader.reduce((s, e) => s + (Number(e.drift_mnd) || 0), 0)
   const kol = visAirbnb ? '1.3fr 0.9fr 0.9fr 0.7fr 0.9fr 28px' : '1.4fr 1fr 1fr 28px'

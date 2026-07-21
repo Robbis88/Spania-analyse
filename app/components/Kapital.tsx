@@ -23,8 +23,9 @@ const BEVEGELSE_ETIKETT: Record<KontantbevegelseType, string> = {
   oppussing: 'Oppussing', driftskostnad: 'Driftskostnad', renter: 'Renter', avdrag: 'Avdrag',
   leieinntekt: 'Leieinntekt', uttak: 'Uttak', annet: 'Annet',
 }
-// Typer som gir mening å legge inn manuelt (auto-typene kommer fra seed/cashflow).
-const MANUELLE_TYPER: KontantbevegelseType[] = ['innskudd', 'uttak', 'driftskostnad', 'oppussing', 'renter', 'avdrag', 'annet']
+// Typer som gir mening å legge inn manuelt. Renter/avdrag er utelatt — de
+// beregnes automatisk fra lånene, så manuell føring ville dobbelttelt.
+const MANUELLE_TYPER: KontantbevegelseType[] = ['innskudd', 'uttak', 'driftskostnad', 'oppussing', 'annet']
 
 export function Kapital() {
   const [selskaper, setSelskaper] = useState<SelskapKapital[]>([])
